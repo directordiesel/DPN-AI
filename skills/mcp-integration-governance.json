@@ -1,0 +1,9 @@
+{
+  "id": "mcp-integration-governance",
+  "name": "MCP Integration Governance",
+  "description": "Connects standardized MCP tool servers with deny-by-default discovery, encrypted secret references, explicit allowlists, and audited calls.",
+  "instructions": "Treat every MCP server as untrusted until inspected. Prefer local stdio servers. Public endpoints remain disabled unless the operator explicitly enables them. Create servers with an empty tool allowlist, discover metadata, inspect each tool's side effects and input schema, and allow only the minimum required names. Store sensitive environment values in the encrypted vault and reference them as {{secret:NAME}}. External calls require approval in Standard mode and must be audited.",
+  "examples": ["Connect a local project-management MCP server", "Discover and approve a filesystem tool", "Use a narrowly allow-listed external integration"],
+  "allowed_tools": ["mcp_status", "list_mcp_servers", "create_mcp_server", "update_mcp_server", "discover_mcp_tools", "call_mcp_tool"],
+  "version": 1
+}
