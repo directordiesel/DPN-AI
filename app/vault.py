@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -21,11 +22,20 @@ class SecretVault:
         self.key_path.parent.mkdir(parents=True, exist_ok=True)
         self.data_path.parent.mkdir(parents=True, exist_ok=True)
         if not self.key_path.exists():
-            self.key_path.write_bytes(Fernet.generate_key())
+            key = Fernet.generate_key()
             try:
-                os.chmod(self.key_path, 0o600)
-            except OSError:
+                fd = os.open(self.key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
                 pass
+            else:
+                with os.fdopen(fd, "wb") as handle:
+                    handle.write(key)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+        try:
+            os.chmod(self.key_path, 0o600)
+        except OSError:
+            pass
         self.fernet = Fernet(self.key_path.read_bytes().strip())
 
     def _load(self) -> dict[str, str]:
@@ -33,16 +43,36 @@ class SecretVault:
             return {}
         try:
             data = json.loads(self.data_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise ValueError("Secret vault data is unreadable or corrupted; refusing to continue") from exc
+        if not isinstance(data, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in data.items()):
+            raise ValueError("Secret vault data has an invalid structure; refusing to continue")
+        return data
 
     def _save(self, data: dict[str, str]) -> None:
-        self.data_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        payload = json.dumps(data, indent=2)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{self.data_path.name}.", suffix=".tmp", dir=self.data_path.parent)
+        temp_path = Path(temp_name)
         try:
-            os.chmod(self.data_path, 0o600)
-        except OSError:
-            pass
+            try:
+                os.chmod(temp_path, 0o600)
+            except OSError:
+                pass
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temp_path, self.data_path)
+            try:
+                os.chmod(self.data_path, 0o600)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     def set(self, name: str, value: str) -> dict[str, Any]:
         name = name.strip()
