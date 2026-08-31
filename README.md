@@ -1,9 +1,21 @@
-# DPN AI
+<h1 align="center">DPN AI</h1>
 
-**Current release:** v5.0.7  
-**Release name:** Adaptive Interface and Sentinel HD  
-**Publisher:** DPN Technology
+<p align="center"><strong>Developed by DPN Technology</strong></p>
 
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/Version-v5.0.7-7c3aed?style=for-the-badge">
+  <img alt="Status" src="https://img.shields.io/badge/Status-Active%20Development-16a34a?style=for-the-badge">
+  <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
+  <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
+</p>
+
+> **Release:** v5.0.7 · Adaptive Interface and Sentinel HD  
+> **Technology:** Python · Local AI · Missions · Tools · Voice · MCP
+
+### Quick navigation
+[Overview](#overview) · [Architecture](#system-architecture) · [Installation](#installation--startup) · [Security](#security) · [Roadmap](ROADMAP.md) · [Documentation](#documentation)
+
+## Overview
 DPN AI is a local-first AI operations platform built around chat, tool execution, projects, memory, knowledge indexing, document generation, voice, automation, mission planning, multi-agent review, plugins, MCP integrations, model gateways, and controlled computer/web capabilities.
 
 The system is designed to act as more than a chat interface. DPN AI can build structured plans, execute approved tools, persist state, create artifacts, run multi-step missions, schedule jobs, connect to local/remote services, and retain evidence/audit history while enforcing workspace and security boundaries.
@@ -436,7 +448,26 @@ Recovery concepts include:
 
 DPN AI does not claim universal access to every program, service, device, credential, or private dataset. Missing capability should be added explicitly through tools, adapters, plugins, connectors, or MCP.
 
-## Installation
+## System Architecture
+
+```mermaid
+flowchart LR
+  USER[Chat / Voice / API] --> KERNEL[Cognitive Kernel]
+  KERNEL --> CONTRACT[Goal Contract]
+  CONTRACT --> ROUTER[Specialist + Model Routing]
+  ROUTER --> ORCH[Orchestrator]
+  ORCH --> TOOLS[Built-in Tools]
+  ORCH --> MISSIONS[Persistent Missions]
+  ORCH --> WORKFLOWS[Workflows + Automations + Jobs]
+  ORCH --> EXT[Plugins / HTTP / MCP]
+  ORCH --> KNOW[Memory + Indexed Knowledge + Graph]
+  TOOLS --> VAULT[Encrypted Vault]
+  ORCH --> AUDIT[Evidence + Checkpoints + Audit]
+```
+
+This is a high-level system map; implementation details remain in the repository source and project documentation.
+
+## Installation & Startup
 
 ### Windows
 For a clean install, use the included Windows installer/repair tooling.
@@ -535,3 +566,34 @@ When adding a capability:
 ## Current Status
 
 DPN AI v5.0.7 is an actively developed local-first AI operations platform. It contains a broad execution framework, but optional capabilities still depend on local services, models, operating-system access, external APIs, and explicit user configuration.
+
+## Project Status
+
+| Item | Current State |
+| --- | --- |
+| Release | **v5.0.7 · Adaptive Interface and Sentinel HD** |
+| Development | **Active** |
+| Repository visibility | **Private** |
+| Publisher | **DPN Technology** |
+| Primary stack | Python · Local AI · Missions · Tools · Voice · MCP |
+| Roadmap | [View ROADMAP.md](ROADMAP.md) |
+
+## Documentation
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/UNIVERSAL_CAPABILITIES.md`](docs/UNIVERSAL_CAPABILITIES.md)
+- [`docs/EXTENSIONS.md`](docs/EXTENSIONS.md)
+- [`docs/COGNITIVE_KERNEL.md`](docs/COGNITIVE_KERNEL.md)
+- [`docs/MODEL_GATEWAY.md`](docs/MODEL_GATEWAY.md)
+- [`docs/MCP.md`](docs/MCP.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
+
+## Development Standards
+- Keep credentials, keys, databases, backups, and private operational data out of Git.
+- Update version metadata and documentation together.
+- Add/update regression tests for production defects.
+- Preserve compatibility code until replacement behavior is verified.
+- Separate demo/default behavior from production requirements.
+
+---
+
+<p align="center"><strong>DPN Technology</strong><br>Developing connected systems, software, operations platforms, and simulation technology.</p>
