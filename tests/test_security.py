@@ -206,3 +206,88 @@ def test_connector_accepts_public_allowlisted_configuration(tmp_path: Path) -> N
         result = hub.create("public", "https://example.test/api", allowed_methods=["GET", "POST"])
     assert result["ok"] is True
     hub.db.create_connector.assert_called_once()
+
+
+def test_workspace_rejects_symlinked_root(tmp_path: Path) -> None:
+    actual = tmp_path / "actual"
+    actual.mkdir()
+    linked = tmp_path / "workspace"
+    try:
+        linked.symlink_to(actual, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    with pytest.raises(ValueError, match="symlink"):
+        WorkspaceFS(linked)
+
+
+def test_workspace_rejects_symlinked_path_component(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    linked = workspace / "linked"
+    try:
+        linked.symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    fs = WorkspaceFS(workspace)
+    with pytest.raises(ValueError, match="Symlinked"):
+        fs.resolve("linked/file.txt")
+
+
+def test_workspace_write_refuses_symlink_target(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    fs = WorkspaceFS(workspace)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("preserve", encoding="utf-8")
+    linked = workspace / "linked.txt"
+    try:
+        linked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    with pytest.raises(ValueError, match="Symlinked"):
+        fs.resolve("linked.txt")
+    assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+def test_workspace_copy_rejects_source_tree_symlink(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    fs = WorkspaceFS(workspace)
+    source = workspace / "source"
+    source.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("secret", encoding="utf-8")
+    try:
+        (source / "linked.txt").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    result = fs.copy_path("source", "copied")
+    assert result["ok"] is False
+    assert "symlink" in result["error"].lower()
+    assert not (workspace / "copied").exists()
+
+
+def test_workspace_delete_refuses_symlink(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    fs = WorkspaceFS(workspace)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("preserve", encoding="utf-8")
+    linked = workspace / "linked.txt"
+    try:
+        linked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    result = fs.delete_path("linked.txt")
+    assert result["ok"] is False
+    assert "symlink" in result["error"].lower()
+    assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+def test_workspace_upload_uses_unique_exclusive_names(tmp_path: Path) -> None:
+    fs = WorkspaceFS(tmp_path / "workspace")
+    first = fs.upload_bytes("report.txt", b"one")
+    second = fs.upload_bytes("report.txt", b"two")
+    assert first == "uploads/report.txt"
+    assert second == "uploads/report_1.txt"
+    assert (tmp_path / "workspace" / first).read_bytes() == b"one"
+    assert (tmp_path / "workspace" / second).read_bytes() == b"two"
