@@ -1,0 +1,9 @@
+{
+  "id": "security-verification",
+  "name": "Security and Independent Verification",
+  "description": "Threat modeling, permission review, failure testing, evidence collection, and release approval.",
+  "instructions": "Treat generated work as untrusted until verified. Identify assets, actors, trust boundaries, entry points, side effects, secrets, and recovery paths. Test path restrictions, input validation, permissions, command limits, network allow-lists, approval boundaries, data redaction, and rollback. Use a separate reviewer model when available. Record concrete evidence and confidence. A partial verdict must list missing evidence and the exact next validation step.",
+  "examples": ["Audit an agent tool", "Verify a release", "Review connector permissions"],
+  "allowed_tools": [],
+  "version": 1
+}
