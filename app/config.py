@@ -10,12 +10,28 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+# DPN AI runtime state can contain prompts, database rows, model credentials,
+# approval payloads, and generated artifacts. On POSIX systems make newly
+# created runtime files private to the process owner unless a component
+# deliberately relaxes permissions later.
+if os.name == "posix":
+    os.umask(0o077)
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _harden_existing_path(path: Path, *, directory: bool) -> None:
+    if os.name != "posix" or not path.exists() or path.is_symlink():
+        return
+    try:
+        path.chmod(0o700 if directory else 0o600)
+    except OSError:
+        pass
 
 
 @dataclass(frozen=True)
@@ -93,3 +109,14 @@ settings.exports_dir.mkdir(parents=True, exist_ok=True)
 settings.skills_dir.mkdir(parents=True, exist_ok=True)
 settings.voice_dir.mkdir(parents=True, exist_ok=True)
 settings.plugins_dir.mkdir(parents=True, exist_ok=True)
+
+for _runtime_dir in (settings.data_dir, settings.workspace_dir, settings.snapshots_dir, settings.exports_dir, settings.voice_dir):
+    _harden_existing_path(_runtime_dir, directory=True)
+for _runtime_file in (
+    settings.database_path,
+    Path(f"{settings.database_path}-wal"),
+    Path(f"{settings.database_path}-shm"),
+    settings.vault_key_path,
+    settings.data_dir / "vault.json",
+):
+    _harden_existing_path(_runtime_file, directory=False)
