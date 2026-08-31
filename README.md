@@ -8,13 +8,28 @@
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
   <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
     <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI Passing" src="https://img.shields.io/badge/CI-PASSING-16a34a?style=for-the-badge"></a>
+  <a href="https://github.com/directordiesel/DPN-AI/releases/tag/v5.0.7"><img alt="Latest Release v5.0.7" src="https://img.shields.io/badge/Latest%20Release-v5.0.7-2563eb?style=for-the-badge"></a>
 </p>
 
 > **Release:** v5.0.7 · Adaptive Interface and Sentinel HD  
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP
 
 ### Quick navigation
-[Overview](#overview) · [Architecture](#system-architecture) · [Installation](#installation--startup) · [Security](#security) · [Roadmap](ROADMAP.md) · [Documentation](#documentation)
+[Overview](#overview) · [Architecture](#system-architecture) · [Installation](#installation--startup) · [Security](#security) · [Roadmap](ROADMAP.md) · [Release](#download-current-release) · [Documentation](#documentation)
+
+## Download Current Release
+
+The current verified release is **v5.0.7**.
+
+| Release Resource | Link |
+| --- | --- |
+| GitHub Release | [DPN AI v5.0.7](https://github.com/directordiesel/DPN-AI/releases/tag/v5.0.7) |
+| Source archive | [`DPN-AI-v5.0.7-source.zip`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/DPN-AI-v5.0.7-source.zip) |
+| SHA-256 checksums | [`SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/SHA256SUMS.txt) |
+| Release manifest | [`RELEASE_MANIFEST.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/RELEASE_MANIFEST.txt) |
+| Stable release branch | [`release/v5.0.7`](https://github.com/directordiesel/DPN-AI/tree/release/v5.0.7) |
+
+> Release artifacts are generated from the verified release commit by the repository's controlled GitHub Actions release pipeline.
 
 ## Overview
 DPN AI is a local-first AI operations platform built around chat, tool execution, projects, memory, knowledge indexing, document generation, voice, automation, mission planning, multi-agent review, plugins, MCP integrations, model gateways, and controlled computer/web capabilities.
