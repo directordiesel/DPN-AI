@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.db import Database
+from app.db import Database, utc_now
 
 
 class JobSupervisor:
@@ -11,6 +11,8 @@ class JobSupervisor:
 
     Jobs run only while the application is open. Queued and interrupted jobs
     are recovered after restart. Cancellation is cooperative through asyncio.
+    Database state transitions are claimed atomically so duplicate queue entries
+    or multiple supervisors cannot execute the same queued job concurrently.
     """
 
     def __init__(self, db: Database, agent: Any, orchestrator: Any, workflows: Any, max_concurrency: int = 2):
@@ -25,12 +27,16 @@ class JobSupervisor:
         self._stopping = False
 
     async def start(self) -> None:
+        # start() may be called more than once by application lifecycle hooks.
+        # Do not enqueue the persistent queue again while workers are alive.
+        self.workers = [worker for worker in self.workers if not worker.done()]
+        if self.workers:
+            return
         self._stopping = False
         self.db.requeue_interrupted_jobs()
         for job in reversed(self.db.list_background_jobs("queued", 1000)):
             await self.queue.put(job["id"])
-        if not self.workers:
-            self.workers = [asyncio.create_task(self._worker(index), name=f"dpn-job-worker-{index}") for index in range(self.max_concurrency)]
+        self.workers = [asyncio.create_task(self._worker(index), name=f"dpn-job-worker-{index}") for index in range(self.max_concurrency)]
 
     async def stop(self) -> None:
         self._stopping = True
@@ -50,12 +56,44 @@ class JobSupervisor:
         self.db.audit("job.queued", f"Queued {kind} job", {"job_id": job["id"]})
         return {"ok": True, "job": job}
 
+    def _claim_job(self, job_id: str) -> bool:
+        """Atomically move one queued job to running.
+
+        The conditional UPDATE is the concurrency boundary. Only one worker or
+        process can change a given job from queued to running, so duplicate
+        queue entries cannot cause duplicate execution.
+        """
+        now = utc_now()
+        with self.db.connect() as db:
+            cursor = db.execute(
+                """UPDATE background_jobs
+                SET status='running', started_at=?, updated_at=?, progress_json='{"stage":"starting"}',
+                    completed_at=NULL, error_text=''
+                WHERE id=? AND status='queued'""",
+                (now, now, job_id),
+            )
+        return cursor.rowcount == 1
+
+    def _cancel_queued_job(self, job_id: str) -> bool:
+        now = utc_now()
+        with self.db.connect() as db:
+            cursor = db.execute(
+                """UPDATE background_jobs
+                SET status='cancelled', progress_json='{"stage":"cancelled"}',
+                    error_text='Cancelled before execution', completed_at=?, updated_at=?
+                WHERE id=? AND status='queued'""",
+                (now, now, job_id),
+            )
+        return cursor.rowcount == 1
+
     async def _worker(self, _: int) -> None:
         while not self._stopping:
             job_id = await self.queue.get()
             try:
+                if not self._claim_job(job_id):
+                    continue
                 job = self.db.get_background_job(job_id)
-                if not job or job.get("status") != "queued":
+                if not job or job.get("status") != "running":
                     continue
                 task = asyncio.create_task(self._run_job(job), name=f"dpn-job-{job_id}")
                 self.active[job_id] = task
@@ -68,7 +106,6 @@ class JobSupervisor:
 
     async def _run_job(self, job: dict[str, Any]) -> None:
         job_id = job["id"]
-        self.db.update_background_job(job_id, "running", {"stage": "starting"})
         payload = job.get("payload") or {}
         try:
             if job["kind"] == "mission":
@@ -97,7 +134,14 @@ class JobSupervisor:
             self.db.update_background_job(job_id, status, {"stage": "finished"}, result, "" if status == "completed" else str(result.get("error", "Operation reported failure")))
             self.db.audit(f"job.{status}", f"Background job {status}", {"job_id": job_id, "kind": job["kind"]})
         except asyncio.CancelledError:
-            self.db.update_background_job(job_id, "cancelled", {"stage": "cancelled"}, error="Cancelled by operator or application shutdown")
+            if self._stopping:
+                # Graceful application shutdown is a pause, not an operator
+                # cancellation. Leaving it queued makes restart recovery exact.
+                self.db.update_background_job(job_id, "queued", {"stage": "queued"}, error="Paused by application shutdown")
+                self.db.audit("job.paused", "Background job paused for application shutdown", {"job_id": job_id})
+            else:
+                self.db.update_background_job(job_id, "cancelled", {"stage": "cancelled"}, error="Cancelled by operator")
+                self.db.audit("job.cancelled", "Background job cancelled by operator", {"job_id": job_id})
             raise
         except Exception as exc:  # noqa: BLE001
             self.db.update_background_job(job_id, "failed", {"stage": "failed"}, error=f"{type(exc).__name__}: {exc}")
@@ -112,12 +156,24 @@ class JobSupervisor:
         task = self.active.get(job_id)
         if task:
             task.cancel()
-        else:
-            self.db.update_background_job(job_id, "cancelled", {"stage": "cancelled"}, error="Cancelled before execution")
+        elif not self._cancel_queued_job(job_id):
+            # The job may have been atomically claimed between the initial read
+            # and this cancellation attempt. Re-check active/state rather than
+            # overwriting a running or terminal transition.
+            await asyncio.sleep(0)
+            task = self.active.get(job_id)
+            if task:
+                task.cancel()
+            else:
+                current = self.db.get_background_job(job_id)
+                if current and current.get("status") == "running":
+                    return {"ok": False, "error": "Job has started and could not be cancelled before execution"}
         return {"ok": True, "job": self.db.get_background_job(job_id)}
 
     async def retry(self, job_id: str) -> dict[str, Any]:
         job = self.db.get_background_job(job_id)
         if not job:
             return {"ok": False, "error": "Job not found"}
+        if job.get("status") not in {"failed", "cancelled"}:
+            return {"ok": False, "error": "Only failed or cancelled jobs can be retried"}
         return await self.submit(job["kind"], job.get("payload") or {})
