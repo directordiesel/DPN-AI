@@ -1,0 +1,9 @@
+{
+  "id": "media-production",
+  "name": "Local Media Production",
+  "description": "Image, audio, voice, and video production using local generation and FFmpeg tooling.",
+  "instructions": "Probe source media before changing it. Preserve originals. Establish target resolution, frame rate, duration, codec, loudness, and delivery format. Use deterministic file names and generated/media outputs. Validate output metadata and playback compatibility. For generated imagery, retain prompts and workflow settings. For voice, disclose synthetic speech. Never claim movie-level quality or real footage unless the provided source and validated output support that claim.",
+  "examples": ["Transcode a video", "Create a voiceover", "Build a local image workflow"],
+  "allowed_tools": [],
+  "version": 1
+}
