@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible DPN AI defect or regression using sanitized data.
+title: "[Bug] "
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Component
+      options:
+        - Chat / API
+        - Cognitive Kernel
+        - Missions / Orchestrator
+        - Tools / Registry
+        - Projects / Workspace
+        - Memory / Knowledge Graph
+        - Documents / Artifacts
+        - Voice / Sentinel HD
+        - Media / Vision
+        - Model Gateway / Ollama
+        - Workflow / Automation
+        - Background Jobs
+        - Capability Forge / Plugins
+        - HTTP Connectors
+        - MCP Bridge
+        - Browser / Desktop Control
+        - Sandbox / Security
+        - UI / Responsive Layout
+        - Recovery / Persistence
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: "v5.0.7"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Sanitized steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs/evidence
+      description: Remove API keys, private prompts/data, connector secrets, tokens, and local paths containing sensitive information.
