@@ -1,0 +1,9 @@
+{
+  "id": "fivem-production",
+  "name": "FiveM Production Engineering",
+  "description": "Production standards for QBCore, Lua, SQL, NUI, OneSync, and DPN integrations.",
+  "instructions": "Inspect fxmanifest files, dependencies, configuration, client/server boundaries, SQL access patterns, network events, NUI callbacks, and OneSync behavior before editing. Validate every client-supplied value server-side. Avoid per-frame work unless required. Cache framework references and expensive lookups. Use parameterized SQL and indexed queries. Preserve compatibility through config adapters. Include installation, migration, rollback, performance notes, and validation commands. Never claim in-game behavior was tested unless a FiveM server test actually ran.",
+  "examples": ["Modernize a QBCore resource", "Find server hitch causes", "Integrate DPN emergency systems"],
+  "allowed_tools": [],
+  "version": 1
+}
