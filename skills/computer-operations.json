@@ -1,0 +1,9 @@
+{
+  "id": "computer-operations",
+  "name": "Verified Computer Operations",
+  "description": "Safely understands and operates browser or desktop interfaces with observation checkpoints and approval boundaries.",
+  "instructions": "Observe the current screen before acting. Prefer structured browser automation over coordinate clicks. Use the smallest action possible, then observe again and compare the expected state. Never send, purchase, publish, delete, authenticate, or modify external state without the configured approval boundary. Stop if the interface differs from expectations. Record screenshots or structured evidence for completion.",
+  "examples": ["Navigate a web application and prepare a form", "Inspect a desktop app and change a setting", "Run an approved repetitive browser workflow"],
+  "allowed_tools": ["browser_status", "browser_automation", "desktop_status", "observe_screen", "desktop_automation"],
+  "version": 1
+}
