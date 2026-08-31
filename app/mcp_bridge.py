@@ -12,6 +12,7 @@ from typing import Any, AsyncIterator
 from urllib.parse import urlparse
 
 from app.db import Database
+from app.persistence_security import sanitize_for_persistence
 from app.vault import SecretVault
 
 
@@ -268,14 +269,15 @@ class MCPBridge:
                 name = str(item.get("name") or "") if isinstance(item, dict) else ""
                 if name:
                     tools.append(item)
-            self.db.cache_mcp_tools(server_id, tools)
+            self.db.cache_mcp_tools(server_id, sanitize_for_persistence(tools))
             allowed = set(server.get("allowed_tools") or [])
             return {
                 "ok": True, "server_id": server_id, "tool_count": len(tools),
                 "tools": [{**item, "allowed": item.get("name") in allowed} for item in tools],
             }
         except Exception as exc:
-            return {"ok": False, "error": f"MCP discovery failed: {type(exc).__name__}: {exc}"}
+            error = sanitize_for_persistence(f"MCP discovery failed: {type(exc).__name__}: {exc}")
+            return {"ok": False, "error": error}
 
     async def call_tool(self, server_id: str, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         server = self.db.get_mcp_server(server_id)
@@ -284,13 +286,26 @@ class MCPBridge:
         allowed = set(server.get("allowed_tools") or [])
         if tool_name not in allowed:
             return {"ok": False, "error": "MCP tool is not in this server's allowlist"}
+        call_arguments = arguments or {}
         try:
             async with self._session(server) as session:
-                response = await session.call_tool(tool_name, arguments or {})
+                response = await session.call_tool(tool_name, call_arguments)
             payload = self._serialize(response)
-            self.db.record_mcp_call(server_id, tool_name, arguments or {}, payload, True)
+            self.db.record_mcp_call(
+                server_id,
+                tool_name,
+                sanitize_for_persistence(call_arguments),
+                sanitize_for_persistence(payload),
+                True,
+            )
             return {"ok": True, "server_id": server_id, "tool": tool_name, "result": payload}
         except Exception as exc:
-            error = f"MCP tool call failed: {type(exc).__name__}: {exc}"
-            self.db.record_mcp_call(server_id, tool_name, arguments or {}, {"error": error}, False)
+            error = sanitize_for_persistence(f"MCP tool call failed: {type(exc).__name__}: {exc}")
+            self.db.record_mcp_call(
+                server_id,
+                tool_name,
+                sanitize_for_persistence(call_arguments),
+                {"error": error},
+                False,
+            )
             return {"ok": False, "error": error}
