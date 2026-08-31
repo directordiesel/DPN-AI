@@ -21,7 +21,7 @@ jobs:
       - name: Verify repository standards
         shell: bash
         run: |
-          required=(README.md SECURITY.md CONTRIBUTING.md SUPPORT.md PROPRIETARY_NOTICE.md RELEASE_PROCESS.md ROADMAP.md CHANGELOG.md .github/CODEOWNERS .github/dependabot.yml .github/workflows/ci.yml .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml .github/ISSUE_TEMPLATE/security_or_infrastructure.yml .github/ISSUE_TEMPLATE/config.yml)
+          required=(README.md SECURITY.md CONTRIBUTING.md SUPPORT.md PROPRIETARY_NOTICE.md RELEASE_PROCESS.md ROADMAP.md CHANGELOG.md SUPPLY_CHAIN.md .github/CODEOWNERS .github/scripts/generate_supply_chain.py .github/workflows/release.yml .github/workflows/supply-chain.yml .github/dependabot.yml .github/workflows/ci.yml .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml .github/ISSUE_TEMPLATE/security_or_infrastructure.yml .github/ISSUE_TEMPLATE/config.yml)
           for file in "${required[@]}"; do
             test -f "$file" || { echo "::error::Missing required standard: $file"; exit 1; }
           done
