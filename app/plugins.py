@@ -8,46 +8,77 @@ from typing import Any
 
 
 MAX_PLUGIN_BYTES = 1_000_000
+MANDATORY_PLUGIN_NAMES = {"approval_payload_security.py"}
+
+
+def _load_plugin(path: Path, expected_parent: Path, registry: Any) -> None:
+    if path.is_symlink():
+        raise RuntimeError("Plugin symlinks are not allowed")
+    resolved = path.resolve(strict=True)
+    if resolved.parent != expected_parent or not resolved.is_file():
+        raise RuntimeError("Plugin must be a regular file directly inside the approved plugin directory")
+    if resolved.stat().st_size > MAX_PLUGIN_BYTES:
+        raise RuntimeError(f"Plugin exceeds {MAX_PLUGIN_BYTES:,} bytes")
+
+    digest = hashlib.sha256(resolved.read_bytes()).hexdigest()[:16]
+    module_name = f"dpn_ai_plugin_{path.stem}_{digest}"
+    spec = importlib.util.spec_from_file_location(module_name, resolved)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Cannot create plugin module specification")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+        register = getattr(module, "register", None)
+        if not callable(register):
+            raise RuntimeError("Plugin must define register(registry)")
+        register(registry)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
 
 
 def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
     """Load trusted local Python plugins exposing register(registry).
 
-    Plugin files must be regular, non-symlinked files directly inside the
-    configured plugin directory. Disabled/example files are ignored.
+    User-configured plugins are restricted to regular files directly inside the
+    configured directory. Security-critical bundled plugins are loaded from the
+    application's own plugin directory even when DPN_PLUGINS_DIR points
+    elsewhere, so changing the extension directory cannot silently disable a
+    required security boundary.
     """
     errors: list[dict[str, str]] = []
     plugin_dir.mkdir(parents=True, exist_ok=True)
-    root = plugin_dir.resolve()
+    configured_root = plugin_dir.resolve()
+    bundled_root = (Path(__file__).resolve().parent.parent / "plugins").resolve()
+
+    candidates: list[tuple[Path, Path, bool]] = []
+    for name in sorted(MANDATORY_PLUGIN_NAMES):
+        mandatory = bundled_root / name
+        if mandatory.exists():
+            candidates.append((mandatory, bundled_root, True))
+        else:
+            errors.append({"plugin": name, "error": "RuntimeError: mandatory security plugin is missing"})
 
     for path in sorted(plugin_dir.glob("*.py")):
         if path.name.startswith("_"):
             continue
         try:
-            if path.is_symlink():
-                raise RuntimeError("Plugin symlinks are not allowed")
             resolved = path.resolve(strict=True)
-            if resolved.parent != root or not resolved.is_file():
-                raise RuntimeError("Plugin must be a regular file directly inside the plugin directory")
-            if resolved.stat().st_size > MAX_PLUGIN_BYTES:
-                raise RuntimeError(f"Plugin exceeds {MAX_PLUGIN_BYTES:,} bytes")
+        except Exception:
+            resolved = path
+        if any(existing.resolve() == resolved for existing, _, _ in candidates if existing.exists()):
+            continue
+        candidates.append((path, configured_root, False))
 
-            digest = hashlib.sha256(resolved.read_bytes()).hexdigest()[:16]
-            module_name = f"dpn_ai_plugin_{path.stem}_{digest}"
-            spec = importlib.util.spec_from_file_location(module_name, resolved)
-            if spec is None or spec.loader is None:
-                raise RuntimeError("Cannot create plugin module specification")
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            try:
-                spec.loader.exec_module(module)
-                register = getattr(module, "register", None)
-                if not callable(register):
-                    raise RuntimeError("Plugin must define register(registry)")
-                register(registry)
-            except Exception:
-                sys.modules.pop(module_name, None)
-                raise
+    for path, expected_parent, mandatory in candidates:
+        try:
+            _load_plugin(path, expected_parent, registry)
         except Exception as exc:  # noqa: BLE001
-            errors.append({"plugin": path.name, "error": f"{type(exc).__name__}: {exc}"})
+            prefix = "mandatory security plugin" if mandatory else "plugin"
+            errors.append({"plugin": path.name, "error": f"{prefix} failed: {type(exc).__name__}: {exc}"})
+            if mandatory:
+                # Security-critical registration failures must fail closed rather
+                # than starting DPN AI with the protection silently disabled.
+                raise RuntimeError(f"Mandatory security plugin failed: {path.name}") from exc
     return errors
