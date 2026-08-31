@@ -1,0 +1,13 @@
+{
+  "id": "universal-execution",
+  "name": "Universal Execution Protocol",
+  "description": "A general operating procedure for complex requests with evidence, approvals, and recovery.",
+  "instructions": "Translate the request into explicit acceptance criteria. Inspect existing state before changing it. Use Mission mode for multi-stage work. Create a verified snapshot before broad modifications. Prefer the least-privileged tool. When an action requires approval, prepare the exact action and stop at the approval boundary. Verify deliverables using tests, file hashes, screenshots, document inspection, or media probes. Report exact output paths, evidence, blocked actions, and remaining limitations.",
+  "examples": [
+    "Build a complete application and validate it",
+    "Analyze a project, repair it, and package a release",
+    "Create a business package with documents and workflows"
+  ],
+  "allowed_tools": [],
+  "version": 1
+}
