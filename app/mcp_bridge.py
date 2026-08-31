@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
 import re
 import shutil
 import socket
@@ -12,6 +13,10 @@ from urllib.parse import urlparse
 
 from app.db import Database
 from app.vault import SecretVault
+
+
+ALLOWED_STDIO_EXECUTABLES = {"python", "python3", "py", "node", "deno", "java", "dotnet"}
+SENSITIVE_ENV_TOKENS = ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "PRIVATE_KEY", "CREDENTIAL")
 
 
 class MCPBridge:
@@ -53,18 +58,66 @@ class MCPBridge:
                 return "loopback"
             if address.is_private or address.is_link_local:
                 return "private"
+            if address.is_multicast or address.is_reserved or address.is_unspecified:
+                return "unsafe"
             return "public"
         except ValueError:
             try:
                 addresses = socket.getaddrinfo(normalized, None)
             except OSError:
                 return "unknown"
+            if not addresses:
+                return "unknown"
             scopes = {MCPBridge._host_scope(item[4][0]) for item in addresses}
+            if "unsafe" in scopes or "unknown" in scopes:
+                return "unsafe"
             if scopes == {"loopback"}:
                 return "loopback"
             if scopes <= {"loopback", "private"}:
                 return "private"
-            return "public"
+            if scopes == {"public"}:
+                return "public"
+            return "unsafe"
+
+    @staticmethod
+    def _normalize_stdio_command(command: str) -> tuple[bool, str]:
+        raw = command.strip()
+        if not raw:
+            return False, "stdio MCP servers require an executable command"
+        if "/" in raw or "\\" in raw or raw in {".", ".."}:
+            return False, "MCP stdio command must be a bare allow-listed executable name"
+        normalized = raw.lower()
+        if normalized.endswith(".exe"):
+            normalized = normalized[:-4]
+        if normalized not in ALLOWED_STDIO_EXECUTABLES:
+            return False, f"MCP stdio executable '{normalized}' is not allow-listed"
+        return True, normalized
+
+    @staticmethod
+    def _validate_stdio_args(executable: str, args: list[str] | None) -> tuple[bool, list[str] | str]:
+        safe_args = [str(item) for item in (args or [])[:100]]
+        if any(len(item) > 4000 or "\x00" in item or "\r" in item or "\n" in item for item in safe_args):
+            return False, "MCP stdio arguments contain invalid or oversized values"
+        lowered = {item.lower() for item in safe_args}
+        if executable in {"python", "python3", "py"} and lowered.intersection({"-c", "-m"}):
+            return False, "Inline Python execution and python -m are not allowed for MCP servers"
+        if executable in {"node", "deno"} and lowered.intersection({"-e", "--eval", "--print", "-p"}):
+            return False, "Inline JavaScript execution is not allowed for MCP servers"
+        return True, safe_args
+
+    @staticmethod
+    def _minimal_stdio_env(configured: dict[str, str]) -> dict[str, str]:
+        env: dict[str, str] = {
+            "PATH": os.environ.get("PATH", ""),
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUNBUFFERED": "1",
+        }
+        for key in ("SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TMP", "TEMP", "HOME"):
+            value = os.environ.get(key)
+            if value:
+                env[key] = value
+        env.update(configured)
+        return env
 
     def create_server(self, name: str, transport: str, command: str | None = None,
                       args: list[str] | None = None, url: str | None = None,
@@ -77,24 +130,34 @@ class MCPBridge:
             return {"ok": False, "error": "New MCP servers must start with an empty allowlist. Discover tools before approving names."}
         config: dict[str, Any]
         if transport == "stdio":
-            if not command or not command.strip():
-                return {"ok": False, "error": "stdio MCP servers require an executable command"}
+            command_ok, executable = self._normalize_stdio_command(str(command or ""))
+            if not command_ok:
+                return {"ok": False, "error": executable}
+            args_ok, safe_args = self._validate_stdio_args(executable, args)
+            if not args_ok:
+                return {"ok": False, "error": safe_args}
             safe_env: dict[str, str] = {}
             for key, value in (env or {}).items():
                 key_text, value_text = str(key)[:200], str(value)[:4000]
-                if any(token in key_text.upper() for token in ("TOKEN", "SECRET", "PASSWORD", "API_KEY", "PRIVATE_KEY")) and not re.fullmatch(r"\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}", value_text):
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,199}", key_text):
+                    return {"ok": False, "error": f"Invalid MCP environment variable name: {key_text}"}
+                if any(token in key_text.upper() for token in SENSITIVE_ENV_TOKENS) and not re.fullmatch(r"\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}", value_text):
                     return {"ok": False, "error": f"Sensitive MCP environment value {key_text} must use an encrypted {{secret:NAME}} reference"}
                 safe_env[key_text] = value_text
-            config = {"command": command.strip(), "args": [str(item) for item in (args or [])[:100]], "env": safe_env}
+            config = {"command": executable, "args": safe_args, "env": safe_env}
         else:
             parsed = urlparse(str(url or ""))
             if parsed.scheme not in {"http", "https"} or not parsed.hostname:
                 return {"ok": False, "error": "HTTP MCP server URL must use http or https"}
+            if parsed.username or parsed.password:
+                return {"ok": False, "error": "HTTP MCP server URL must not contain embedded credentials"}
+            if parsed.query or parsed.fragment:
+                return {"ok": False, "error": "HTTP MCP server URL must not contain query strings or fragments"}
             scope = self._host_scope(parsed.hostname)
+            if scope in {"unknown", "unsafe"}:
+                return {"ok": False, "error": "Unable to safely resolve MCP server host"}
             if scope != "loopback" and not self.allow_external:
                 return {"ok": False, "error": "Non-loopback MCP servers are disabled by default"}
-            if scope == "unknown":
-                return {"ok": False, "error": "Unable to resolve MCP server host"}
             config = {"url": str(url).rstrip("/")}
         server = self.db.create_mcp_server(name, transport, config, allowed_tools or [], enabled)
         return {"ok": True, "server": self._redact(server)}
@@ -139,19 +202,35 @@ class MCPBridge:
             raise RuntimeError("MCP SDK is not installed. Use requirements-mcp.txt.") from exc
         config = server.get("config") or {}
         if server["transport"] == "stdio":
-            command = str(config.get("command") or "")
-            if not shutil.which(command) and not Path(command).is_file():
-                raise RuntimeError(f"MCP executable was not found: {command}")
+            command_ok, executable = self._normalize_stdio_command(str(config.get("command") or ""))
+            if not command_ok:
+                raise RuntimeError(executable)
+            args_ok, safe_args = self._validate_stdio_args(executable, config.get("args", []))
+            if not args_ok:
+                raise RuntimeError(str(safe_args))
+            resolved_command = shutil.which(executable)
+            if not resolved_command:
+                raise RuntimeError(f"MCP executable was not found: {executable}")
+            configured_env = {
+                str(key): str(value)
+                for key, value in ((self.vault.resolve(config.get("env") or {})) if self.vault else (config.get("env") or {})).items()
+            }
             params = StdioServerParameters(
-                command=command,
-                args=[str(item) for item in config.get("args", [])],
-                env={str(key): str(value) for key, value in ((self.vault.resolve(config.get("env") or {})) if self.vault else (config.get("env") or {})).items()} or None,
+                command=resolved_command,
+                args=safe_args,
+                env=self._minimal_stdio_env(configured_env),
             )
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     yield session
             return
+        parsed = urlparse(str(config.get("url") or ""))
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise RuntimeError("Stored HTTP MCP server URL failed security validation")
+        scope = self._host_scope(parsed.hostname)
+        if scope in {"unknown", "unsafe"} or (scope != "loopback" and not self.allow_external):
+            raise RuntimeError("Stored HTTP MCP server host is not permitted by current policy")
         try:
             from mcp.client.streamable_http import streamablehttp_client
         except Exception as exc:
