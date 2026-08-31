@@ -4,6 +4,7 @@ import fnmatch
 import hashlib
 import os
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -15,29 +16,99 @@ TEXT_EXTENSIONS = {
     ".vue", ".svelte", ".php", ".rb", ".gradle", ".properties",
 }
 IGNORED_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", ".mypy_cache", "dist", "build"}
+MAX_WRITE_BYTES = 25_000_000
+MAX_UPLOAD_BYTES = 100_000_000
 
 
 class WorkspaceFS:
     def __init__(self, root: Path, max_read_bytes: int = 2_000_000):
-        self.root = root.resolve()
-        self.max_read_bytes = max_read_bytes
-        self.root.mkdir(parents=True, exist_ok=True)
+        raw_root = Path(root)
+        if raw_root.is_symlink():
+            raise ValueError("Workspace root must not be a symlink")
+        raw_root.mkdir(parents=True, exist_ok=True)
+        self.root = raw_root.resolve()
+        self.max_read_bytes = max(1, int(max_read_bytes))
 
-    def resolve(self, relative_path: str) -> Path:
+    def _lexical(self, relative_path: str) -> Path:
         cleaned = (relative_path or ".").strip().replace("\\", "/").lstrip("/")
-        candidate = (self.root / cleaned).resolve()
+        candidate = Path(os.path.abspath(self.root / cleaned))
         try:
-            candidate.relative_to(self.root)
+            common = Path(os.path.commonpath([str(self.root), str(candidate)]))
         except ValueError as exc:
             raise ValueError("Path escapes the DPN AI workspace") from exc
+        if common != self.root:
+            raise ValueError("Path escapes the DPN AI workspace")
         return candidate
 
+    def _reject_symlink_components(self, candidate: Path, include_target: bool = True) -> None:
+        relative = candidate.relative_to(self.root)
+        current = self.root
+        parts = relative.parts if include_target else relative.parts[:-1]
+        for part in parts:
+            current = current / part
+            if current.is_symlink():
+                raise ValueError("Symlinked workspace paths are not allowed")
+
+    def resolve(self, relative_path: str) -> Path:
+        candidate = self._lexical(relative_path)
+        self._reject_symlink_components(candidate)
+        resolved = candidate.resolve(strict=False)
+        try:
+            resolved.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("Path escapes the DPN AI workspace") from exc
+        return resolved
+
     def relative(self, path: Path) -> str:
-        return path.resolve().relative_to(self.root).as_posix()
+        candidate = self._lexical(str(Path(path).relative_to(self.root)) if Path(path).is_absolute() else str(path))
+        self._reject_symlink_components(candidate)
+        return candidate.relative_to(self.root).as_posix()
 
     @staticmethod
     def _ignored(item: Path) -> bool:
         return any(part in IGNORED_DIRS for part in item.parts)
+
+    @staticmethod
+    def _atomic_write_bytes(target: Path, data: bytes) -> None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.is_symlink():
+            raise ValueError("Refusing to write through a symlink")
+        fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent))
+        temp = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if target.is_symlink():
+                raise ValueError("Refusing to replace a symlink")
+            os.replace(temp, target)
+        finally:
+            try:
+                temp.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    @classmethod
+    def _atomic_write_text(cls, target: Path, content: str) -> int:
+        data = content.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8")
+        if len(data) > MAX_WRITE_BYTES:
+            raise ValueError(f"Text write exceeds {MAX_WRITE_BYTES} bytes")
+        cls._atomic_write_bytes(target, data)
+        return len(data)
+
+    @staticmethod
+    def _tree_contains_symlink(root: Path) -> bool:
+        if root.is_symlink():
+            return True
+        if not root.is_dir():
+            return False
+        for current, dirs, files in os.walk(root, followlinks=False):
+            base = Path(current)
+            for name in dirs + files:
+                if (base / name).is_symlink():
+                    return True
+        return False
 
     def list_files(self, path: str = ".", pattern: str = "*", recursive: bool = True, limit: int = 500) -> dict[str, Any]:
         base = self.resolve(path)
@@ -48,20 +119,20 @@ class WorkspaceFS:
         iterator = base.rglob("*") if recursive else base.glob("*")
         results: list[dict[str, Any]] = []
         for item in iterator:
-            if self._ignored(item):
-                continue
-            rel = self.relative(item)
-            if not fnmatch.fnmatch(item.name, pattern) and not fnmatch.fnmatch(rel, pattern):
+            if item.is_symlink() or self._ignored(item):
                 continue
             try:
-                stat = item.stat()
-            except OSError:
+                rel = self.relative(item)
+                stat_result = item.stat()
+            except (OSError, ValueError):
+                continue
+            if not fnmatch.fnmatch(item.name, pattern) and not fnmatch.fnmatch(rel, pattern):
                 continue
             results.append({
                 "path": rel,
                 "type": "directory" if item.is_dir() else "file",
-                "size_bytes": 0 if item.is_dir() else stat.st_size,
-                "modified_ns": stat.st_mtime_ns,
+                "size_bytes": 0 if item.is_dir() else stat_result.st_size,
+                "modified_ns": stat_result.st_mtime_ns,
             })
             if len(results) >= max(1, min(limit, 5000)):
                 break
@@ -75,9 +146,12 @@ class WorkspaceFS:
         lines = [f"{self.relative(base) or '.'}/"]
         count = 0
         for item in sorted(base.rglob("*"), key=lambda p: (p.is_file(), p.as_posix().lower())):
-            if self._ignored(item):
+            if item.is_symlink() or self._ignored(item):
                 continue
-            depth = len(item.relative_to(base).parts)
+            try:
+                depth = len(item.relative_to(base).parts)
+            except ValueError:
+                continue
             if depth > max(1, min(max_depth, 12)):
                 continue
             prefix = "  " * depth + ("└─ " if item.is_file() else "▸ ")
@@ -113,11 +187,14 @@ class WorkspaceFS:
         candidates = [base] if base.is_file() else base.rglob("*")
         matches: list[dict[str, Any]] = []
         for candidate in candidates:
-            if not candidate.is_file() or self._ignored(candidate):
+            if candidate.is_symlink() or not candidate.is_file() or self._ignored(candidate):
                 continue
             if candidate.suffix.lower() not in TEXT_EXTENSIONS and candidate.suffix != "":
                 continue
-            rel = self.relative(candidate)
+            try:
+                rel = self.relative(candidate)
+            except ValueError:
+                continue
             if not fnmatch.fnmatch(candidate.name, pattern) and not fnmatch.fnmatch(rel, pattern):
                 continue
             try:
@@ -137,9 +214,15 @@ class WorkspaceFS:
         target = self.resolve(path)
         if target.exists() and not overwrite:
             return {"ok": False, "error": f"File already exists: {path}"}
+        if target.exists() and not target.is_file():
+            return {"ok": False, "error": f"Destination is not a file: {path}"}
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8", newline="\n")
-        return {"ok": True, "path": self.relative(target), "bytes_written": target.stat().st_size, "sha256": self.file_hash(self.relative(target))["sha256"]}
+        self._reject_symlink_components(target.parent)
+        try:
+            bytes_written = self._atomic_write_text(target, content)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "path": self.relative(target), "bytes_written": bytes_written, "sha256": self.file_hash(self.relative(target))["sha256"]}
 
     def replace_text(self, path: str, old_text: str, new_text: str, replace_all: bool = False) -> dict[str, Any]:
         target = self.resolve(path)
@@ -152,7 +235,10 @@ class WorkspaceFS:
         if count > 1 and not replace_all:
             return {"ok": False, "error": f"old_text occurs {count} times; set replace_all=true or provide more context"}
         updated = text.replace(old_text, new_text, -1 if replace_all else 1)
-        target.write_text(updated, encoding="utf-8", newline="\n")
+        try:
+            self._atomic_write_text(target, updated)
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc)}
         return {"ok": True, "path": self.relative(target), "replacements": count if replace_all else 1, "sha256": self.file_hash(self.relative(target))["sha256"]}
 
     def copy_path(self, source: str, destination: str, overwrite: bool = False) -> dict[str, Any]:
@@ -160,17 +246,32 @@ class WorkspaceFS:
         dst = self.resolve(destination)
         if not src.exists():
             return {"ok": False, "error": f"Source does not exist: {source}"}
+        if self._tree_contains_symlink(src):
+            return {"ok": False, "error": "Source contains symlinks; copy refused"}
         if dst.exists() and not overwrite:
             return {"ok": False, "error": f"Destination already exists: {destination}"}
+        if dst.is_symlink():
+            return {"ok": False, "error": "Destination must not be a symlink"}
         dst.parent.mkdir(parents=True, exist_ok=True)
+        self._reject_symlink_components(dst.parent)
         if src.is_dir():
             if dst.exists() and not dst.is_dir():
                 return {"ok": False, "error": "Source is a directory but destination is a file"}
-            shutil.copytree(src, dst, dirs_exist_ok=overwrite)
+            shutil.copytree(src, dst, dirs_exist_ok=overwrite, symlinks=False)
         else:
             if dst.exists() and dst.is_dir():
                 return {"ok": False, "error": "Source is a file but destination is a directory"}
-            shutil.copy2(src, dst)
+            if overwrite:
+                with src.open("rb") as handle:
+                    self._atomic_write_bytes(dst, handle.read())
+            else:
+                with src.open("rb") as source_handle:
+                    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                    fd = os.open(dst, flags, 0o600)
+                    with os.fdopen(fd, "wb") as destination_handle:
+                        shutil.copyfileobj(source_handle, destination_handle, length=1024 * 1024)
+                        destination_handle.flush()
+                        os.fsync(destination_handle.fileno())
         return {"ok": True, "source": self.relative(src), "path": self.relative(dst)}
 
     def file_hash(self, path: str, algorithm: str = "sha256") -> dict[str, Any]:
@@ -188,51 +289,72 @@ class WorkspaceFS:
     def make_directory(self, path: str) -> dict[str, Any]:
         target = self.resolve(path)
         target.mkdir(parents=True, exist_ok=True)
+        self._reject_symlink_components(target)
         return {"ok": True, "path": self.relative(target)}
 
     def delete_path(self, path: str) -> dict[str, Any]:
-        target = self.resolve(path)
-        if target == self.root:
+        lexical = self._lexical(path)
+        if lexical == self.root:
             return {"ok": False, "error": "Cannot delete the workspace root"}
+        if lexical.is_symlink():
+            return {"ok": False, "error": "Refusing to delete a symlink through workspace tools"}
+        target = self.resolve(path)
         if not target.exists():
             return {"ok": False, "error": f"Path does not exist: {path}"}
+        rel = self.relative(target)
         if target.is_dir():
             if any(target.iterdir()):
                 return {"ok": False, "error": "Directory is not empty; DPN AI will not recursively delete it"}
             target.rmdir()
         else:
             target.unlink()
-        return {"ok": True, "deleted": self.relative(target) if target.exists() else path}
+        return {"ok": True, "deleted": rel}
 
     def upload_bytes(self, filename: str, data: bytes, destination: str = "uploads") -> str:
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ValueError(f"Upload exceeds {MAX_UPLOAD_BYTES} bytes")
         safe_name = Path(filename).name
+        if safe_name in {"", ".", ".."}:
+            raise ValueError("Invalid upload filename")
         target_dir = self.resolve(destination)
         target_dir.mkdir(parents=True, exist_ok=True)
-        target = target_dir / safe_name
-        stem, suffix = target.stem, target.suffix
-        counter = 1
-        while target.exists():
-            target = target_dir / f"{stem}_{counter}{suffix}"
-            counter += 1
-        target.write_bytes(data)
-        return self.relative(target)
+        self._reject_symlink_components(target_dir)
+        stem, suffix = Path(safe_name).stem, Path(safe_name).suffix
+        for counter in range(0, 10000):
+            candidate_name = safe_name if counter == 0 else f"{stem}_{counter}{suffix}"
+            target = target_dir / candidate_name
+            if target.is_symlink():
+                continue
+            try:
+                fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                continue
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            return self.relative(target)
+        raise RuntimeError("Unable to allocate a unique upload filename")
 
     def disk_summary(self) -> dict[str, Any]:
         files = 0
         directories = 0
         total = 0
         extensions: dict[str, int] = {}
-        for root, dirs, names in os.walk(self.root):
-            dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        for root, dirs, names in os.walk(self.root, followlinks=False):
+            base = Path(root)
+            dirs[:] = [d for d in dirs if d not in IGNORED_DIRS and not (base / d).is_symlink()]
             directories += len(dirs)
             for name in names:
-                path = Path(root) / name
+                path = base / name
+                if path.is_symlink():
+                    continue
                 try:
-                    stat = path.stat()
+                    stat_result = path.stat()
                 except OSError:
                     continue
                 files += 1
-                total += stat.st_size
+                total += stat_result.st_size
                 suffix = path.suffix.lower() or "[no extension]"
                 extensions[suffix] = extensions.get(suffix, 0) + 1
         top_extensions = dict(sorted(extensions.items(), key=lambda item: item[1], reverse=True)[:12])
