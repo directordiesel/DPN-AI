@@ -35,6 +35,30 @@ class WorkflowEngine:
             return {key: WorkflowEngine._resolve(item, context) for key, item in value.items()}
         return value
 
+    def _current_permissions(self, supplied: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Build permissions from live settings immediately before a tool call.
+
+        Persisted workflow/job payloads must never become authorization tokens.
+        Only non-authorizing context such as run_id may flow through from the
+        caller; all gates and approval mode are re-read from current settings.
+        """
+        effective = self.agent.effective_settings()
+        permissions = {
+            "allow_commands": bool(effective.get("allow_commands", False)),
+            "allow_web": bool(effective.get("allow_web", False)),
+            "allow_images": bool(effective.get("allow_images", False)),
+            "allow_browser": bool(effective.get("allow_browser", False)),
+            "allow_desktop": bool(effective.get("allow_desktop", False)),
+            "allow_voice": bool(effective.get("allow_voice", False)),
+            "allow_connectors": bool(effective.get("allow_connectors", False)),
+            "allow_mcp": bool(effective.get("allow_mcp", False)),
+            "allow_self_improvement": bool(effective.get("allow_self_improvement", False)),
+            "approval_mode": str(effective.get("approval_mode") or "standard"),
+        }
+        if supplied and supplied.get("run_id"):
+            permissions["run_id"] = supplied["run_id"]
+        return permissions
+
     async def run(self, workflow_id: str, inputs: dict[str, Any] | None = None,
                   permissions: dict[str, Any] | None = None) -> dict[str, Any]:
         workflow = self.db.get_workflow(workflow_id)
@@ -52,7 +76,7 @@ class WorkflowEngine:
                     result = await self.tools.execute(
                         str(step.get("tool", "")),
                         step.get("arguments", {}) if isinstance(step.get("arguments"), dict) else {},
-                        permissions or {"approval_mode": "standard"},
+                        self._current_permissions(permissions),
                     )
                 elif kind == "prompt":
                     response = await self.agent.run(
