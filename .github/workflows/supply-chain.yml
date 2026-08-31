@@ -11,16 +11,38 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: read
-  contents: write
+  contents: read
 
 concurrency:
   group: supply-chain-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  inventory:
+  validate:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Validate inventory generator on current source
+        shell: bash
+        run: |
+          version="$(tr -d '\r\n ' < VERSION)"
+          test -n "$version"
+          DPN_VERSION="v$version" python .github/scripts/generate_supply_chain.py
+          test -s SOURCE_SHA256SUMS.txt
+          test -s DEPENDENCY_INVENTORY.txt
+
+  inventory:
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
     steps:
       - name: Resolve release tag
         id: release
@@ -35,28 +57,31 @@ jobs:
             tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
           fi
           test -n "$tag"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "DPN_VERSION=$tag" >> "$GITHUB_ENV"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
+          printf 'DPN_VERSION=%s\n' "$tag" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Preserve DPN inventory generator
         run: cp .github/scripts/generate_supply_chain.py /tmp/dpn_generate_supply_chain.py
 
       - name: Checkout exact release source
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           git fetch --tags --force
-          git checkout --detach "${{ steps.release.outputs.tag }}"
+          git checkout --detach "$RELEASE_TAG"
           echo "Release source commit: $(git rev-parse HEAD)"
 
       - name: Generate DPN source hashes and dependency inventory
         run: python /tmp/dpn_generate_supply_chain.py
 
-      - name: Generate SPDX SBOM and submit dependency snapshot
-        uses: anchore/sbom-action@v0.24.2
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: .
           format: spdx-json
@@ -67,7 +92,7 @@ jobs:
           syft-version: v1.51.0
 
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@v0.24.2
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: .
           format: cyclonedx-json
@@ -79,11 +104,13 @@ jobs:
 
       - name: Create SBOM verification manifest
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           sha256sum SBOM.spdx.json SBOM.cyclonedx.json > SBOM_SHA256SUMS.txt
           {
             echo "Repository: $GITHUB_REPOSITORY"
-            echo "Release tag: ${{ steps.release.outputs.tag }}"
+            echo "Release tag: $RELEASE_TAG"
             echo "Release commit: $(git rev-parse HEAD)"
             echo "Syft: v1.51.0"
             echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
@@ -117,11 +144,13 @@ jobs:
 
       - name: Supply-chain summary
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           {
             echo "## DPN release supply-chain inventory"
             echo ""
-            echo "- Release: `${{ steps.release.outputs.tag }}`"
+            echo "- Release: \`$RELEASE_TAG\`"
             echo "- SPDX JSON SBOM: generated"
             echo "- CycloneDX JSON SBOM: generated"
             echo "- GitHub dependency snapshot: skipped unless dependency graph is enabled"
