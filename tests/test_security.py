@@ -3,6 +3,7 @@ from unittest import mock
 
 import pytest
 
+from app.connectors import ConnectorHub
 from app.tools.filesystem import WorkspaceFS
 from app.tools.shell import SafeCommandRunner
 from app.tools.web_tools import _safe_public_url
@@ -92,3 +93,55 @@ def test_web_fetch_accepts_public_resolution() -> None:
         safe, reason = _safe_public_url("https://example.test/")
     assert safe is True
     assert reason == ""
+
+
+def _connector_hub(tmp_path: Path) -> ConnectorHub:
+    vault = SecretVault(tmp_path / "security" / "vault.key", tmp_path / "data" / "vault.json")
+    db = mock.Mock()
+    db.create_connector.return_value = {"id": "connector-test"}
+    return ConnectorHub(db, vault)
+
+
+def test_connector_rejects_embedded_credentials(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    result = hub.create("unsafe", "https://user:secret@example.test/api")
+    assert result["ok"] is False
+    assert "credentials" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
+def test_connector_rejects_private_resolution(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("127.0.0.1", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create("unsafe", "https://internal.example.test/api")
+    assert result["ok"] is False
+    assert "private" in result["error"].lower() or "reserved" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
+def test_connector_fails_closed_on_unresolved_host(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    with mock.patch("app.connectors.socket.getaddrinfo", side_effect=OSError("dns unavailable")):
+        result = hub.create("unknown", "https://unresolved.example.test/api")
+    assert result["ok"] is False
+    hub.db.create_connector.assert_not_called()
+
+
+def test_connector_rejects_dangerous_http_methods(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create("trace", "https://example.test/api", allowed_methods=["GET", "TRACE"])
+    assert result["ok"] is False
+    assert "unsupported" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
+def test_connector_accepts_public_allowlisted_configuration(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create("public", "https://example.test/api", allowed_methods=["GET", "POST"])
+    assert result["ok"] is True
+    hub.db.create_connector.assert_called_once()
