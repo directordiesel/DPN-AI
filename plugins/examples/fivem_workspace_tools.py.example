@@ -1,0 +1,38 @@
+"""Copy this file to plugins/fivem_workspace_tools.py to enable it."""
+from __future__ import annotations
+
+import re
+from typing import Any
+
+
+def register(registry) -> None:
+    def list_fivem_resources(path: str = ".") -> dict[str, Any]:
+        base = registry.fs.resolve(path)
+        resources = []
+        for manifest in list(base.rglob("fxmanifest.lua")) + list(base.rglob("__resource.lua")):
+            if any(part in {".git", ".venv", "node_modules"} for part in manifest.parts):
+                continue
+            text = manifest.read_text(encoding="utf-8", errors="replace")
+            dependencies = re.findall(r"(?:dependency|dependencies)\s*['\"{\s]*([^'\"}\n]+)", text)
+            resources.append({
+                "resource": manifest.parent.name,
+                "path": registry.fs.relative(manifest.parent),
+                "manifest": manifest.name,
+                "server_scripts": len(re.findall(r"server_scripts?", text)),
+                "client_scripts": len(re.findall(r"client_scripts?", text)),
+                "dependencies": [item.strip() for item in dependencies],
+            })
+        return {"ok": True, "resources": resources, "count": len(resources)}
+
+    registry.register(
+        name="list_fivem_resources",
+        description="Discover FiveM resources and summarize manifests, script groups, and declared dependencies.",
+        parameters={
+            "type": "object",
+            "properties": {"path": {"type": "string", "default": "."}},
+            "required": [],
+            "additionalProperties": False,
+        },
+        function=list_fivem_resources,
+        risk="read",
+    )
