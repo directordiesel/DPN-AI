@@ -1,9 +1,11 @@
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
 from app.tools.filesystem import WorkspaceFS
 from app.tools.shell import SafeCommandRunner
+from app.tools.web_tools import _safe_public_url
 from app.vault import SecretVault
 
 
@@ -68,3 +70,25 @@ def test_vault_rejects_invalid_structure(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="invalid structure"):
         vault.list()
+
+
+def test_web_fetch_rejects_embedded_credentials() -> None:
+    safe, reason = _safe_public_url("https://user:secret@example.com/private")
+    assert safe is False
+    assert "credentials" in reason.lower()
+
+
+def test_web_fetch_rejects_loopback_resolution() -> None:
+    fake_address = [(2, 1, 6, "", ("127.0.0.1", 443))]
+    with mock.patch("app.tools.web_tools.socket.getaddrinfo", return_value=fake_address):
+        safe, reason = _safe_public_url("https://example.test/")
+    assert safe is False
+    assert "private" in reason.lower() or "reserved" in reason.lower()
+
+
+def test_web_fetch_accepts_public_resolution() -> None:
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.tools.web_tools.socket.getaddrinfo", return_value=fake_address):
+        safe, reason = _safe_public_url("https://example.test/")
+    assert safe is True
+    assert reason == ""
