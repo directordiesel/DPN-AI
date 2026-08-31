@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -13,7 +14,7 @@ from app.job_supervisor import JobSupervisor
 from app.knowledge_graph import KnowledgeGraph
 from app.mcp_bridge import MCPBridge
 from app.plugins import load_plugins
-from app.sandbox import SandboxManager
+from app.sandbox import MAX_SOURCE_BYTES, OUTPUT_LIMIT_BYTES, SandboxManager
 from app.tools.registry import ToolRegistry
 from app.vault import SecretVault
 
@@ -240,3 +241,60 @@ def test_sandbox_rejects_network_even_when_requested(tmp_path: Path, monkeypatch
     result = sandbox.run_python("print('hello')", network=True, use_host_fallback=True)
     assert result["ok"] is False
     assert "network access is disabled" in result["error"].lower()
+
+
+def test_sandbox_rejects_symlinked_storage_root(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    generated = workspace / "generated"
+    try:
+        generated.symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    with pytest.raises(ValueError, match="symlink"):
+        SandboxManager(workspace)
+
+
+def test_sandbox_source_limit_is_measured_in_bytes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    sandbox = SandboxManager(tmp_path / "workspace")
+    monkeypatch.setattr(sandbox, "_docker_available", lambda: False)
+    oversized = "é" * ((MAX_SOURCE_BYTES // 2) + 1)
+    result = sandbox.run_python(oversized)
+    assert result["ok"] is False
+    assert "bytes" in result["error"].lower()
+
+
+def test_sandbox_run_ids_are_collision_resistant():
+    first = SandboxManager._run_id("print('same')")
+    second = SandboxManager._run_id("print('same')")
+    assert first != second
+
+
+def test_sandbox_atomic_result_write_replaces_symlink_without_following(tmp_path: Path):
+    outside = tmp_path / "outside.json"
+    outside.write_text("preserve", encoding="utf-8")
+    result = tmp_path / "result.json"
+    try:
+        result.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    SandboxManager._atomic_write_json(result, {"ok": True})
+    assert outside.read_text(encoding="utf-8") == "preserve"
+    assert result.is_symlink() is False
+    assert '"ok": true' in result.read_text(encoding="utf-8").lower()
+
+
+def test_sandbox_process_output_is_bounded(tmp_path: Path):
+    command = [sys.executable, "-c", f"print('x' * {OUTPUT_LIMIT_BYTES * 3})"]
+    exit_code, stdout, stderr, timed_out = SandboxManager._bounded_process(
+        command,
+        tmp_path,
+        {"PATH": "", "PYTHONIOENCODING": "utf-8"},
+        10,
+    )
+    assert exit_code == 0
+    assert timed_out is False
+    assert stderr == ""
+    assert len(stdout.encode("utf-8")) <= OUTPUT_LIMIT_BYTES
