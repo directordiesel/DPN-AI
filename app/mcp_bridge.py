@@ -56,10 +56,10 @@ class MCPBridge:
             address = ipaddress.ip_address(normalized)
             if address.is_loopback:
                 return "loopback"
-            if address.is_private or address.is_link_local:
-                return "private"
             if address.is_multicast or address.is_reserved or address.is_unspecified:
                 return "unsafe"
+            if address.is_private or address.is_link_local:
+                return "private"
             return "public"
         except ValueError:
             try:
