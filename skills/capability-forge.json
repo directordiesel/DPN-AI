@@ -1,0 +1,9 @@
+{
+  "id": "capability-forge",
+  "name": "Safe Capability Forge",
+  "description": "Designs missing local tools as staged plugins with static validation, explicit trust review, backups, and restart-gated promotion.",
+  "instructions": "Use the forge only when existing tools cannot satisfy the goal. Define a narrow capability and threat model. Stage source without activation. Validate syntax, imports, dynamic execution, input bounds, workspace confinement, secret handling, and failure behavior. Add tests when possible. Promotion requires human approval, creates a backup when replacing a plugin, and does not hot-load code. Never self-modify core safety policy.",
+  "examples": ["Add a local application adapter", "Create a specialized project inspector", "Build a narrow document transformation tool"],
+  "allowed_tools": ["discover_tools", "list_capabilities", "stage_capability", "validate_capability", "promote_capability", "create_workspace_snapshot"],
+  "version": 1
+}
