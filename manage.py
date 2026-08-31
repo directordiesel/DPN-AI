@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from app.config import settings
+from app.database_maintenance import DatabaseMaintenance
 from app.db import Database
 from app.model_gateway import ModelGateway
 from app.tools.registry import ToolRegistry
@@ -21,6 +22,10 @@ def stack() -> tuple[Database, ToolRegistry, ModelGateway]:
     return db, tools, gateway
 
 
+def database_maintenance() -> DatabaseMaintenance:
+    return DatabaseMaintenance(settings.database_path, settings.data_dir / "database_backups")
+
+
 async def doctor() -> dict[str, Any]:
     db, tools, gateway = stack()
     result = tools.diagnostics.report()
@@ -31,6 +36,12 @@ async def doctor() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         result["models"] = []
         result["model_error"] = str(exc)
+    try:
+        maintenance = database_maintenance()
+        result["database"] = maintenance.integrity_check(full=False)
+        maintenance.harden_permissions()
+    except Exception as exc:  # noqa: BLE001
+        result["database"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     result["universal_core"] = {
         "tools": len(tools.schemas()),
         "plugin_errors": tools.plugin_errors,
@@ -60,6 +71,12 @@ def main() -> int:
     backup = sub.add_parser("backup", help="Create a verified workspace snapshot")
     backup.add_argument("--name", default="manual-cli-backup")
     backup.add_argument("--path", default=".")
+    db_check = sub.add_parser("db-check", help="Run a SQLite database integrity check")
+    db_check.add_argument("--full", action="store_true", help="Run the slower full integrity_check")
+    db_backup = sub.add_parser("db-backup", help="Create an atomic verified SQLite backup")
+    db_backup.add_argument("--name", default=None)
+    db_verify = sub.add_parser("db-verify", help="Verify a database backup from the private backup directory")
+    db_verify.add_argument("name")
     index = sub.add_parser("index", help="Index workspace knowledge")
     index.add_argument("--force", action="store_true")
     sub.add_parser("projects", help="List persistent projects and task counts")
@@ -78,6 +95,21 @@ def main() -> int:
     secret = sub.add_parser("set-secret", help="Read a secret from stdin and save it encrypted")
     secret.add_argument("name")
     args = parser.parse_args()
+
+    if args.command in {"db-check", "db-backup", "db-verify"}:
+        maintenance = database_maintenance()
+        try:
+            maintenance.harden_permissions()
+            if args.command == "db-check":
+                output = maintenance.integrity_check(full=args.full)
+            elif args.command == "db-backup":
+                output = maintenance.backup(args.name)
+            else:
+                output = maintenance.verify_backup(args.name)
+        except Exception as exc:  # noqa: BLE001
+            output = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        print(json.dumps(output, indent=2, ensure_ascii=False, default=str))
+        return 0 if output.get("ok", False) else 1
 
     db, tools, _ = stack()
     if args.command == "doctor":
