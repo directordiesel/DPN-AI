@@ -2,3 +2,29 @@
 .env
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.ruff_cache/
+data/*.sqlite3
+data/*.sqlite3-*
+data/*.log
+workspace/*
+!workspace/.gitkeep
+!workspace/README.md
+plugins/*.py
+
+# Local secrets and runtime state
+data/vault.key
+data/*.key
+runtime_logs/
+install_logs/
+*.log
+
+# Local/generated workspace content
+workspace/generated/
+workspace/uploads/
+
+# Common local tooling
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
