@@ -10,6 +10,7 @@ SENSITIVE_KEY_TOKENS = (
     "apikey",
     "access_token",
     "refresh_token",
+    "token",
     "password",
     "passwd",
     "secret",
