@@ -4,11 +4,16 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from app.db import Database
+from app.db import Database, utc_now
+from app.persistence_security import sanitize_for_persistence
+
+
+_AUTOMATION_TIMEOUT_SECONDS = 3600
+_STALE_RUNNING_AFTER = timedelta(minutes=90)
 
 
 class AutomationEngine:
-    """Small local scheduler. It polls persisted automations and invokes the agent when due."""
+    """Small local scheduler with persisted, single-winner automation claims."""
 
     def __init__(self, db: Database, agent: Any):
         self.db = db
@@ -45,6 +50,35 @@ class AutomationEngine:
     def validate(self, schedule_type: str, schedule_value: str) -> str:
         return self._next_run(schedule_type, schedule_value).isoformat()
 
+    def _recover_stale_claims(self, now: datetime) -> int:
+        cutoff = (now - _STALE_RUNNING_AFTER).isoformat()
+        with self.db.connect() as connection:
+            cursor = connection.execute(
+                """UPDATE automations
+                   SET last_status='failed',
+                       last_result='Recovered stale automation execution claim',
+                       next_run_at=?, updated_at=?
+                   WHERE last_status='running' AND last_run_at IS NOT NULL AND last_run_at < ?""",
+                (now.isoformat(), utc_now(), cutoff),
+            )
+            return int(cursor.rowcount or 0)
+
+    def _claim(self, automation_id: str, started: datetime) -> bool:
+        """Atomically claim an automation across workers/processes sharing SQLite."""
+        with self.db.connect() as connection:
+            cursor = connection.execute(
+                """UPDATE automations
+                   SET last_status='running', last_run_at=?, updated_at=?
+                   WHERE id=? AND COALESCE(last_status,'')!='running'""",
+                (started.isoformat(), utc_now(), automation_id),
+            )
+            return cursor.rowcount == 1
+
+    @staticmethod
+    def _safe_text(value: Any, limit: int = 20_000) -> str:
+        sanitized = sanitize_for_persistence(value)
+        return str(sanitized)[:limit]
+
     async def start(self) -> None:
         if self._task and not self._task.done():
             return
@@ -66,7 +100,8 @@ class AutomationEngine:
             try:
                 await self.tick()
             except Exception as exc:  # noqa: BLE001
-                self.db.audit("automation.engine_error", f"Automation engine error: {exc}")
+                safe_error = self._safe_text(f"{type(exc).__name__}: {exc}")
+                self.db.audit("automation.engine_error", f"Automation engine error: {safe_error}")
             try:
                 await asyncio.wait_for(self._stopping.wait(), timeout=30)
             except asyncio.TimeoutError:
@@ -74,11 +109,20 @@ class AutomationEngine:
 
     async def tick(self) -> None:
         now = datetime.now(timezone.utc)
+        self._recover_stale_claims(now)
         enabled = self.db.get_setting("allow_automations", self.agent.settings.allow_automations_default)
         if not enabled:
             return
         for automation in self.db.list_automations():
             if not automation["enabled"] or automation["id"] in self._running_ids:
+                continue
+            try:
+                self._next_run(automation["schedule_type"], automation["schedule_value"], now)
+            except ValueError as exc:
+                self.db.update_automation(
+                    automation["id"],
+                    {"last_status": "failed", "last_result": self._safe_text(exc), "next_run_at": None},
+                )
                 continue
             next_run_raw = automation.get("next_run_at")
             if not next_run_raw:
@@ -89,7 +133,9 @@ class AutomationEngine:
                 next_run = datetime.fromisoformat(next_run_raw)
                 if next_run.tzinfo is None:
                     next_run = next_run.replace(tzinfo=timezone.utc)
-            except ValueError:
+                else:
+                    next_run = next_run.astimezone(timezone.utc)
+            except (TypeError, ValueError):
                 next_run = now
             if next_run <= now:
                 asyncio.create_task(self.run_now(automation["id"]), name=f"automation-{automation['id']}")
@@ -100,15 +146,29 @@ class AutomationEngine:
             return {"ok": False, "error": "Automation not found"}
         if automation_id in self._running_ids:
             return {"ok": False, "error": "Automation is already running"}
-        self._running_ids.add(automation_id)
-        started = datetime.now(timezone.utc)
         try:
-            result = await self.agent.run(
-                conversation_id=None,
-                user_message=automation["prompt"],
-                profile=automation["profile"],
-                project_id=automation.get("project_id"),
-                source="automation",
+            self._next_run(automation["schedule_type"], automation["schedule_value"])
+        except ValueError as exc:
+            self.db.update_automation(
+                automation_id,
+                {"last_status": "failed", "last_result": self._safe_text(exc), "next_run_at": None},
+            )
+            return {"ok": False, "error": str(exc)}
+
+        started = datetime.now(timezone.utc)
+        if not self._claim(automation_id, started):
+            return {"ok": False, "error": "Automation is already running"}
+        self._running_ids.add(automation_id)
+        try:
+            result = await asyncio.wait_for(
+                self.agent.run(
+                    conversation_id=None,
+                    user_message=automation["prompt"],
+                    profile=automation["profile"],
+                    project_id=automation.get("project_id"),
+                    source="automation",
+                ),
+                timeout=_AUTOMATION_TIMEOUT_SECONDS,
             )
             next_run = self._next_run(automation["schedule_type"], automation["schedule_value"], started)
             self.db.update_automation(
@@ -117,23 +177,46 @@ class AutomationEngine:
                     "last_run_at": started.isoformat(),
                     "next_run_at": next_run.isoformat(),
                     "last_status": "completed",
-                    "last_result": result.message[:20_000],
+                    "last_result": self._safe_text(result.message),
                 },
             )
-            self.db.audit("automation.completed", f"Completed automation {automation['name']}", {"automation_id": automation_id, "conversation_id": result.conversation_id})
+            self.db.audit(
+                "automation.completed",
+                f"Completed automation {automation['name']}",
+                {"automation_id": automation_id, "conversation_id": result.conversation_id},
+            )
             return {"ok": True, "conversation_id": result.conversation_id, "run_id": result.run_id, "message": result.message}
-        except Exception as exc:  # noqa: BLE001
+        except asyncio.TimeoutError:
             next_run = self._next_run(automation["schedule_type"], automation["schedule_value"], started)
+            message = f"Automation exceeded {_AUTOMATION_TIMEOUT_SECONDS} seconds"
             self.db.update_automation(
                 automation_id,
                 {
                     "last_run_at": started.isoformat(),
                     "next_run_at": next_run.isoformat(),
                     "last_status": "failed",
-                    "last_result": f"{type(exc).__name__}: {exc}"[:20_000],
+                    "last_result": message,
                 },
             )
-            self.db.audit("automation.failed", f"Automation {automation['name']} failed", {"automation_id": automation_id, "error": str(exc)})
-            return {"ok": False, "error": str(exc)}
+            self.db.audit("automation.failed", f"Automation {automation['name']} timed out", {"automation_id": automation_id})
+            return {"ok": False, "error": message}
+        except Exception as exc:  # noqa: BLE001
+            next_run = self._next_run(automation["schedule_type"], automation["schedule_value"], started)
+            safe_error = self._safe_text(f"{type(exc).__name__}: {exc}")
+            self.db.update_automation(
+                automation_id,
+                {
+                    "last_run_at": started.isoformat(),
+                    "next_run_at": next_run.isoformat(),
+                    "last_status": "failed",
+                    "last_result": safe_error,
+                },
+            )
+            self.db.audit(
+                "automation.failed",
+                f"Automation {automation['name']} failed",
+                {"automation_id": automation_id, "error": safe_error},
+            )
+            return {"ok": False, "error": safe_error}
         finally:
             self._running_ids.discard(automation_id)
