@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.voice_security import install_voice_security
+
 
 MAX_PLUGIN_BYTES = 1_000_000
 
@@ -38,13 +40,16 @@ def _load_plugin(path: Path, expected_parent: Path, registry: Any) -> None:
 
 
 def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
-    """Load optional trusted local Python plugins exposing register(registry).
+    """Install core runtime guards, then load optional trusted local plugins.
 
-    Core security controls are initialized by ToolRegistry itself and never rely
-    on this configurable directory. Optional plugins are restricted to regular
-    files directly inside the configured directory, cannot be symlinks, and are
-    size-bounded before import.
+    Voice hardening is installed here as a core initialization hook after the
+    ToolRegistry has registered its voice callbacks. It does not depend on any
+    file in DPN_PLUGINS_DIR and therefore cannot be disabled by changing the
+    configurable plugin directory. Optional plugins remain restricted to regular
+    files directly inside that directory and cannot be symlinks.
     """
+    install_voice_security(registry)
+
     errors: list[dict[str, str]] = []
     plugin_dir.mkdir(parents=True, exist_ok=True)
     configured_root = plugin_dir.resolve()
