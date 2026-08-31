@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
+from app.approval_security import ApprovalSecurity
 from app.config import Settings
 from app.capability_forge import CapabilityForge
 from app.cognitive_kernel import CognitiveKernel
@@ -71,6 +72,10 @@ class ToolRegistry:
         self.mcp = MCPBridge(db, self.vault, settings.allow_external_mcp_default)
         self.tools: dict[str, RegisteredTool] = {}
         self._register_defaults()
+        # Approval protection is part of the core runtime. It is initialized
+        # before optional plugins so DPN_PLUGINS_DIR cannot disable or replace
+        # the plaintext-prevention and single-use approval boundary.
+        self.approval_security = ApprovalSecurity(self)
         self.plugin_errors = load_plugins(settings.plugins_dir, self)
 
     def register(
@@ -490,6 +495,7 @@ class ToolRegistry:
 
     @staticmethod
     def _redact_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+        """Legacy compatibility helper; approval persistence uses the core sanitizer."""
         output: dict[str, Any] = {}
         for key, value in arguments.items():
             if key.lower() in {"password", "token", "secret", "api_key", "authorization"}:
@@ -503,41 +509,7 @@ class ToolRegistry:
         return output
 
     async def execute(self, name: str, arguments: dict[str, Any], permissions: dict[str, Any]) -> dict[str, Any]:
-        registered = self.tools.get(name)
-        if not registered:
-            return {"ok": False, "error": f"Unknown tool: {name}"}
-        gate_error = self._gate_error(registered, permissions)
-        if gate_error:
-            return {"ok": False, "error": gate_error}
-        mode = permissions.get("approval_mode", "standard")
-        if mode == "safe" and registered.risk in {"execute", "destructive", "external", "desktop"}:
-            return {"ok": False, "error": f"{name} is blocked by Safe approval mode."}
-        if mode == "standard" and registered.risk in {"destructive", "external", "desktop"}:
-            approval = self.db.create_approval(
-                name, self._redact_arguments(arguments), registered.risk,
-                f"{name} has {registered.risk} side effects and requires a human decision in Standard mode.",
-                permissions.get("run_id"),
-            )
-            # Keep original arguments only in the encrypted/local database trace where possible.
-            with self.db.connect() as connection:
-                import json
-                connection.execute("UPDATE approval_requests SET arguments_json=? WHERE id=?", (json.dumps(arguments, ensure_ascii=False, default=str), approval["id"]))
-            return {"ok": False, "approval_required": True, "approval_id": approval["id"], "risk": registered.risk,
-                    "error": f"Approval required for {name}. Open the Approval Inbox."}
-        result = await self._invoke(name, arguments)
-        self.db.audit("tool.executed", f"{name}: {'ok' if result.get('ok') else 'failed'}",
-                      {"tool": name, "arguments": self._redact_arguments(arguments), "ok": bool(result.get("ok")),
-                       "elapsed_ms": result.get("elapsed_ms", 0)}, actor="agent")
-        return result
+        return await self.approval_security.execute(name, arguments, permissions)
 
     async def execute_approval(self, approval_id: str) -> dict[str, Any]:
-        approval = self.db.get_approval(approval_id)
-        if not approval:
-            return {"ok": False, "error": "Approval not found"}
-        if approval.get("status") != "approved":
-            return {"ok": False, "error": "Approval must be approved before execution"}
-        result = await self._invoke(approval["tool_name"], approval.get("arguments", {}))
-        self.db.resolve_approval(approval_id, "executed" if result.get("ok") else "failed", result)
-        self.db.audit("tool.approved_execution", f"Executed approved tool {approval['tool_name']}",
-                      {"approval_id": approval_id, "ok": bool(result.get("ok"))}, actor="user")
-        return result
+        return await self.approval_security.execute_approval(approval_id)
