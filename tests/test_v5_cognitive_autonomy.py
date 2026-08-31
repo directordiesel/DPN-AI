@@ -12,6 +12,7 @@ from app.db import Database
 from app.job_supervisor import JobSupervisor
 from app.knowledge_graph import KnowledgeGraph
 from app.mcp_bridge import MCPBridge
+from app.plugins import load_plugins
 from app.sandbox import SandboxManager
 from app.tools.registry import ToolRegistry
 from app.vault import SecretVault
@@ -134,6 +135,39 @@ def test_capability_forge_rejects_dynamic_execution(tmp_path: Path):
     validation = forge.validate("unsafe")
     assert validation["valid"] is False
     assert any("Dynamic execution" in item["message"] for item in validation["issues"])
+
+
+def test_capability_forge_rejects_symlink_plugin_target(tmp_path: Path):
+    forge = CapabilityForge(tmp_path / "plugins", tmp_path / "data")
+    code = "def register(registry):\n    return None\n"
+    assert forge.stage("linked", code)["ok"]
+    outside = tmp_path / "outside.py"
+    outside.write_text("do not replace", encoding="utf-8")
+    target = tmp_path / "plugins" / "linked.py"
+    try:
+        target.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    promoted = forge.promote("linked")
+    assert promoted["ok"] is False
+    assert "symlink" in promoted["error"].lower()
+    assert outside.read_text(encoding="utf-8") == "do not replace"
+
+
+def test_plugin_loader_rejects_symlinked_plugin(tmp_path: Path):
+    plugin_dir = tmp_path / "plugins"
+    plugin_dir.mkdir()
+    outside = tmp_path / "outside_plugin.py"
+    outside.write_text("def register(registry):\n    registry.registered = True\n", encoding="utf-8")
+    linked = plugin_dir / "linked.py"
+    try:
+        linked.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks are unavailable on this platform")
+    registry = SimpleNamespace(registered=False)
+    errors = load_plugins(plugin_dir, registry)
+    assert registry.registered is False
+    assert errors and "symlink" in errors[0]["error"].lower()
 
 
 def test_mcp_server_deny_by_default_and_allowlist_update(tmp_path: Path):
