@@ -36,6 +36,16 @@ def test_persistence_redacts_secret_references_and_bounds_payloads() -> None:
     assert sanitized["binary"] == "[binary omitted: 3 bytes]"
 
 
+def test_persistence_redacts_credentials_embedded_in_diagnostics() -> None:
+    sanitized = sanitize_for_persistence(
+        "RuntimeError: upstream rejected Bearer super-secret-token; api_key=another-secret"
+    )
+    assert "super-secret-token" not in sanitized
+    assert "another-secret" not in sanitized
+    assert "[redacted authorization]" in sanitized
+    assert "[redacted]" in sanitized
+
+
 class RecordingDB:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
