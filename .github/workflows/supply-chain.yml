@@ -1,0 +1,67 @@
+name: Supply Chain
+
+on:
+  push:
+    branches: ["supply-chain/**"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release tag to inventory (example: v1.2.3)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+            version="${{ github.event.release.tag_name }}"
+          elif [[ "$GITHUB_REF_NAME" == supply-chain/* ]]; then
+            version="${GITHUB_REF_NAME#supply-chain/}"
+          else
+            version="${{ github.event.inputs.version }}"
+          fi
+          test -n "$version" || { echo "::error::Unable to determine release version."; exit 1; }
+          echo "DPN_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Preserve supply-chain generator
+        run: cp .github/scripts/generate_supply_chain.py /tmp/dpn_generate_supply_chain.py
+      - name: Checkout exact release tag
+        shell: bash
+        run: |
+          git fetch --tags --force
+          git checkout --detach "$DPN_VERSION"
+          echo "Release source commit: $(git rev-parse HEAD)"
+      - name: Generate SPDX SBOM and verification manifests
+        run: python /tmp/dpn_generate_supply_chain.py
+      - name: Verify target GitHub Release exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "$DPN_VERSION" >/dev/null
+      - name: Attach supply-chain records to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$DPN_VERSION" SBOM.spdx.json SOURCE_SHA256SUMS.txt DEPENDENCY_INVENTORY.txt --clobber
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-${{ env.DPN_VERSION }}
+          path: |
+            SBOM.spdx.json
+            SOURCE_SHA256SUMS.txt
+            DEPENDENCY_INVENTORY.txt
+          retention-days: 90
