@@ -4,10 +4,12 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
+from app.approval_security import ApprovalSecurity
+from app.config import Settings
 from app.db import Database
+from app.tools.registry import ToolRegistry
 from app.vault import SecretVault
 from app.workflows import WorkflowEngine
-from plugins.approval_payload_security import register
 
 
 class ApprovalTool:
@@ -42,11 +44,17 @@ class ApprovalRegistry:
         self.invocations.append((name, arguments))
         return {"ok": True}
 
-    async def execute(self, name, arguments, permissions):  # replaced by register()
-        raise AssertionError("security extension did not register")
+    async def execute(self, name, arguments, permissions):
+        raise AssertionError("core approval security did not install")
 
-    async def execute_approval(self, approval_id):  # replaced by register()
-        raise AssertionError("security extension did not register")
+    async def execute_approval(self, approval_id):
+        raise AssertionError("core approval security did not install")
+
+
+def install_core_approval_security(registry: ApprovalRegistry) -> None:
+    registry.approval_security = ApprovalSecurity(registry)
+    registry.execute = registry.approval_security.execute
+    registry.execute_approval = registry.approval_security.execute_approval
 
 
 class WorkflowAgent:
@@ -77,10 +85,9 @@ class WorkflowTools:
         return {"ok": True}
 
 
-
 def test_approved_tool_revalidates_revoked_gate_before_execution(tmp_path: Path):
     registry = ApprovalRegistry(tmp_path)
-    register(registry)
+    install_core_approval_security(registry)
     requested = asyncio.run(registry.execute(
         "send",
         {"token": "secret"},
@@ -100,7 +107,7 @@ def test_approved_tool_revalidates_revoked_gate_before_execution(tmp_path: Path)
 
 def test_approved_tool_is_single_use(tmp_path: Path):
     registry = ApprovalRegistry(tmp_path)
-    register(registry)
+    install_core_approval_security(registry)
     requested = asyncio.run(registry.execute(
         "send",
         {"message": "once"},
@@ -115,6 +122,47 @@ def test_approved_tool_is_single_use(tmp_path: Path):
     assert first["ok"] is True
     assert second["ok"] is False
     assert registry.invocations == [("send", {"message": "once"})]
+
+
+def test_tool_registry_core_approval_security_does_not_need_plugins(tmp_path: Path):
+    data_dir = tmp_path / "data"
+    workspace_dir = tmp_path / "workspace"
+    skills_dir = tmp_path / "skills"
+    plugins_dir = tmp_path / "empty-plugins"
+    voice_dir = tmp_path / "voices"
+    for directory in (data_dir, workspace_dir, skills_dir, plugins_dir, voice_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    settings = Settings(
+        data_dir=data_dir,
+        workspace_dir=workspace_dir,
+        skills_dir=skills_dir,
+        plugins_dir=plugins_dir,
+        voice_dir=voice_dir,
+        vault_key_path=data_dir / "vault.key",
+    )
+    db = Database(data_dir / "dpn_ai.sqlite3")
+    registry = ToolRegistry(settings, db)
+    assert isinstance(registry.approval_security, ApprovalSecurity)
+    assert registry.plugin_errors == []
+
+    registry.register(
+        "core_external_test",
+        "Core approval integration test.",
+        {"type": "object", "properties": {"token": {"type": "string"}}, "required": ["token"]},
+        lambda token: {"ok": True, "received": bool(token)},
+        risk="external",
+    )
+    secret = "CORE-APPROVAL-PLAINTEXT-MUST-NOT-PERSIST"
+    requested = asyncio.run(registry.execute(
+        "core_external_test",
+        {"token": secret},
+        {"approval_mode": "standard"},
+    ))
+
+    assert requested["approval_required"] is True
+    assert secret.encode() not in (data_dir / "dpn_ai.sqlite3").read_bytes()
+    assert registry.vault.get_value(f"approval_payload.{requested['approval_id']}")
 
 
 def test_workflow_ignores_stale_authorizing_permissions(tmp_path: Path):
