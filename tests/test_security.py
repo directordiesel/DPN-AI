@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -38,6 +39,66 @@ def test_shell_blocks_inline_python(tmp_path: Path) -> None:
     result = runner.run('python -c "print(1)"')
     assert result["ok"] is False
     assert "Inline Python" in result["error"]
+
+
+def test_shell_rejects_executable_paths(tmp_path: Path) -> None:
+    runner = SafeCommandRunner(tmp_path / "workspace")
+    result = runner.run("./python script.py")
+    assert result["ok"] is False
+    assert "bare name" in result["error"]
+
+
+def test_shell_blocks_remote_package_install(tmp_path: Path) -> None:
+    runner = SafeCommandRunner(tmp_path / "workspace")
+    with mock.patch("app.tools.shell.shutil.which", return_value="/usr/bin/pip"):
+        result = runner.run("pip install requests")
+    assert result["ok"] is False
+    assert "package operation" in result["error"]
+
+
+def test_shell_blocks_npx_remote_execution(tmp_path: Path) -> None:
+    runner = SafeCommandRunner(tmp_path / "workspace")
+    result = runner.run("npx some-package")
+    assert result["ok"] is False
+    assert "not allowed" in result["error"]
+
+
+def test_shell_blocks_git_runtime_command_override(tmp_path: Path) -> None:
+    runner = SafeCommandRunner(tmp_path / "workspace")
+    with mock.patch("app.tools.shell.shutil.which", return_value="/usr/bin/git"):
+        result = runner.run('git -c core.sshCommand="ssh -o ProxyCommand=helper" status')
+    assert result["ok"] is False
+    assert "configuration overrides" in result["error"]
+
+
+def test_shell_does_not_inherit_sensitive_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    workspace = tmp_path / "workspace"
+    runner = SafeCommandRunner(workspace)
+    monkeypatch.setenv("DPN_TEST_API_KEY", "must-not-reach-child")
+    monkeypatch.setenv("DPN_TEST_VISIBLE", "safe-value")
+    completed = SimpleNamespace(returncode=0, stdout="ok", stderr="")
+    with (
+        mock.patch("app.tools.shell.shutil.which", return_value="/usr/bin/python"),
+        mock.patch("app.tools.shell.subprocess.run", return_value=completed) as run_mock,
+    ):
+        result = runner.run("python script.py")
+    assert result["ok"] is True
+    child_env = run_mock.call_args.kwargs["env"]
+    assert "DPN_TEST_API_KEY" not in child_env
+    assert child_env["DPN_TEST_VISIBLE"] == "safe-value"
+    assert child_env["DPN_AI_WORKSPACE"] == str(workspace.resolve())
+
+
+def test_shell_rejects_workspace_shadow_executable(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    fake_python = workspace / "bin" / "python"
+    fake_python.parent.mkdir(parents=True)
+    fake_python.write_text("placeholder", encoding="utf-8")
+    runner = SafeCommandRunner(workspace)
+    with mock.patch("app.tools.shell.shutil.which", return_value=str(fake_python)):
+        result = runner.run("python script.py")
+    assert result["ok"] is False
+    assert "inside the DPN AI workspace" in result["error"]
 
 
 def test_vault_round_trip(tmp_path: Path) -> None:
