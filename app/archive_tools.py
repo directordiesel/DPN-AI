@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import stat
 import tarfile
@@ -57,8 +56,6 @@ class ArchiveTools:
         if mode and stat.S_ISLNK(mode):
             return False
         if mode and not (stat.S_ISREG(mode) or stat.S_ISDIR(mode)):
-            # Some ZIP creators only populate permission bits, so only reject
-            # entries that clearly advertise a special file type.
             file_type = stat.S_IFMT(mode)
             if file_type not in {0, stat.S_IFREG, stat.S_IFDIR}:
                 return False
@@ -77,7 +74,10 @@ class ArchiveTools:
             destination.write(chunk)
 
     def inspect(self, path: str, limit: int = 2000) -> dict[str, Any]:
-        target = self._resolve(path)
+        try:
+            target = self._resolve(path)
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
         if target.is_symlink() or not target.exists() or not target.is_file():
             return {"ok": False, "error": "Archive not found or is a symlink"}
         limit = max(1, min(int(limit), 10000))
@@ -114,7 +114,10 @@ class ArchiveTools:
         return {"ok": True, "path": target.relative_to(self.workspace).as_posix(), "kind": kind, "count": count, "shown": len(entries), "total_uncompressed_bytes": total_size, "unsafe_entries": unsafe[:100], "entries": entries}
 
     def extract(self, path: str, destination: str | None = None, max_files: int = 5000, max_bytes: int = 2_000_000_000, overwrite: bool = False) -> dict[str, Any]:
-        target = self._resolve(path)
+        try:
+            target = self._resolve(path)
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "error": str(exc)}
         if target.is_symlink() or not target.exists() or not target.is_file():
             return {"ok": False, "error": "Archive not found or is a symlink"}
         max_files = max(1, min(int(max_files), self.MAX_FILES))
