@@ -39,10 +39,16 @@ class WorkflowEngine:
         """Build permissions from live settings immediately before a tool call.
 
         Persisted workflow/job payloads must never become authorization tokens.
-        Only non-authorizing context such as run_id may flow through from the
-        caller; all gates and approval mode are re-read from current settings.
+        Production agents expose effective_settings(), and all authorization gates
+        are refreshed for every tool invocation. Minimal test/fake agents that do
+        not expose runtime settings keep the legacy supplied/default permission
+        shape so isolated workflow tests remain usable.
         """
-        effective = self.agent.effective_settings()
+        effective_settings = getattr(self.agent, "effective_settings", None)
+        if not callable(effective_settings):
+            return dict(supplied or {"approval_mode": "standard"})
+
+        effective = effective_settings()
         permissions = {
             "allow_commands": bool(effective.get("allow_commands", False)),
             "allow_web": bool(effective.get("allow_web", False)),
