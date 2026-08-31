@@ -24,6 +24,11 @@ MAX_COLLECTION_ITEMS = 200
 MAX_DEPTH = 8
 
 _AUTH_VALUE = re.compile(r"^(?:bearer|basic)\s+\S+", re.IGNORECASE)
+_INLINE_AUTH_VALUE = re.compile(r"\b(?:bearer|basic)\s+[^\s,;]+", re.IGNORECASE)
+_SECRET_ASSIGNMENT = re.compile(
+    r"(?i)\b(?:authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|passwd|secret|credential)"
+    r"\s*[:=]\s*([^\s,;]+)"
+)
 _SECRET_REF = re.compile(r"^\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}$")
 
 
@@ -32,25 +37,32 @@ def _sensitive_key(key: str) -> bool:
     return any(token in normalized for token in SENSITIVE_KEY_TOKENS)
 
 
+def _sanitize_text(value: str) -> str:
+    if _SECRET_REF.fullmatch(value):
+        return "[secret reference]"
+    if _AUTH_VALUE.match(value.strip()):
+        return "[redacted authorization]"
+    redacted = _INLINE_AUTH_VALUE.sub("[redacted authorization]", value)
+    redacted = _SECRET_ASSIGNMENT.sub(lambda match: match.group(0).replace(match.group(1), "[redacted]"), redacted)
+    if len(redacted) > MAX_PERSISTED_STRING:
+        return redacted[:MAX_PERSISTED_STRING] + f"… [truncated {len(redacted) - MAX_PERSISTED_STRING} chars]"
+    return redacted
+
+
 def sanitize_for_persistence(value: Any, *, depth: int = 0) -> Any:
     """Return a bounded, secret-redacted representation safe for local logs/audits.
 
     This is intentionally conservative: persistent diagnostics should retain
     structure and useful non-secret values, not raw credentials or unbounded
-    third-party payloads.
+    third-party payloads. Authorization material is removed even when it is
+    embedded inside exception text instead of occupying the whole string.
     """
     if depth >= MAX_DEPTH:
         return "[max depth reached]"
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
-        if _SECRET_REF.fullmatch(value):
-            return "[secret reference]"
-        if _AUTH_VALUE.match(value.strip()):
-            return "[redacted authorization]"
-        if len(value) > MAX_PERSISTED_STRING:
-            return value[:MAX_PERSISTED_STRING] + f"… [truncated {len(value) - MAX_PERSISTED_STRING} chars]"
-        return value
+        return _sanitize_text(value)
     if isinstance(value, bytes):
         return f"[binary omitted: {len(value)} bytes]"
     if isinstance(value, dict):
