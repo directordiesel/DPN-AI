@@ -997,7 +997,8 @@ class Database:
     # Reusable workflows
     def create_workflow(self, name: str, description: str, steps: list[dict[str, Any]], enabled: bool = True) -> dict[str, Any]:
         workflow_id = str(uuid.uuid4())
-        now = utc_now()\n        with self.connect() as db:
+        now = utc_now()
+        with self.connect() as db:
             db.execute("INSERT INTO workflows(id,name,description,steps_json,enabled,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
                        (workflow_id, name, description, _json(steps), 1 if enabled else 0, now, now))
         return self.get_workflow(workflow_id) or {}
