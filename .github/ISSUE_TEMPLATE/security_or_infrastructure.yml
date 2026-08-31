@@ -1,0 +1,38 @@
+name: Security or infrastructure issue
+description: Report a non-sensitive DPN AI security, connector, MCP, sandbox, model, or deployment issue.
+title: "[Security/Infrastructure] "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not post keys, tokens, passwords, private workspace data, exploit payloads, connector/MCP secrets, or sensitive tool output. Follow SECURITY.md for sensitive reporting."
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Vault / Secrets
+        - Tool Policy / Approval
+        - Sandbox / Shell
+        - Browser / Desktop
+        - HTTP Connector
+        - MCP
+        - Plugin / Capability Forge
+        - Model Gateway
+        - Persistence / Database
+        - Recovery
+        - Repository / CI
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Sanitized summary
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security / operational impact
+    validations:
+      required: true
