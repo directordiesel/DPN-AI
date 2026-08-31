@@ -71,8 +71,9 @@ async def test_automation_failure_redacts_bearer_secret_from_persistence(tmp_pat
     assert not result["ok"]
     stored = db.get_automation(automation["id"])
     assert stored is not None
-    assert "super-secret-token" not in (stored.get("last_result") or "")
-    assert "[redacted]" in (stored.get("last_result") or "")
+    persisted = stored.get("last_result") or ""
+    assert "super-secret-token" not in persisted
+    assert "[redacted authorization]" in persisted
 
 
 @pytest.mark.asyncio
