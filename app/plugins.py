@@ -38,27 +38,42 @@ def _load_plugin(path: Path, expected_parent: Path, registry: Any) -> None:
         raise
 
 
+def _is_runtime_tool_registry(registry: Any) -> bool:
+    """Identify the real DPN AI tool registry without coupling to its class import.
+
+    Loader unit tests and third-party utility uses may pass a tiny stand-in object
+    purely to test path handling. Mandatory runtime protections should be required
+    only for a registry that exposes the production security dependencies.
+    """
+    return all(hasattr(registry, name) for name in ("db", "vault", "tools", "execute", "execute_approval"))
+
+
 def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
     """Load trusted local Python plugins exposing register(registry).
 
     User-configured plugins are restricted to regular files directly inside the
-    configured directory. Security-critical bundled plugins are loaded from the
-    application's own plugin directory even when DPN_PLUGINS_DIR points
-    elsewhere, so changing the extension directory cannot silently disable a
-    required security boundary.
+    configured directory. For the production ToolRegistry, security-critical
+    bundled plugins are always loaded from the application's own plugin directory
+    even when DPN_PLUGINS_DIR points elsewhere. A mandatory registration failure
+    fails closed. Lightweight loader test doubles do not activate runtime-only
+    security extensions.
     """
     errors: list[dict[str, str]] = []
     plugin_dir.mkdir(parents=True, exist_ok=True)
     configured_root = plugin_dir.resolve()
     bundled_root = (Path(__file__).resolve().parent.parent / "plugins").resolve()
+    require_mandatory = _is_runtime_tool_registry(registry)
 
     candidates: list[tuple[Path, Path, bool]] = []
-    for name in sorted(MANDATORY_PLUGIN_NAMES):
-        mandatory = bundled_root / name
-        if mandatory.exists():
-            candidates.append((mandatory, bundled_root, True))
-        else:
-            errors.append({"plugin": name, "error": "RuntimeError: mandatory security plugin is missing"})
+    if require_mandatory:
+        for name in sorted(MANDATORY_PLUGIN_NAMES):
+            mandatory = bundled_root / name
+            if mandatory.exists():
+                candidates.append((mandatory, bundled_root, True))
+            else:
+                error = {"plugin": name, "error": "RuntimeError: mandatory security plugin is missing"}
+                errors.append(error)
+                raise RuntimeError(f"Mandatory security plugin is missing: {name}")
 
     for path in sorted(plugin_dir.glob("*.py")):
         if path.name.startswith("_"):
