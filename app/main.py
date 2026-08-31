@@ -997,7 +997,8 @@ def graph_add_fact(request: GraphFactCreate) -> dict[str, Any]:
 
 
 @app.get("/api/graph/nodes/{node_id}/neighborhood")
-def graph_neighborhood(node_id: str, depth: int = 1, limit: int = 100) -> dict[str, Any]:\n    result = tools.graph.neighborhood(node_id, depth, limit)
+def graph_neighborhood(node_id: str, depth: int = 1, limit: int = 100) -> dict[str, Any]:
+    result = tools.graph.neighborhood(node_id, depth, limit)
     if not result.get("ok"):
         raise HTTPException(status_code=404, detail=result.get("error"))
     return result
