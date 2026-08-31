@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 from app.db import Database
 from app.vault import SecretVault
@@ -94,3 +93,39 @@ def test_missing_payload_fails_closed_without_execution(tmp_path):
     assert result["ok"] is False
     assert registry.invocations == []
     assert registry.db.get_approval(approval_id)["status"] == "failed"
+
+
+def test_legacy_plaintext_approval_is_scrubbed_on_registration(tmp_path):
+    registry = DummyRegistry(tmp_path)
+    secret = "LEGACY-PLAINTEXT-TOKEN"
+    approval = registry.db.create_approval("send", {"token": secret, "message": "keep"}, "external", "legacy")
+    assert secret.encode() in (tmp_path / "data.sqlite3").read_bytes()
+
+    register(registry)
+
+    cleaned = registry.db.get_approval(approval["id"])
+    assert cleaned["arguments"]["token"] == "[redacted]"
+    assert cleaned["arguments"]["message"] == "keep"
+    assert secret.encode() not in (tmp_path / "data.sqlite3").read_bytes()
+
+
+def test_expired_approval_is_denied_and_payload_destroyed(tmp_path):
+    registry = DummyRegistry(tmp_path)
+    register(registry)
+    requested = asyncio.run(registry.execute("send", {"token": "abc"}, {"approval_mode": "standard"}))
+    approval_id = requested["approval_id"]
+    old = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    with registry.db.connect() as connection:
+        connection.execute("UPDATE approval_requests SET created_at=? WHERE id=?", (old, approval_id))
+        connection.execute("UPDATE approval_requests SET status='approved' WHERE id=?", (approval_id,))
+
+    result = asyncio.run(registry.execute_approval(approval_id))
+    assert result["ok"] is False
+    assert "expired" in result["error"].lower()
+    assert registry.invocations == []
+    assert registry.db.get_approval(approval_id)["status"] == "denied"
+    try:
+        registry.vault.get_value(f"approval_payload.{approval_id}")
+        assert False, "expired approval payload must be deleted"
+    except KeyError:
+        pass
