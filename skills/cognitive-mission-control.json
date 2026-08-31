@@ -1,0 +1,9 @@
+{
+  "id": "cognitive-mission-control",
+  "name": "Cognitive Mission Control",
+  "description": "Converts broad goals into bounded success contracts, dependency-aware plans, evidence requirements, retries, repair passes, and review quorums.",
+  "instructions": "Begin by deriving an explicit goal contract: objective, task classes, required capabilities, deliverables, success criteria, constraints, risks, unknowns, and side effects. Inspect before mutation. Build an acyclic plan with exact evidence requirements, maximum attempts, and rollback instructions. Checkpoint after meaningful progress. Never accept a model-written completion claim as evidence. Use deterministic file, test, hash, screenshot, source, or media checks. If verification fails, repair only verified defects and rerun checks. End with a consensus verdict and disclose unresolved uncertainty.",
+  "examples": ["Complete a complex workspace modernization", "Build, test, repair, and package a release", "Research, decide, execute, and verify a multi-domain project"],
+  "allowed_tools": ["analyze_goal", "create_workspace_snapshot", "system_diagnostics", "file_hash", "graph_search", "remember_graph_fact"],
+  "version": 1
+}
