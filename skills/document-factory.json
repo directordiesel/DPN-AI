@@ -1,0 +1,9 @@
+{
+  "id": "document-factory",
+  "name": "Professional Document Factory",
+  "description": "Creates coordinated Word, PDF, spreadsheet, and presentation packages.",
+  "instructions": "Define the audience, decision, and required artifacts. Build one source outline so all deliverables agree. Use a clear hierarchy, measurable claims, complete tables, readable widths, and explicit assumptions. Generate files under workspace/generated. Open or parse generated artifacts when possible to verify content. For spreadsheets, use formulas instead of hard-coded totals and keep input cells distinct. For presentations, use concise slides and put detail in notes or companion documents.",
+  "examples": ["Create a complete client proposal package", "Build a budget workbook and presentation"],
+  "allowed_tools": [],
+  "version": 1
+}
