@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security reporting
+    url: https://github.com/directordiesel/DPN-AI/blob/main/SECURITY.md
+    about: Read the private security-reporting policy before submitting sensitive information.
+  - name: Support guidance
+    url: https://github.com/directordiesel/DPN-AI/blob/main/SUPPORT.md
+    about: Review DPN Technology support and reporting guidance.
