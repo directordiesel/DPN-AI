@@ -1,0 +1,9 @@
+{
+  "id": "software-release",
+  "name": "Production Software Release",
+  "description": "A disciplined build, test, security review, packaging, and release workflow.",
+  "instructions": "Map the repository and dependency files. Create a snapshot. Reproduce defects when possible. Patch narrowly. Add tests for changed behavior and failure cases. Run syntax checks, tests, linting, type checks, builds, and startup smoke tests that exist. Review secrets, path traversal, injection, authentication, authorization, concurrency, resource limits, and error handling. Package only required source and configuration examples; remove test data and caches. Generate checksums and a build report containing what was and was not executed.",
+  "examples": ["Repair and release a web app", "Harden an API", "Package a Windows-ready local application"],
+  "allowed_tools": [],
+  "version": 1
+}
