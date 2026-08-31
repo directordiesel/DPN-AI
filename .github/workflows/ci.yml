@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Reject tracked runtime secrets and private state
+        shell: bash
+        run: |
+          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)workspace/generated/|(^|/)workspace/uploads/|(^|/)runtime_logs/|(^|/)install_logs/' || true)"
+          if [ -n "$sensitive" ]; then
+            echo "Sensitive/runtime DPN AI files must not be tracked:"
+            echo "$sensitive"
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Compile Python sources
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py
+
+      - name: Verify version consistency
+        shell: bash
+        run: |
+          version="$(tr -d '\r\n ' < VERSION)"
+          grep -q "$version" README.md
+          echo "README and VERSION agree: $version"
+
+      - name: Run test suite
+        run: pytest -q
