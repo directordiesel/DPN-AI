@@ -77,6 +77,9 @@ def main() -> int:
     db_backup.add_argument("--name", default=None)
     db_verify = sub.add_parser("db-verify", help="Verify a database backup from the private backup directory")
     db_verify.add_argument("name")
+    db_restore = sub.add_parser("db-restore", help="Offline restore from a verified SQLite backup")
+    db_restore.add_argument("name")
+    db_restore.add_argument("--yes", action="store_true", help="Confirm destructive database replacement")
     index = sub.add_parser("index", help="Index workspace knowledge")
     index.add_argument("--force", action="store_true")
     sub.add_parser("projects", help="List persistent projects and task counts")
@@ -96,7 +99,7 @@ def main() -> int:
     secret.add_argument("name")
     args = parser.parse_args()
 
-    if args.command in {"db-check", "db-backup", "db-verify"}:
+    if args.command in {"db-check", "db-backup", "db-verify", "db-restore"}:
         maintenance = database_maintenance()
         try:
             maintenance.harden_permissions()
@@ -104,8 +107,15 @@ def main() -> int:
                 output = maintenance.integrity_check(full=args.full)
             elif args.command == "db-backup":
                 output = maintenance.backup(args.name)
-            else:
+            elif args.command == "db-verify":
                 output = maintenance.verify_backup(args.name)
+            elif not args.yes:
+                output = {
+                    "ok": False,
+                    "error": "Database restore requires --yes and the DPN AI server must be stopped first",
+                }
+            else:
+                output = maintenance.restore(args.name)
         except Exception as exc:  # noqa: BLE001
             output = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         print(json.dumps(output, indent=2, ensure_ascii=False, default=str))
