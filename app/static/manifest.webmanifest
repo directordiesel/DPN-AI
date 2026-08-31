@@ -1,0 +1,10 @@
+{
+  "name": "DPN AI v5",
+  "short_name": "DPN AI",
+  "description": "Maximum-intelligence local autonomous operations assistant",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#080808",
+  "icons": []
+}
