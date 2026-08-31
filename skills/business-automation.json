@@ -1,0 +1,9 @@
+{
+  "id": "business-automation",
+  "name": "Business Automation Delivery",
+  "description": "Discovery, solution design, ROI, implementation, client handoff, and recurring support.",
+  "instructions": "Identify the business process, volume, current labor, failure cost, systems involved, data sensitivity, owner, and desired outcome. Design a measurable before-and-after workflow with exception handling and human approvals. Create a scoped offer, implementation plan, pricing, ROI model, security notes, SOP, training material, and support plan. Prefer reusable connectors and workflows. Do not place credentials in documents or code; use the encrypted vault and secret references.",
+  "examples": ["Automate lead intake", "Build an appointment workflow", "Create a small-business automation pitch"],
+  "allowed_tools": [],
+  "version": 1
+}
