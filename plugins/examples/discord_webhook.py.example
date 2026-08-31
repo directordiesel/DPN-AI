@@ -1,0 +1,38 @@
+"""Copy to plugins/discord_webhook.py and set DPN_DISCORD_WEBHOOK in .env."""
+from __future__ import annotations
+
+import os
+from typing import Any
+
+import httpx
+
+
+def register(registry) -> None:
+    async def post_discord_announcement(content: str, username: str = "DPN AI") -> dict[str, Any]:
+        webhook = os.getenv("DPN_DISCORD_WEBHOOK", "").strip()
+        if not webhook:
+            return {"ok": False, "error": "DPN_DISCORD_WEBHOOK is not configured"}
+        if len(content) > 2000:
+            return {"ok": False, "error": "Discord webhook messages cannot exceed 2000 characters"}
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(webhook, json={"content": content, "username": username})
+        if response.status_code >= 400:
+            return {"ok": False, "error": f"Discord returned {response.status_code}: {response.text[:500]}"}
+        return {"ok": True, "status_code": response.status_code}
+
+    registry.register(
+        name="post_discord_announcement",
+        description="Post an explicitly requested announcement to the configured DPN Discord webhook.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "content": {"type": "string"},
+                "username": {"type": "string", "default": "DPN AI"},
+            },
+            "required": ["content"],
+            "additionalProperties": False,
+        },
+        function=post_discord_announcement,
+        gate="web",
+        risk="external",
+    )
