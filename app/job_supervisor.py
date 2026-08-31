@@ -118,8 +118,12 @@ class JobSupervisor:
                 )
             elif job["kind"] == "workflow":
                 self.db.update_background_job(job_id, progress={"stage": "workflow", "workflow_id": payload.get("workflow_id")})
+                # Persisted job payloads are data, never authorization. WorkflowEngine
+                # re-reads live settings before every tool call, so permissions saved
+                # when a job was submitted cannot be replayed after an operator revokes
+                # access or switches to Safe approval mode.
                 result = await self.workflows.run(
-                    str(payload.get("workflow_id") or ""), payload.get("inputs") or {}, payload.get("permissions") or {},
+                    str(payload.get("workflow_id") or ""), payload.get("inputs") or {}, None,
                 )
             else:
                 self.db.update_background_job(job_id, progress={"stage": "direct", "message": str(payload.get("message", ""))[:240]})
