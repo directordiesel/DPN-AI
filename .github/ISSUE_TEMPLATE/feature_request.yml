@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a DPN AI capability, workflow, model, tool, integration, or UX improvement.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: User goal / problem
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: extension
+    attributes:
+      label: Preferred extension layer
+      options:
+        - Existing built-in tool
+        - Skill pack
+        - Workflow
+        - HTTP connector
+        - MCP server
+        - Plugin / Capability Forge
+        - Core change
+        - Not sure
+  - type: textarea
+    id: security
+    attributes:
+      label: Security / approval impact
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
