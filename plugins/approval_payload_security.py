@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -55,16 +56,17 @@ def _live_permissions(registry: Any) -> dict[str, Any] | None:
 
 
 def _scrub_legacy_rows(db: Any, vault: Any) -> dict[str, int]:
-    """Remove legacy plaintext approval payloads and expire abandoned approvals.
+    """Scrub legacy plaintext approvals and invalidate unsafe stale execution state.
 
-    Older DPN AI builds wrote exact approval arguments into SQLite. On startup,
-    rewrite every approval row through the persistence sanitizer. When a rewrite
-    is needed, enable SQLite secure-delete and compact the database after the
-    transaction so obsolete page content is not intentionally retained.
+    A process can terminate after an approved operation is claimed but before its
+    terminal result is persisted. Such an `executing` row is never replayed: the
+    side effect may already have happened, so startup converts it to failed and
+    destroys its encrypted payload.
     """
     now = datetime.now(timezone.utc)
     scrubbed = 0
     expired = 0
+    interrupted = 0
     payloads_deleted = 0
 
     with db.connect() as connection:
@@ -86,8 +88,16 @@ def _scrub_legacy_rows(db: Any, vault: Any) -> dict[str, int]:
 
             safe_arguments = sanitize_for_persistence(arguments)
             safe_result = sanitize_for_persistence(result)
-            safe_arguments_json = json.dumps(safe_arguments if isinstance(safe_arguments, dict) else {"preview": safe_arguments}, ensure_ascii=False, default=str)
-            safe_result_json = json.dumps(safe_result if isinstance(safe_result, dict) else {"result": safe_result}, ensure_ascii=False, default=str)
+            safe_arguments_json = json.dumps(
+                safe_arguments if isinstance(safe_arguments, dict) else {"preview": safe_arguments},
+                ensure_ascii=False,
+                default=str,
+            )
+            safe_result_json = json.dumps(
+                safe_result if isinstance(safe_result, dict) else {"result": safe_result},
+                ensure_ascii=False,
+                default=str,
+            )
             if safe_arguments_json != (row["arguments_json"] or "{}") or safe_result_json != (row["result_json"] or "{}"):
                 connection.execute(
                     "UPDATE approval_requests SET arguments_json=?,result_json=? WHERE id=?",
@@ -95,8 +105,20 @@ def _scrub_legacy_rows(db: Any, vault: Any) -> dict[str, int]:
                 )
                 scrubbed += 1
 
+            if status == "executing":
+                connection.execute(
+                    "UPDATE approval_requests SET status='failed',result_json=?,resolved_at=? WHERE id=?",
+                    (
+                        json.dumps({"error": "Approval execution was interrupted; replay blocked"}),
+                        now.isoformat(),
+                        approval_id,
+                    ),
+                )
+                status = "failed"
+                interrupted += 1
+
             created = _created_at(row["created_at"])
-            if status in _ACTIVE and created is not None and now - created > _APPROVAL_TTL:
+            if status in _ACTIVE and (created is None or now - created > _APPROVAL_TTL):
                 connection.execute(
                     "UPDATE approval_requests SET status='denied',result_json=?,resolved_at=? WHERE id=?",
                     (json.dumps({"error": "Approval expired before execution"}), now.isoformat(), approval_id),
@@ -110,24 +132,26 @@ def _scrub_legacy_rows(db: Any, vault: Any) -> dict[str, int]:
                     payloads_deleted += 1
 
     if scrubbed:
-        # The rewrite above removes logical plaintext values. Checkpoint and
-        # compact only when a legacy row changed, reducing the chance that old
-        # SQLite/WAL pages preserve historical argument bytes.
         with db.connect() as connection:
             connection.execute("PRAGMA secure_delete=ON")
             connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             connection.execute("VACUUM")
 
-    return {"scrubbed": scrubbed, "expired": expired, "payloads_deleted": payloads_deleted}
+    return {
+        "scrubbed": scrubbed,
+        "expired": expired,
+        "interrupted": interrupted,
+        "payloads_deleted": payloads_deleted,
+    }
 
 
 def register(registry: Any) -> None:
     """Protect deferred tool arguments with the encrypted SecretVault.
 
-    The approval row keeps only a bounded/redacted preview. Exact arguments are
-    encrypted in the vault and removed after terminal resolution. Legacy rows
-    are scrubbed and abandoned approvals expire after 24 hours. Execution is
-    single-use and revalidates current authorization immediately before invoke.
+    Approval rows keep only bounded/redacted previews. Exact arguments are
+    encrypted in the vault, execution is single-use, current authorization is
+    revalidated immediately before invoke, and payloads are destroyed on every
+    terminal path including tool exceptions, cancellation, and restart recovery.
     """
     db = registry.db
     vault = registry.vault
@@ -167,9 +191,12 @@ def register(registry: Any) -> None:
                 if not stored.get("ok"):
                     raise RuntimeError(stored.get("error") or "vault write failed")
             except Exception:
-                # Never leave an executable approval whose exact payload was not
-                # protected successfully.
-                original_resolve(approval["id"], "denied", {"error": "encrypted approval payload storage failed"})
+                original_resolve(
+                    approval["id"],
+                    "denied",
+                    {"error": "encrypted approval payload storage failed"},
+                )
+                vault.delete(_payload_name(approval["id"]))
                 raise
             return {
                 "ok": False,
@@ -179,6 +206,8 @@ def register(registry: Any) -> None:
                 "error": f"Approval required for {name}. Open the Approval Inbox.",
             }
         result = await registry._invoke(name, arguments)
+        if not isinstance(result, dict):
+            result = {"ok": False, "error": "Tool returned an invalid result type"}
         db.audit(
             "tool.executed",
             f"{name}: {'ok' if result.get('ok') else 'failed'}",
@@ -221,8 +250,6 @@ def register(registry: Any) -> None:
                 db.resolve_approval(approval_id, "denied", {"error": "Current Safe approval mode blocks this tool"})
                 return {"ok": False, "error": "Current Safe approval mode blocks this tool"}
 
-        # Atomically claim an approved request. This makes approvals single-use
-        # even if two API requests race or a client retries after a slow response.
         with db.connect() as connection:
             claimed = connection.execute(
                 "UPDATE approval_requests SET status='executing' WHERE id=? AND status='approved'",
@@ -239,15 +266,46 @@ def register(registry: Any) -> None:
         except Exception as exc:
             db.resolve_approval(approval_id, "failed", {"error": "Encrypted approval payload is missing or invalid"})
             return {"ok": False, "error": f"Approval payload unavailable: {type(exc).__name__}"}
-        result = await registry._invoke(approval["tool_name"], arguments)
-        db.resolve_approval(approval_id, "executed" if result.get("ok") else "failed", sanitize_for_persistence(result))
-        db.audit(
-            "tool.approved_execution",
-            f"Executed approved tool {approval['tool_name']}",
-            {"approval_id": approval_id, "ok": bool(result.get("ok"))},
-            actor="user",
-        )
-        return result
+
+        try:
+            result = await registry._invoke(approval["tool_name"], arguments)
+            if not isinstance(result, dict):
+                result = {"ok": False, "error": "Tool returned an invalid result type"}
+            db.resolve_approval(
+                approval_id,
+                "executed" if result.get("ok") else "failed",
+                sanitize_for_persistence(result),
+            )
+            db.audit(
+                "tool.approved_execution",
+                f"Executed approved tool {approval['tool_name']}",
+                {"approval_id": approval_id, "ok": bool(result.get("ok"))},
+                actor="user",
+            )
+            return result
+        except asyncio.CancelledError:
+            db.resolve_approval(
+                approval_id,
+                "failed",
+                {"error": "Approved tool execution was cancelled; replay blocked"},
+            )
+            raise
+        except Exception as exc:  # noqa: BLE001
+            safe_error = sanitize_for_persistence(f"{type(exc).__name__}: {exc}")
+            db.resolve_approval(
+                approval_id,
+                "failed",
+                {"error": safe_error},
+            )
+            db.audit(
+                "tool.approved_execution_failed",
+                f"Approved tool {approval['tool_name']} raised an exception",
+                {"approval_id": approval_id, "error": safe_error},
+                actor="user",
+            )
+            return {"ok": False, "error": "Approved tool execution failed"}
+        finally:
+            vault.delete(_payload_name(approval_id))
 
     registry.execute = secure_execute
     registry.execute_approval = secure_execute_approval
