@@ -1,0 +1,63 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+
+  dpn-ai:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      DPN_HOST: 0.0.0.0
+      DPN_PORT: 8787
+      DPN_ACCESS_TOKEN: ${DPN_ACCESS_TOKEN:?Set a long DPN_ACCESS_TOKEN in .env before using Docker}
+      DPN_DEFAULT_MODEL: qwen3.5:9b
+      DPN_MAX_AGENT_STEPS: 14
+      DPN_MAX_HISTORY_MESSAGES: 50
+      DPN_ALLOW_AUTOMATIONS: "false"
+      DPN_ALLOW_BROWSER: "false"
+      DPN_ALLOW_DESKTOP: "false"
+      DPN_ALLOW_VOICE: "true"
+      DPN_ALLOW_CONNECTORS: "false"
+      DPN_ALLOW_MCP: "false"
+      DPN_ALLOW_EXTERNAL_MCP: "false"
+      DPN_ALLOW_SELF_IMPROVEMENT: "false"
+      DPN_ALLOW_HOST_SANDBOX: "false"
+      DPN_MAX_PARALLEL_JOBS: 2
+      DPN_REVIEW_QUORUM: 2
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./data:/opt/dpn-ai/data
+      - ./workspace:/opt/dpn-ai/workspace
+      - ./plugins:/opt/dpn-ai/plugins
+      - ./skills:/opt/dpn-ai/skills
+
+  voice-setup:
+    build: .
+    profiles: ["setup"]
+    environment:
+      DPN_DATA_DIR: /opt/dpn-ai/data
+      DPN_WORKSPACE_DIR: /opt/dpn-ai/workspace
+    volumes:
+      - ./data:/opt/dpn-ai/data
+      - ./workspace:/opt/dpn-ai/workspace
+    entrypoint: ["python", "manage.py", "install-voices", "sentinel", "aurora"]
+
+  model-setup:
+    image: ollama/ollama:latest
+    profiles: ["setup"]
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 5 && ollama pull qwen3.5:9b && ollama pull nomic-embed-text"]
+
+volumes:
+  ollama_models:
