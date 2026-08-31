@@ -1,0 +1,50 @@
+name: Repository Health
+
+on:
+  schedule:
+    - cron: "17 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify repository standards
+        shell: bash
+        run: |
+          required=(README.md SECURITY.md CONTRIBUTING.md SUPPORT.md PROPRIETARY_NOTICE.md RELEASE_PROCESS.md ROADMAP.md CHANGELOG.md .github/CODEOWNERS .github/dependabot.yml .github/workflows/ci.yml .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml .github/ISSUE_TEMPLATE/security_or_infrastructure.yml .github/ISSUE_TEMPLATE/config.yml)
+          for file in "${required[@]}"; do
+            test -f "$file" || { echo "::error::Missing required standard: $file"; exit 1; }
+          done
+
+      - name: Reject tracked runtime secrets and private state
+        shell: bash
+        run: |
+          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)FIRST_RUN_LOGIN\.txt$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)workspace/generated/|(^|/)workspace/uploads/|(^|/)runtime_logs/|(^|/)install_logs/' || true)"
+          test -z "$sensitive" || { echo "::error::Sensitive/runtime files are tracked:"; echo "$sensitive"; exit 1; }
+
+      - name: Detect unresolved merge conflicts
+        shell: bash
+        run: |
+          conflicts="$(git grep -n -E '^(<<<<<<< |>>>>>>> )' -- ':!*.md' || true)"
+          test -z "$conflicts" || { echo "::error::Possible unresolved merge-conflict markers:"; echo "$conflicts"; exit 1; }
+
+      - name: Flag files over 95 MB
+        shell: bash
+        run: |
+          failed=0
+          while IFS= read -r -d '' file; do
+            size="$(stat -c%s "$file")"
+            if [ "$size" -gt 99614720 ]; then
+              echo "::error file=$file::Tracked file exceeds 95 MB ($size bytes)."
+              failed=1
+            fi
+          done < <(git ls-files -z)
+          exit "$failed"
