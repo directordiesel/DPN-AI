@@ -9,11 +9,18 @@ import pytest
 from app.database_maintenance import DatabaseMaintenance
 
 
-def make_database(path: Path) -> None:
+def make_database(path: Path, value: str = "DPN AI") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path) as connection:
         connection.execute("CREATE TABLE sample(id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
-        connection.execute("INSERT INTO sample(value) VALUES (?)", ("DPN AI",))
+        connection.execute("INSERT INTO sample(value) VALUES (?)", (value,))
+
+
+def read_value(path: Path) -> str:
+    with sqlite3.connect(path) as connection:
+        row = connection.execute("SELECT value FROM sample ORDER BY id LIMIT 1").fetchone()
+    assert row is not None
+    return str(row[0])
 
 
 def test_integrity_check_and_verified_backup(tmp_path: Path) -> None:
@@ -81,3 +88,37 @@ def test_backup_name_cannot_escape_private_directory(tmp_path: Path) -> None:
     target = (backups / result["path"]).resolve()
     target.relative_to(backups.resolve())
     assert not (tmp_path / "outside.sqlite3").exists()
+
+
+def test_restore_uses_verified_backup_and_preserves_previous_database(tmp_path: Path) -> None:
+    database = tmp_path / "data" / "dpn_ai.sqlite3"
+    backups = tmp_path / "data" / "database_backups"
+    make_database(database, "original")
+    maintenance = DatabaseMaintenance(database, backups)
+    backup = maintenance.backup("known-good")
+
+    with sqlite3.connect(database) as connection:
+        connection.execute("UPDATE sample SET value='changed'")
+    assert read_value(database) == "changed"
+
+    restored = maintenance.restore(backup["path"])
+    assert restored["ok"] is True
+    assert restored["integrity"] == "ok"
+    assert read_value(database) == "original"
+    preserved = backups / restored["preserved_previous"]
+    assert preserved.exists()
+    assert read_value(preserved) == "changed"
+
+
+def test_restore_rejects_corrupt_backup_without_touching_database(tmp_path: Path) -> None:
+    database = tmp_path / "data" / "dpn_ai.sqlite3"
+    backups = tmp_path / "data" / "database_backups"
+    make_database(database, "keep-me")
+    backups.mkdir(parents=True)
+    corrupt = backups / "corrupt.sqlite3"
+    corrupt.write_bytes(b"not a sqlite database")
+    maintenance = DatabaseMaintenance(database, backups)
+
+    with pytest.raises(sqlite3.DatabaseError):
+        maintenance.restore(corrupt.name)
+    assert read_value(database) == "keep-me"
