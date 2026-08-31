@@ -27,6 +27,33 @@ def _created_at(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _live_permissions(registry: Any) -> dict[str, Any] | None:
+    """Return current authorization gates for the production registry.
+
+    Approval is consent to one operation, not a durable capability token. If an
+    operator revokes a gate or switches to Safe mode after approving but before
+    execution, the current policy wins. Lightweight test registries without the
+    production settings surface return None and keep their isolated test path.
+    """
+    settings = getattr(registry, "settings", None)
+    db = getattr(registry, "db", None)
+    if settings is None or db is None or not hasattr(db, "all_settings"):
+        return None
+    stored = db.all_settings()
+    return {
+        "allow_commands": bool(stored.get("allow_commands", settings.allow_commands_default)),
+        "allow_web": bool(stored.get("allow_web", settings.allow_web_default)),
+        "allow_images": bool(stored.get("allow_images", settings.allow_images_default)),
+        "allow_browser": bool(stored.get("allow_browser", settings.allow_browser_default)),
+        "allow_desktop": bool(stored.get("allow_desktop", settings.allow_desktop_default)),
+        "allow_voice": bool(stored.get("allow_voice", settings.allow_voice_default)),
+        "allow_connectors": bool(stored.get("allow_connectors", settings.allow_connectors_default)),
+        "allow_mcp": bool(stored.get("allow_mcp", settings.allow_mcp_default)),
+        "allow_self_improvement": bool(stored.get("allow_self_improvement", settings.allow_self_improvement_default)),
+        "approval_mode": str(stored.get("approval_mode", "standard") or "standard"),
+    }
+
+
 def _scrub_legacy_rows(db: Any, vault: Any) -> dict[str, int]:
     """Remove legacy plaintext approval payloads and expire abandoned approvals.
 
@@ -99,7 +126,8 @@ def register(registry: Any) -> None:
 
     The approval row keeps only a bounded/redacted preview. Exact arguments are
     encrypted in the vault and removed after terminal resolution. Legacy rows
-    are scrubbed and abandoned approvals expire after 24 hours.
+    are scrubbed and abandoned approvals expire after 24 hours. Execution is
+    single-use and revalidates current authorization immediately before invoke.
     """
     db = registry.db
     vault = registry.vault
@@ -174,6 +202,35 @@ def register(registry: Any) -> None:
         if created is None or datetime.now(timezone.utc) - created > _APPROVAL_TTL:
             db.resolve_approval(approval_id, "denied", {"error": "Approval expired before execution"})
             return {"ok": False, "error": "Approval expired before execution"}
+
+        registered = registry.tools.get(approval.get("tool_name"))
+        if not registered:
+            db.resolve_approval(approval_id, "denied", {"error": "Approved tool is no longer registered"})
+            return {"ok": False, "error": "Approved tool is no longer registered"}
+        if str(approval.get("risk")) != str(getattr(registered, "risk", "read")):
+            db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
+            return {"ok": False, "error": "Tool risk classification changed after approval"}
+
+        live = _live_permissions(registry)
+        if live is not None:
+            gate_error = registry._gate_error(registered, live)
+            if gate_error:
+                db.resolve_approval(approval_id, "denied", {"error": gate_error})
+                return {"ok": False, "error": gate_error}
+            if live.get("approval_mode") == "safe" and registered.risk in {"execute", "destructive", "external", "desktop"}:
+                db.resolve_approval(approval_id, "denied", {"error": "Current Safe approval mode blocks this tool"})
+                return {"ok": False, "error": "Current Safe approval mode blocks this tool"}
+
+        # Atomically claim an approved request. This makes approvals single-use
+        # even if two API requests race or a client retries after a slow response.
+        with db.connect() as connection:
+            claimed = connection.execute(
+                "UPDATE approval_requests SET status='executing' WHERE id=? AND status='approved'",
+                (approval_id,),
+            ).rowcount
+        if claimed != 1:
+            return {"ok": False, "error": "Approval was already claimed or is no longer executable"}
+
         try:
             raw = vault.get_value(_payload_name(approval_id))
             arguments = json.loads(raw)
