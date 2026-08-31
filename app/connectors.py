@@ -37,7 +37,7 @@ class ConnectorHub:
         """Fail closed: unresolved or non-public hosts are unsafe for public-only connectors."""
         try:
             addresses = socket.getaddrinfo(host, None)
-        except socket.gaierror:
+        except OSError:
             return True
         if not addresses:
             return True
