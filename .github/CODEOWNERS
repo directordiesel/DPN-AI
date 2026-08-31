@@ -1,0 +1,14 @@
+* @directordiesel
+
+/.github/ @directordiesel
+/SECURITY.md @directordiesel
+/app/vault.py @directordiesel
+/app/sandbox.py @directordiesel
+/app/mcp_bridge.py @directordiesel
+/app/plugins.py @directordiesel
+/app/capability_forge.py @directordiesel
+/app/browser_adapter.py @directordiesel
+/app/desktop_adapter.py @directordiesel
+/app/tools/ @directordiesel
+/plugins/ @directordiesel
+/skills/ @directordiesel
