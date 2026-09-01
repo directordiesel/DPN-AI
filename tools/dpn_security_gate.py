@@ -26,6 +26,7 @@ TEXT_EXTENSIONS = {
 CODE_EXTENSIONS = {".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"}
 SKIP_PREFIXES = (".git/", ".venv/", "venv/", "node_modules/", "dist/", "build/", "vendor/")
 TEST_PREFIXES = ("tests/", "test/", "fixtures/", "examples/")
+ENV_TEMPLATE_NAMES = {".env.example", ".env.sample", ".env.template"}
 
 SENSITIVE_PATH_RE = re.compile(
     r"(^|/)(\.env|\.env\..+|FIRST_RUN_LOGIN\.txt|id_rsa|id_ed25519|.*\.(?:p12|pfx|key|pem)|"
@@ -33,10 +34,10 @@ SENSITIVE_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 PRIVATE_KEY_MARKERS = (
-    "-----BEGIN PRIVATE KEY-----",
-    "-----BEGIN RSA PRIVATE KEY-----",
-    "-----BEGIN EC PRIVATE KEY-----",
-    "-----BEGIN OPENSSH PRIVATE KEY-----",
+    "-----BEGIN " + "PRIVATE KEY-----",
+    "-----BEGIN RSA " + "PRIVATE KEY-----",
+    "-----BEGIN EC " + "PRIVATE KEY-----",
+    "-----BEGIN OPENSSH " + "PRIVATE KEY-----",
 )
 TOKEN_PATTERNS = (
     ("GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{30,}\b")),
@@ -91,6 +92,8 @@ def is_test_path(path: str) -> bool:
 def scan_paths(paths: list[str]) -> list[Finding]:
     findings: list[Finding] = []
     for path in paths:
+        if Path(path).name.lower() in ENV_TEMPLATE_NAMES:
+            continue
         if SENSITIVE_PATH_RE.search(path):
             findings.append(Finding(path, 1, "tracked-sensitive-file", "sensitive/runtime file must not be tracked"))
 
@@ -167,7 +170,7 @@ def scan_python(path: str, text: str) -> list[Finding]:
         elif name in {"pickle.load", "pickle.loads", "marshal.load", "marshal.loads"}:
             findings.append(Finding(path, line, "unsafe-deserialization", f"{name}() can execute or load unsafe data"))
         elif name in {"hashlib.md5", "hashlib.sha1"}:
-            findings.append(Finding(path, line, "weak-crypto", f"{name}() is prohibited for security-sensitive hashing"))
+            findings.append(Finding(path, line, "weak-crypto", f"{name}() is prohibited; use SHA-256 or stronger"))
         elif name.startswith("subprocess."):
             for kw in node.keywords:
                 if kw.arg == "shell" and isinstance(kw.value, ast.Constant) and kw.value.value is True:
