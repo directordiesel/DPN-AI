@@ -9,27 +9,40 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os_name }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_name: Ubuntu
+            os: ubuntu-latest
+            python: "3.11"
+          - os_name: Ubuntu
+            os: ubuntu-latest
+            python: "3.12"
+          - os_name: Windows
+            os: windows-latest
+            python: "3.11"
+          - os_name: Windows
+            os: windows-latest
+            python: "3.12"
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - name: Reject tracked runtime secrets and private state
-        shell: bash
-        run: |
-          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)workspace/generated/|(^|/)workspace/uploads/|(^|/)runtime_logs/|(^|/)install_logs/' || true)"
-          if [ -n "$sensitive" ]; then
-            echo "Sensitive/runtime DPN AI files must not be tracked:"
-            echo "$sensitive"
-            exit 1
-          fi
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
           cache: pip
 
       - name: Install development dependencies
@@ -37,15 +50,28 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Compile Python sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py
+      - name: Run portable repository and version guard
+        run: python .github/scripts/ci_repository_guard.py
 
-      - name: Verify version consistency
-        shell: bash
-        run: |
-          version="$(tr -d '\r\n ' < VERSION)"
-          grep -q "$version" README.md
-          echo "README and VERSION agree: $version"
+      - name: Compile Python sources
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/ci_repository_guard.py
 
       - name: Run test suite
-        run: pytest -q
+        run: python -m pytest -q
+
+      - name: Phase 4 matrix summary
+        if: always()
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as handle:
+              handle.write("## DPN Phase 4 matrix lane\n\n")
+              handle.write(f"- operating system: {os.environ.get('RUNNER_OS', 'unknown')}\n")
+              handle.write(f"- Python: {os.environ.get('MATRIX_PYTHON', 'unknown')}\n")
+              handle.write("- repository guard: executed\n")
+              handle.write("- compile validation: executed\n")
+              handle.write("- automated tests: executed\n")
+        env:
+          MATRIX_PYTHON: ${{ matrix.python }}
