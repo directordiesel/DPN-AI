@@ -6,6 +6,15 @@ on:
     paths:
       - ".github/workflows/supply-chain.yml"
       - ".github/scripts/generate_supply_chain.py"
+      - ".github/scripts/generate_release_provenance.py"
+      - ".github/scripts/verify_release_integrity.py"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/supply-chain.yml"
+      - ".github/scripts/generate_supply_chain.py"
+      - ".github/scripts/generate_release_provenance.py"
+      - ".github/scripts/verify_release_integrity.py"
   release:
     types: [published]
   workflow_dispatch:
@@ -14,12 +23,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: supply-chain-${{ github.repository }}
+  group: supply-chain-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   validate:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,14 +37,66 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate inventory generator on current source
+      - name: Resolve validation version
         shell: bash
         run: |
           version="$(tr -d '\r\n ' < VERSION)"
           test -n "$version"
-          DPN_VERSION="v$version" python .github/scripts/generate_supply_chain.py
-          test -s SOURCE_SHA256SUMS.txt
-          test -s DEPENDENCY_INVENTORY.txt
+          printf 'DPN_VERSION=v%s\n' "$version" >> "$GITHUB_ENV"
+
+      - name: Generate DPN source hashes and dependency inventory
+        run: python .github/scripts/generate_supply_chain.py
+
+      - name: Generate validation SPDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: spdx-json
+          output-file: SBOM.spdx.json
+          artifact-name: validation-sbom-spdx
+          dependency-snapshot: false
+          upload-release-assets: false
+          syft-version: v1.51.0
+
+      - name: Generate validation CycloneDX SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: SBOM.cyclonedx.json
+          artifact-name: validation-sbom-cyclonedx
+          dependency-snapshot: false
+          upload-release-assets: false
+          syft-version: v1.51.0
+
+      - name: Create validation SBOM manifest
+        shell: bash
+        run: |
+          {
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Validation version: $DPN_VERSION"
+            echo "Validation commit: $(git rev-parse HEAD)"
+            echo "Syft: v1.51.0"
+          } > SBOM_MANIFEST.txt
+
+      - name: Generate release provenance and checksums
+        run: python .github/scripts/generate_release_provenance.py
+
+      - name: Verify release integrity and generated-record secret safety
+        run: python .github/scripts/verify_release_integrity.py
+
+      - name: Phase 2 validation summary
+        shell: bash
+        run: |
+          {
+            echo "## DPN Phase 2 release integrity validation"
+            echo ""
+            echo "- SPDX SBOM: verified"
+            echo "- CycloneDX SBOM: verified"
+            echo "- Release provenance: verified"
+            echo "- SHA-256 release manifest: verified"
+            echo "- Generated release record secret scan: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   inventory:
     if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
@@ -59,14 +120,19 @@ jobs:
           test -n "$tag"
           printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
           printf 'DPN_VERSION=%s\n' "$tag" >> "$GITHUB_ENV"
+          printf 'RELEASE_TAG=%s\n' "$tag" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Preserve DPN inventory generator
-        run: cp .github/scripts/generate_supply_chain.py /tmp/dpn_generate_supply_chain.py
+      - name: Preserve DPN release-integrity tooling
+        shell: bash
+        run: |
+          cp .github/scripts/generate_supply_chain.py /tmp/dpn_generate_supply_chain.py
+          cp .github/scripts/generate_release_provenance.py /tmp/dpn_generate_release_provenance.py
+          cp .github/scripts/verify_release_integrity.py /tmp/dpn_verify_release_integrity.py
 
       - name: Checkout exact release source
         shell: bash
@@ -75,6 +141,7 @@ jobs:
         run: |
           git fetch --tags --force
           git checkout --detach "$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
           echo "Release source commit: $(git rev-parse HEAD)"
 
       - name: Generate DPN source hashes and dependency inventory
@@ -116,6 +183,12 @@ jobs:
             echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } > SBOM_MANIFEST.txt
 
+      - name: Generate release provenance and complete SHA-256 manifest
+        run: python /tmp/dpn_generate_release_provenance.py
+
+      - name: Verify release integrity and generated-record secret safety
+        run: python /tmp/dpn_verify_release_integrity.py
+
       - name: Verify target release exists
         shell: bash
         env:
@@ -123,7 +196,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: gh release view "$RELEASE_TAG" >/dev/null
 
-      - name: Replace supply-chain records on release
+      - name: Replace release integrity records
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -136,6 +209,8 @@ jobs:
             SBOM_MANIFEST.txt
             SOURCE_SHA256SUMS.txt
             DEPENDENCY_INVENTORY.txt
+            RELEASE_PROVENANCE.json
+            RELEASE_SHA256SUMS.txt
           )
           for asset in "${assets[@]}"; do
             gh release delete-asset "$RELEASE_TAG" "$asset" -y >/dev/null 2>&1 || true
@@ -148,12 +223,15 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           {
-            echo "## DPN release supply-chain inventory"
+            echo "## DPN Phase 2 release integrity"
             echo ""
             echo "- Release: \`$RELEASE_TAG\`"
-            echo "- SPDX JSON SBOM: generated"
-            echo "- CycloneDX JSON SBOM: generated"
-            echo "- GitHub dependency snapshot: skipped unless dependency graph is enabled"
+            echo "- Exact tag-to-source checkout: verified"
+            echo "- SPDX JSON SBOM: generated and hashed"
+            echo "- CycloneDX JSON SBOM: generated and hashed"
             echo "- Tracked-source SHA-256 manifest: generated"
             echo "- Declared dependency inventory: generated"
+            echo "- Release provenance: generated and verified"
+            echo "- Complete release-record SHA-256 manifest: generated and verified"
+            echo "- Generated-record secret scan: passed"
           } >> "$GITHUB_STEP_SUMMARY"
