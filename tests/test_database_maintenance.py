@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -11,13 +12,14 @@ from app.database_maintenance import DatabaseMaintenance
 
 def make_database(path: Path, value: str = "DPN AI") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         connection.execute("CREATE TABLE sample(id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
         connection.execute("INSERT INTO sample(value) VALUES (?)", (value,))
+        connection.commit()
 
 
 def read_value(path: Path) -> str:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         row = connection.execute("SELECT value FROM sample ORDER BY id LIMIT 1").fetchone()
     assert row is not None
     return str(row[0])
@@ -97,8 +99,9 @@ def test_restore_uses_verified_backup_and_preserves_previous_database(tmp_path: 
     maintenance = DatabaseMaintenance(database, backups)
     backup = maintenance.backup("known-good")
 
-    with sqlite3.connect(database) as connection:
+    with closing(sqlite3.connect(database)) as connection:
         connection.execute("UPDATE sample SET value='changed'")
+        connection.commit()
     assert read_value(database) == "changed"
 
     restored = maintenance.restore(backup["path"])
