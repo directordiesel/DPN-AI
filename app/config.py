@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,27 @@ load_dotenv(BASE_DIR / ".env")
 # deliberately relaxes permissions later.
 if os.name == "posix":
     os.umask(0o077)
+
+
+class ConstantTimeSecret(str):
+    """String-compatible secret whose equality checks use constant-time comparison."""
+
+    def _matches(self, other: object) -> bool:
+        if not isinstance(other, str):
+            return False
+        return secrets.compare_digest(self.encode("utf-8"), other.encode("utf-8"))
+
+    def __eq__(self, other: object) -> bool:
+        return self._matches(other)
+
+    def __ne__(self, other: object) -> bool:
+        return not self._matches(other)
+
+    __hash__ = str.__hash__
+
+
+def _env_secret(name: str) -> ConstantTimeSecret:
+    return ConstantTimeSecret(os.getenv(name, "").strip())
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -39,7 +61,7 @@ class Settings:
     app_name: str = os.getenv("DPN_APP_NAME", "DPN AI")
     host: str = os.getenv("DPN_HOST", "127.0.0.1")
     port: int = int(os.getenv("DPN_PORT", "8787"))
-    access_token: str = os.getenv("DPN_ACCESS_TOKEN", "").strip()
+    access_token: ConstantTimeSecret = _env_secret("DPN_ACCESS_TOKEN")
     ollama_url: str = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
     default_model: str = os.getenv("DPN_DEFAULT_MODEL", "qwen3.5:9b")
     default_provider: str = os.getenv("DPN_DEFAULT_PROVIDER", "ollama").strip().lower() or "ollama"
