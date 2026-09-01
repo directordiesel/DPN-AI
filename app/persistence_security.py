@@ -26,8 +26,8 @@ MAX_DEPTH = 8
 _AUTH_VALUE = re.compile(r"^(?:bearer|basic)\s+\S+", re.IGNORECASE)
 _INLINE_AUTH_VALUE = re.compile(r"\b(?:bearer|basic)\s+[^\s,;]+", re.IGNORECASE)
 _SECRET_ASSIGNMENT = re.compile(
-    r"(?i)\b(?:authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|passwd|secret|credential)"
-    r"\s*[:=]\s*([^\s,;]+)"
+    r"(?i)([\"']?\b(?:authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|token|password|passwd|secret|credential)"
+    r"\b[\"']?\s*[:=]\s*[\"']?)([^\"'\s,;}&]+)([\"']?)"
 )
 _SECRET_REF = re.compile(r"^\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}$")
 
@@ -43,7 +43,7 @@ def _sanitize_text(value: str) -> str:
     if _AUTH_VALUE.match(value.strip()):
         return "[redacted authorization]"
     redacted = _INLINE_AUTH_VALUE.sub("[redacted authorization]", value)
-    redacted = _SECRET_ASSIGNMENT.sub(lambda match: match.group(0).replace(match.group(1), "[redacted]"), redacted)
+    redacted = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}[redacted]{match.group(3)}", redacted)
     if len(redacted) > MAX_PERSISTED_STRING:
         return redacted[:MAX_PERSISTED_STRING] + f"… [truncated {len(redacted) - MAX_PERSISTED_STRING} chars]"
     return redacted
