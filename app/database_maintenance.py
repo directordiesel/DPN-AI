@@ -4,6 +4,7 @@ import os
 import re
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -77,7 +78,7 @@ class DatabaseMaintenance:
 
     def integrity_check(self, *, full: bool = False) -> dict[str, Any]:
         source = self._source()
-        with sqlite3.connect(source, timeout=30) as connection:
+        with closing(sqlite3.connect(source, timeout=30)) as connection:
             connection.execute("PRAGMA busy_timeout=30000")
             details = self._check_connection(connection, full=full)
         ok = details == ["ok"]
@@ -141,15 +142,17 @@ class DatabaseMaintenance:
             os.close(fd)
             temporary = Path(temporary_name)
             self._chmod_private(temporary)
-            with sqlite3.connect(source, timeout=30) as source_db:
+            with closing(sqlite3.connect(source, timeout=30)) as source_db:
                 source_db.execute("PRAGMA busy_timeout=30000")
                 checkpoint = source_db.execute("PRAGMA wal_checkpoint(PASSIVE)").fetchone()
-                with sqlite3.connect(temporary, timeout=30) as backup_db:
+                with closing(sqlite3.connect(temporary, timeout=30)) as backup_db:
                     source_db.backup(backup_db, pages=256, sleep=0.01)
                     backup_db.execute("PRAGMA foreign_keys=ON")
                     details = self._check_connection(backup_db, full=True)
                     if details != ["ok"]:
                         raise sqlite3.DatabaseError(f"Backup integrity check failed: {details[:5]}")
+
+            # SQLite handles must be closed before replacement on Windows.
             os.replace(temporary, target)
             temporary = None
             self._chmod_private(target)
@@ -183,7 +186,7 @@ class DatabaseMaintenance:
         resolved = self._backup_path(name)
         if not resolved.exists() or not resolved.is_file():
             raise FileNotFoundError("Database backup not found")
-        with sqlite3.connect(resolved, timeout=30) as connection:
+        with closing(sqlite3.connect(resolved, timeout=30)) as connection:
             connection.execute("PRAGMA query_only=ON")
             details = self._check_connection(connection, full=full)
         return {
@@ -218,9 +221,9 @@ class DatabaseMaintenance:
         moved_original = False
         try:
             self._chmod_private(temporary)
-            with sqlite3.connect(backup, timeout=30) as backup_db:
+            with closing(sqlite3.connect(backup, timeout=30)) as backup_db:
                 backup_db.execute("PRAGMA query_only=ON")
-                with sqlite3.connect(temporary, timeout=30) as restored_db:
+                with closing(sqlite3.connect(temporary, timeout=30)) as restored_db:
                     backup_db.backup(restored_db, pages=256, sleep=0.01)
                     details = self._check_connection(restored_db, full=True)
                     if details != ["ok"]:
@@ -228,11 +231,12 @@ class DatabaseMaintenance:
 
             # Best-effort checkpoint before preserving the current database.
             try:
-                with sqlite3.connect(source, timeout=5) as current_db:
+                with closing(sqlite3.connect(source, timeout=5)) as current_db:
                     current_db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except sqlite3.DatabaseError:
                 pass
 
+            # All SQLite handles are closed before filesystem replacement.
             os.replace(source, quarantine)
             moved_original = True
             self._chmod_private(quarantine)
@@ -244,6 +248,7 @@ class DatabaseMaintenance:
                     self._chmod_private(preserved)
 
             os.replace(temporary, source)
+            temporary = None
             self._chmod_private(source)
             self._fsync_directory(source.parent)
             final = self.integrity_check(full=True)
@@ -264,7 +269,8 @@ class DatabaseMaintenance:
                     pass
             raise
         finally:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
