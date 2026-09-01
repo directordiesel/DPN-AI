@@ -1,0 +1,78 @@
+name: Runtime & Recovery Assurance
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/runtime-assurance.yml"
+      - ".github/scripts/runtime_assurance.py"
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/runtime-assurance.yml"
+      - ".github/scripts/runtime_assurance.py"
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-assurance-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install DPN AI development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run focused persistence and recovery regression suite
+        run: |
+          pytest -q \
+            tests/test_secure_database.py \
+            tests/test_database_maintenance.py \
+            tests/test_persistence_security.py \
+            tests/test_v5_chat_recovery.py \
+            tests/test_authorization_boundaries.py
+
+      - name: Run live startup, auth, restart, corruption, and recovery assurance
+        run: python .github/scripts/runtime_assurance.py
+
+      - name: Reject leaked runtime state after assurance
+        shell: bash
+        run: |
+          leaked="$(git status --porcelain --untracked-files=all | grep -Ei '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/' || true)"
+          test -z "$leaked" || { echo "::error::Runtime assurance leaked private state into the checkout"; echo "$leaked"; exit 1; }
+
+      - name: Phase 3 summary
+        run: |
+          {
+            echo "## DPN Phase 3 runtime & recovery assurance"
+            echo ""
+            echo "- live application startup: passed"
+            echo "- token authorization boundary: passed"
+            echo "- graceful shutdown and same-state restart: passed"
+            echo "- corrupted SQLite state fails closed: passed"
+            echo "- restored-state recovery restart: passed"
+            echo "- focused persistence/recovery regression suite: passed"
+            echo "- runtime state leak check: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
