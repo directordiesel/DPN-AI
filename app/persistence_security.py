@@ -22,6 +22,7 @@ SENSITIVE_KEY_TOKENS = (
 MAX_PERSISTED_STRING = 8_000
 MAX_COLLECTION_ITEMS = 200
 MAX_DEPTH = 8
+_AUTH_REDACTION_SENTINEL = "\x00DPN_AUTH_REDACTED\x00"
 
 _AUTH_VALUE = re.compile(r"^(?:bearer|basic)\s+\S+", re.IGNORECASE)
 _INLINE_AUTH_VALUE = re.compile(r"\b(?:bearer|basic)\s+[^\s,;]+", re.IGNORECASE)
@@ -45,9 +46,13 @@ def _sanitize_text(value: str) -> str:
         return "[secret reference]"
     if _AUTH_VALUE.match(value.strip()):
         return "[redacted authorization]"
-    redacted = _QUOTED_AUTH_ASSIGNMENT.sub(lambda match: f"{match.group(1)}{match.group(2)}[redacted authorization]{match.group(2)}", value)
+    redacted = _QUOTED_AUTH_ASSIGNMENT.sub(
+        lambda match: f"{match.group(1)}{match.group(2)}{_AUTH_REDACTION_SENTINEL}{match.group(2)}",
+        value,
+    )
     redacted = _INLINE_AUTH_VALUE.sub("[redacted authorization]", redacted)
     redacted = _SECRET_ASSIGNMENT.sub(lambda match: f"{match.group(1)}[redacted]{match.group(3)}", redacted)
+    redacted = redacted.replace(_AUTH_REDACTION_SENTINEL, "[redacted authorization]")
     if len(redacted) > MAX_PERSISTED_STRING:
         return redacted[:MAX_PERSISTED_STRING] + f"… [truncated {len(redacted) - MAX_PERSISTED_STRING} chars]"
     return redacted
