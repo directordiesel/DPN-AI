@@ -1,8 +1,6 @@
 name: Release
 
 on:
-  push:
-    branches: ["release/**"]
   workflow_dispatch:
     inputs:
       version:
@@ -24,7 +22,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       ARTIFACT_BASENAME: DPN-AI
@@ -40,13 +38,8 @@ jobs:
       - name: Resolve release request
         shell: bash
         run: |
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            version="$DISPATCH_VERSION"
-            prerelease="$DISPATCH_PRERELEASE"
-          else
-            version="${GITHUB_REF_NAME#release/}"
-            prerelease="false"
-          fi
+          version="$DISPATCH_VERSION"
+          prerelease="$DISPATCH_PRERELEASE"
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "PRERELEASE=$prerelease" >> "$GITHUB_ENV"
 
