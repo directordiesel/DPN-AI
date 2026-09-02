@@ -76,6 +76,28 @@ jobs:
 
           print(f"Validated immutable action references and checkout credential isolation across {len(workflows)} workflows")
 
+      - name: Enforce controlled release ref
+        shell: python
+        run: |
+          from pathlib import Path
+          import sys
+
+          release = Path(".github/workflows/release.yml").read_text(encoding="utf-8")
+          failures = []
+          trigger_block = release.split("permissions:", 1)[0]
+          if "\n  push:" in trigger_block:
+              failures.append("release workflow must not publish from push-triggered mutable branches")
+          if "workflow_dispatch:" not in trigger_block:
+              failures.append("release workflow must retain manual workflow_dispatch")
+          if "if: github.ref == 'refs/heads/main'" not in release:
+              failures.append("release job must be restricted to refs/heads/main")
+          if failures:
+              print("Release control policy violations:", file=sys.stderr)
+              for failure in failures:
+                  print(f"- {failure}", file=sys.stderr)
+              raise SystemExit(1)
+          print("Validated main-only manual release policy")
+
       - name: Reject tracked runtime secrets and private state
         shell: bash
         run: |
