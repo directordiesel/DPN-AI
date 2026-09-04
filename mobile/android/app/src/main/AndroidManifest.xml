@@ -9,21 +9,12 @@
         android:label="DPN AI"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.DPNAI">
-        <activity
-            android:name=".FileActivity"
-            android:exported="false" />
-        <activity
-            android:name=".VisionActivity"
-            android:exported="false" />
-        <activity
-            android:name=".VoiceActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ChatActivity"
-            android:exported="false" />
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+        <activity android:name=".ProjectsActivity" android:exported="false" />
+        <activity android:name=".FileActivity" android:exported="false" />
+        <activity android:name=".VisionActivity" android:exported="false" />
+        <activity android:name=".VoiceActivity" android:exported="false" />
+        <activity android:name=".ChatActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
