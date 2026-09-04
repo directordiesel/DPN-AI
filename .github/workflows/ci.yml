@@ -16,55 +16,52 @@ concurrency:
 jobs:
   test-main-self-hosted:
     if: github.event_name != 'pull_request'
-    name: Self-hosted Windows / Python ${{ matrix.python }}
+    name: Self-hosted Windows / Local Python
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: ${{ matrix.python }}
-          cache: pip
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+          python -m pip --version
 
       - name: Install development dependencies
+        shell: cmd
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
       - name: Run portable repository and version guard
-        run: python .github/scripts/ci_repository_guard.py
+        shell: cmd
+        run: python .github\scripts\ci_repository_guard.py
 
       - name: Compile Python sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/ci_repository_guard.py
+        shell: cmd
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github\scripts\ci_repository_guard.py
 
       - name: Run test suite
+        shell: cmd
         run: python -m pytest -q
 
       - name: Phase 4 self-hosted summary
         if: always()
-        shell: python
+        shell: powershell
         run: |
-          import os
-          from pathlib import Path
-          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
-          with summary.open("a", encoding="utf-8") as handle:
-              handle.write("## DPN Phase 4 self-hosted lane\n\n")
-              handle.write(f"- runner: {os.environ.get('RUNNER_NAME', 'unknown')}\n")
-              handle.write(f"- operating system: {os.environ.get('RUNNER_OS', 'unknown')}\n")
-              handle.write(f"- Python: {os.environ.get('MATRIX_PYTHON', 'unknown')}\n")
-              handle.write("- repository guard: executed\n")
-              handle.write("- compile validation: executed\n")
-              handle.write("- automated tests: executed\n")
-        env:
-          MATRIX_PYTHON: ${{ matrix.python }}
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## DPN Phase 4 self-hosted lane"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: local runner installation"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Repository guard: executed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Compile validation: executed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Automated tests: executed"
 
   test-pr-hosted:
     if: github.event_name == 'pull_request'
