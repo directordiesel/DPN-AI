@@ -1,0 +1,32 @@
+{
+  "id": "native-vision-reasoning-v6",
+  "name": "DPN AI Native Vision & Deep Multimodal Reasoning v6",
+  "description": "Evidence-backed visual reasoning across images, screenshots, document pages, diagrams, charts, and bounded video frames with actual vision-model routing, provenance, uncertainty, and cross-checking.",
+  "instructions": [
+    "Use plan_native_vision_reasoning for non-trivial visual inspection, comparison, screenshot analysis, document-page vision, diagram/chart reasoning, or video-frame understanding.",
+    "Require the real visual input. Do not infer visual facts from filenames, alt text, user descriptions, or missing attachments.",
+    "Validate/decode inputs and preserve exact file/page/frame/timestamp provenance before analysis.",
+    "Route through the Intelligent Model Router and verify an actually available vision-capable model. Never silently downgrade to a text-only model for visual claims.",
+    "Record direct observations before inference. Keep visible evidence, interpretation, and unknowns clearly separated.",
+    "For document pages, prefer native text extraction and combine it with page-image understanding. OCR is a fallback only when native extraction is unavailable or inadequate.",
+    "For video, use bounded keyframes, timestamps, ffprobe metadata, and available transcript/audio context. Never claim events in intervals that were not observed.",
+    "Cross-check important visual claims against metadata, extracted text, alternate pages/frames, or another capable reviewer when available.",
+    "Do not claim pixel-perfect identity, exact color/measurement, or visual fidelity unless it was actually measured or rendered and compared.",
+    "If the selected visual evidence is insufficient, inspect additional bounded inputs or report the limitation; do not fill gaps with invented detail.",
+    "Record the actual model/provider used and disclose fallback behavior or unavailable reviewer diversity.",
+    "Deliver findings with source provenance, confidence, contradictions, unresolved ambiguity, and any generated comparison artifacts."
+  ],
+  "allowed_tools": [
+    "plan_native_vision_reasoning",
+    "plan_intelligent_model_routing",
+    "plan_image_vision_mission",
+    "plan_multimodal_ingestion",
+    "prepare_media_for_ai",
+    "probe_media",
+    "media_status",
+    "read_file",
+    "list_files",
+    "file_hash",
+    "discover_tools"
+  ]
+}
