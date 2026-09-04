@@ -9,6 +9,7 @@
         android:label="DPN AI"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.DPNAI">
+        <activity android:name=".ApprovalsActivity" android:exported="false" />
         <activity android:name=".MissionsActivity" android:exported="false" />
         <activity android:name=".ProjectsActivity" android:exported="false" />
         <activity android:name=".FileActivity" android:exported="false" />
