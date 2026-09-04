@@ -3,7 +3,7 @@
 <p align="center"><strong>Developed by DPN Technology</strong></p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/Version-v5.0.7-7c3aed?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/Version-v6.0.0-7c3aed?style=for-the-badge">
   <img alt="Status" src="https://img.shields.io/badge/Status-Active%20Development-16a34a?style=for-the-badge">
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
   <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
@@ -11,7 +11,8 @@
   <a href="https://github.com/directordiesel/DPN-AI/releases/tag/v5.0.7"><img alt="Latest Release v5.0.7" src="https://img.shields.io/badge/Latest%20Release-v5.0.7-2563eb?style=for-the-badge"></a>
 </p>
 
-> **Release:** v5.0.7 · Adaptive Interface and Sentinel HD  
+> **Stable code version:** v6.0.0 · Advanced Core  
+> **Published GitHub release:** v5.0.7 · Adaptive Interface and Sentinel HD  
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP
 
 ### Quick navigation
@@ -19,7 +20,7 @@
 
 ## Download Current Release
 
-The current verified release is **v5.0.7**.
+The current verified published GitHub release is **v5.0.7**. The stable code version on `main` is **v6.0.0**.
 
 | Release Resource | Link |
 | --- | --- |
@@ -38,7 +39,7 @@ The system is designed to act as more than a chat interface. DPN AI can build st
 
 ## Design Principles
 
-DPN AI v5 is built around:
+DPN AI v6 is built around:
 - Local-first operation
 - Explicit tool boundaries
 - Approval-aware execution
@@ -581,13 +582,14 @@ When adding a capability:
 
 ## Current Status
 
-DPN AI v5.0.7 is an actively developed local-first AI operations platform. It contains a broad execution framework, but optional capabilities still depend on local services, models, operating-system access, external APIs, and explicit user configuration.
+DPN AI v6.0.0 is the stable code version on `main` and remains an actively developed local-first AI operations platform. The currently published GitHub release remains v5.0.7 until the controlled v6.0.0 release-promotion sequence is completed. Optional capabilities still depend on local services, models, operating-system access, external APIs, and explicit user configuration.
 
 ## Project Status
 
 | Item | Current State |
 | --- | --- |
-| Release | **v5.0.7 · Adaptive Interface and Sentinel HD** |
+| Stable code version | **v6.0.0 · Advanced Core** |
+| Published GitHub release | **v5.0.7 · Adaptive Interface and Sentinel HD** |
 | Development | **Active** |
 | Repository visibility | **Private** |
 | Publisher | **DPN Technology** |
