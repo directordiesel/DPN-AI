@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var projectsButton: Button
     private lateinit var missionsButton: Button
     private lateinit var approvalsButton: Button
+    private lateinit var notificationsButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,8 +64,10 @@ class MainActivity : Activity() {
         root.addView(missionsButton)
         approvalsButton = Button(this).apply { text = "Open Approval Inbox"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ApprovalsActivity::class.java)) } }
         root.addView(approvalsButton)
+        notificationsButton = Button(this).apply { text = "Open Notification Center"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, NotificationsActivity::class.java)) } }
+        root.addView(notificationsButton)
         root.addView(TextView(this).apply {
-            text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
+            text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals • Notifications"
             textSize = 13f; setPadding(0, 48, 0, 0); gravity = Gravity.CENTER; setTextColor(Color.GRAY)
         })
         return root
@@ -84,6 +87,7 @@ class MainActivity : Activity() {
         projectsButton.isEnabled = enabled
         missionsButton.isEnabled = enabled
         approvalsButton.isEnabled = enabled
+        notificationsButton.isEnabled = enabled
     }
 
     private fun checkDesktopConnection() {
