@@ -23,29 +23,90 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo "main already integrated"
-            exit 0
-          fi
-          set +e
-          git merge --no-commit --no-ff origin/main
-          merge_status=$?
-          set -e
-          if [ "$merge_status" -ne 0 ]; then
-            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
-            if [ "${#conflicts[@]}" -ne 1 ] || [ "${conflicts[0]}" != "README.md" ]; then
-              printf 'Unexpected merge conflicts:\n%s\n' "${conflicts[*]}"
-              git merge --abort || true
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            set +e
+            git merge --no-commit --no-ff origin/main
+            merge_status=$?
+            set -e
+            if [ "$merge_status" -ne 0 ]; then
+              mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+              if [ "${#conflicts[@]}" -ne 1 ] || [ "${conflicts[0]}" != "README.md" ]; then
+                printf 'Unexpected merge conflicts:\n%s\n' "${conflicts[*]}"
+                git merge --abort || true
+                exit 1
+              fi
+              git checkout --ours README.md
+              git add README.md
+            fi
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo "Unresolved conflicts remain"
               exit 1
             fi
-            git checkout --ours README.md
-            git add README.md
+            git commit -m "chore(v7): reconcile current stable main"
+          else
+            echo "main already integrated"
           fi
-          if git diff --name-only --diff-filter=U | grep -q .; then
-            echo "Unresolved conflicts remain"
-            exit 1
+      - name: Align UI cache version contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          version = (root / 'VERSION').read_text(encoding='utf-8').strip()
+
+          app_js = root / 'app/static/app.js'
+          text = app_js.read_text(encoding='utf-8')
+          old = "navigator.serviceWorker.register('/sw.js?v=5.0.7')"
+          new = f"navigator.serviceWorker.register('/sw.js?v={version}')"
+          if old in text:
+              text = text.replace(old, new, 1)
+              app_js.write_text(text, encoding='utf-8')
+          elif new not in text:
+              raise SystemExit('Expected service-worker registration was not found')
+
+          sw = root / 'app/static/sw.js'
+          sw_text = sw.read_text(encoding='utf-8')
+          sw_text = sw_text.replace('dpn-ai-v5.0.7-ui-shell', f'dpn-ai-v{version}-ui-shell')
+          sw_text = sw_text.replace('/styles.css?v=5.0.7', f'/styles.css?v={version}')
+          sw_text = sw_text.replace('/app.js?v=5.0.7', f'/app.js?v={version}')
+          sw.write_text(sw_text, encoding='utf-8')
+
+          layout = root / 'tests/test_v5_ui_layout.py'
+          layout_text = layout.read_text(encoding='utf-8')
+          if 'VERSION = (ROOT / "VERSION")' not in layout_text:
+              layout_text = layout_text.replace(
+                  'ROOT = Path(__file__).resolve().parents[1]\n',
+                  'ROOT = Path(__file__).resolve().parents[1]\nVERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()\n',
+                  1,
+              )
+          layout_text = layout_text.replace("assert '/styles.css?v=5.0.7' in HTML", 'assert f"/styles.css?v={VERSION}" in HTML')
+          layout_text = layout_text.replace("assert '/app.js?v=5.0.7' in HTML", 'assert f"/app.js?v={VERSION}" in HTML')
+          layout_text = layout_text.replace('assert "dpn-ai-v5.0.7-ui-shell" in SW', 'assert f"dpn-ai-v{VERSION}-ui-shell" in SW')
+          layout.write_text(layout_text, encoding='utf-8')
+
+          voice = root / 'tests/test_v5_ui_voice_polish.py'
+          voice_text = voice.read_text(encoding='utf-8')
+          if 'VERSION = (ROOT / "VERSION")' not in voice_text:
+              voice_text = voice_text.replace(
+                  'ROOT = Path(__file__).resolve().parents[1]\n',
+                  'ROOT = Path(__file__).resolve().parents[1]\nVERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()\n',
+                  1,
+              )
+          voice_text = voice_text.replace(
+              'assert "navigator.serviceWorker.register(\'/sw.js?v=5.0.7\')" in JS',
+              'assert f"navigator.serviceWorker.register(\'/sw.js?v={VERSION}\')" in JS',
+          )
+          voice_text = voice_text.replace('assert "/styles.css?v=5.0.7" in HTML', 'assert f"/styles.css?v={VERSION}" in HTML')
+          voice.write_text(voice_text, encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- app/static/app.js app/static/sw.js tests/test_v5_ui_layout.py tests/test_v5_ui_voice_polish.py; then
+            git add app/static/app.js app/static/sw.js tests/test_v5_ui_layout.py tests/test_v5_ui_voice_polish.py
+            git commit -m "fix(v7): align UI cache version contract"
           fi
-          git commit -m "chore(v7): reconcile current stable main"
       - name: Install test dependencies
         shell: bash
         run: |
