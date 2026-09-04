@@ -95,12 +95,15 @@ def test_ui_exposes_editable_voice_and_maximum_model_controls():
     root = Path(__file__).resolve().parents[1]
     html = (root / "app" / "static" / "index.html").read_text(encoding="utf-8")
     js = (root / "app" / "static" / "app.js").read_text(encoding="utf-8")
+    desktop_js = (root / "app" / "static" / "v8-desktop.js").read_text(encoding="utf-8")
     assert 'value="auto" selected>Smart Auto' in html
     assert 'id="voiceReviewToggle"' in html
     assert 'id="editBanner"' in html
-    assert "AUTO — Strongest Installed Model" in js
+    assert "AUTO — Strongest Installed Model" in desktop_js
+    assert "normalizeModelAutoLabel" in desktop_js
     assert "Edit & resend" in js
     assert "edit_message_id" in js
+
 
 class StreamingGateway(TextOnlyGateway):
     async def chat_stream(self, *, on_token=None, **kwargs):
