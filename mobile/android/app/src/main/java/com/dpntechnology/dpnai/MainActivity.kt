@@ -22,6 +22,7 @@ class MainActivity : Activity() {
     private lateinit var fileButton: Button
     private lateinit var projectsButton: Button
     private lateinit var missionsButton: Button
+    private lateinit var approvalsButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +61,8 @@ class MainActivity : Activity() {
         root.addView(projectsButton)
         missionsButton = Button(this).apply { text = "Open Missions"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, MissionsActivity::class.java)) } }
         root.addView(missionsButton)
+        approvalsButton = Button(this).apply { text = "Open Approval Inbox"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ApprovalsActivity::class.java)) } }
+        root.addView(approvalsButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f; setPadding(0, 48, 0, 0); gravity = Gravity.CENTER; setTextColor(Color.GRAY)
@@ -70,7 +73,7 @@ class MainActivity : Activity() {
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
         setCapabilityButtons(paired)
-        status.text = if (paired) "Paired device credential secured by Android Keystore — chat, voice, vision, files, projects, and missions ready" else "Not paired — secure desktop pairing required"
+        status.text = if (paired) "Paired device credential secured by Android Keystore — mobile controls ready" else "Not paired — secure desktop pairing required"
     }
 
     private fun setCapabilityButtons(enabled: Boolean) {
@@ -80,6 +83,7 @@ class MainActivity : Activity() {
         fileButton.isEnabled = enabled
         projectsButton.isEnabled = enabled
         missionsButton.isEnabled = enabled
+        approvalsButton.isEnabled = enabled
     }
 
     private fun checkDesktopConnection() {
