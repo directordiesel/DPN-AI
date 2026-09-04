@@ -8,11 +8,10 @@
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
   <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
     <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI Passing" src="https://img.shields.io/badge/CI-PASSING-16a34a?style=for-the-badge"></a>
-  <a href="https://github.com/directordiesel/DPN-AI/releases/tag/v5.0.7"><img alt="Latest Release v5.0.7" src="https://img.shields.io/badge/Latest%20Release-v5.0.7-2563eb?style=for-the-badge"></a>
+  <a href="https://github.com/directordiesel/DPN-AI/releases/tag/v6.0.0"><img alt="Latest Release v6.0.0" src="https://img.shields.io/badge/Latest%20Release-v6.0.0-2563eb?style=for-the-badge"></a>
 </p>
 
-> **Stable code version:** v6.0.0 · Advanced Core  
-> **Published GitHub release:** v5.0.7 · Adaptive Interface and Sentinel HD  
+> **Stable release:** v6.0.0 · Advanced Core  
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP
 
 ### Quick navigation
@@ -20,15 +19,17 @@
 
 ## Download Current Release
 
-The current verified published GitHub release is **v5.0.7**. The stable code version on `main` is **v6.0.0**.
+The current verified stable release is **v6.0.0**.
 
 | Release Resource | Link |
 | --- | --- |
-| GitHub Release | [DPN AI v5.0.7](https://github.com/directordiesel/DPN-AI/releases/tag/v5.0.7) |
-| Source archive | [`DPN-AI-v5.0.7-source.zip`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/DPN-AI-v5.0.7-source.zip) |
-| SHA-256 checksums | [`SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/SHA256SUMS.txt) |
-| Release manifest | [`RELEASE_MANIFEST.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v5.0.7/RELEASE_MANIFEST.txt) |
-| Stable release branch | [`release/v5.0.7`](https://github.com/directordiesel/DPN-AI/tree/release/v5.0.7) |
+| GitHub Release | [DPN AI v6.0.0](https://github.com/directordiesel/DPN-AI/releases/tag/v6.0.0) |
+| Source archive | [`DPN-AI-v6.0.0-source.zip`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/DPN-AI-v6.0.0-source.zip) |
+| SHA-256 checksums | [`SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SHA256SUMS.txt) |
+| Release manifest | [`RELEASE_MANIFEST.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/RELEASE_MANIFEST.txt) |
+| SPDX SBOM | [`SBOM.spdx.json`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SBOM.spdx.json) |
+| Source integrity manifest | [`SOURCE_SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SOURCE_SHA256SUMS.txt) |
+| Dependency inventory | [`DEPENDENCY_INVENTORY.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/DEPENDENCY_INVENTORY.txt) |
 
 > Release artifacts are generated from the verified release commit by the repository's controlled GitHub Actions release pipeline.
 
@@ -582,14 +583,13 @@ When adding a capability:
 
 ## Current Status
 
-DPN AI v6.0.0 is the stable code version on `main` and remains an actively developed local-first AI operations platform. The currently published GitHub release remains v5.0.7 until the controlled v6.0.0 release-promotion sequence is completed. Optional capabilities still depend on local services, models, operating-system access, external APIs, and explicit user configuration.
+DPN AI v6.0.0 is the current verified stable release and remains an actively developed local-first AI operations platform. Optional capabilities still depend on local services, models, operating-system access, external APIs, and explicit user configuration.
 
 ## Project Status
 
 | Item | Current State |
 | --- | --- |
-| Stable code version | **v6.0.0 · Advanced Core** |
-| Published GitHub release | **v5.0.7 · Adaptive Interface and Sentinel HD** |
+| Stable release | **v6.0.0 · Advanced Core** |
 | Development | **Active** |
 | Repository visibility | **Private** |
 | Publisher | **DPN Technology** |
