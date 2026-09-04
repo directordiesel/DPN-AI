@@ -9,6 +9,9 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.DPNAI">
         <activity
+            android:name=".ChatActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
