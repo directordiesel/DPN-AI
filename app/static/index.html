@@ -4,16 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#080808" />
-  <title>DPN AI v7 Development — Agentic Intelligence Control Center</title>
+  <title>DPN AI v8 Desktop — Control Center</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/styles.css?v=6.0.0" />
+  <link rel="stylesheet" href="/v8-desktop.css" />
 </head>
-<body>
+<body class="desktop-v8">
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="brand-mark"><span>DPN</span><b>AI</b></div>
-        <div><h1>DPN AI</h1><p>AGENTIC INTELLIGENCE DEVELOPMENT v7</p></div>
+        <div><h1>DPN AI</h1><p>WINDOWS DESKTOP PLATFORM v8</p><div class="desktop-platform-badge">LOCAL INTELLIGENCE HUB</div></div>
       </div>
       <button class="primary wide" id="newChatBtn">＋ New Operation</button>
       <div class="sidebar-heading"><span>OPERATIONS</span><button id="refreshChatsBtn" title="Refresh">↻</button></div>
@@ -58,13 +59,44 @@
       </header>
 
       <section class="chat" id="chat">
+        <section class="desktop-dashboard" aria-label="Desktop platform status">
+          <div class="desktop-dashboard-header">
+            <div><h2>DPN AI Desktop Command Center</h2><p>One local intelligence hub for chat, projects, missions, creators, research, automations, connectors, and system control.</p></div>
+            <div class="desktop-dashboard-actions">
+              <button class="desktop-quick-action" id="desktopNewMissionBtn">New Mission</button>
+              <button class="desktop-quick-action" id="desktopApprovalsBtn">Approvals</button>
+              <button class="desktop-quick-action" id="desktopProjectsBtn">Projects</button>
+              <button class="desktop-quick-action" id="desktopDiagnosticsBtn">Diagnostics</button>
+            </div>
+          </div>
+          <div class="desktop-status-grid">
+            <article class="desktop-status-card" id="desktopCoreCard" data-state="unknown"><span class="label">Runtime</span><strong>Checking…</strong><small>Local runtime health probe</small></article>
+            <article class="desktop-status-card" id="desktopMissionCard" data-state="unknown"><span class="label">Mission</span><strong>No live feed</strong><small>Waiting for mission summary API</small></article>
+            <article class="desktop-status-card" id="desktopApprovalCard" data-state="unknown"><span class="label">Approvals</span><strong>No live feed</strong><small>Waiting for approval summary API</small></article>
+            <article class="desktop-status-card" id="desktopModelCard" data-state="unknown"><span class="label">Model</span><strong>No live feed</strong><small>Waiting for model runtime summary API</small></article>
+            <article class="desktop-status-card" id="desktopAutomationCard" data-state="unknown"><span class="label">Automations</span><strong>No live feed</strong><small>Waiting for scheduler summary API</small></article>
+            <article class="desktop-status-card" id="desktopConnectorCard" data-state="unknown"><span class="label">Connectors</span><strong>No live feed</strong><small>Waiting for connector health summary API</small></article>
+          </div>
+        </section>
+
+        <nav class="desktop-workspace-strip" aria-label="Desktop workspaces">
+          <button class="desktop-workspace-tab active" data-workspace="chat">Chat</button>
+          <button class="desktop-workspace-tab" data-workspace="missions">Missions</button>
+          <button class="desktop-workspace-tab" data-workspace="projects">Projects</button>
+          <button class="desktop-workspace-tab" data-workspace="creator">Creator Studio</button>
+          <button class="desktop-workspace-tab" data-workspace="research">Research & Tools</button>
+          <button class="desktop-workspace-tab" data-workspace="automation">Automations</button>
+          <button class="desktop-workspace-tab" data-workspace="diagnostics">Diagnostics</button>
+        </nav>
+        <div class="desktop-integrity-note"><b>Evidence-first status:</b> unavailable surfaces remain explicitly unavailable until a real local API reports their state. No simulated production metrics are displayed.</div>
+
         <div class="welcome" id="welcome">
           <div class="core-ring"><div class="core-inner">DPN<br><b>AI</b></div></div>
-          <div class="version-pill">STABLE CORE v6.0.0 • v7 DEVELOPMENT CHANNEL</div>
-          <h2>Your adaptive AI operations command center</h2>
-          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved MCP servers—while retaining local voice, multimodal media, documents, code, browser, and desktop capabilities.</p>
+          <div class="version-pill">STABLE INTELLIGENCE v7 • v8 WINDOWS DESKTOP DEVELOPMENT</div>
+          <h2>Your adaptive AI desktop operations command center</h2>
+          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved MCP servers—while retaining local voice, multimodal media, documents, code, browser, project, automation, and desktop capabilities.</p>
           <div class="capability-strip">
-            <span>Cognitive Goal Contracts</span><span>Resumable Job Queue</span><span>Evidence Verification</span><span>Knowledge Graph</span><span>Safe Capability Forge</span>
+            <span>Windows Desktop Runtime</span><span>Cognitive Goal Contracts</span><span>Resumable Job Queue</span><span>Evidence Verification</span><span>Persistent Project Intelligence</span>
           </div>
           <div class="starter-grid">
             <button class="starter" data-profile="director" data-prompt="Analyze this goal, create an explicit success contract, build a dependency-aware mission with evidence requirements and rollback steps, then execute and independently verify it: improve everything in my current workspace."><b>Launch Verified Mission</b><span>Contract, plan, execute, repair, review, and prove</span></button>
@@ -95,7 +127,7 @@
           <textarea id="promptInput" rows="1" placeholder="Type a command or speak to DPN AI…"></textarea>
           <button class="send" id="sendBtn" title="Send">➤</button>
         </div>
-        <div class="composer-meta"><span id="coreMeta">Local voice • Cognitive contracts • Focused tools • Resumable jobs • Evidence verification • Recovery control</span><span id="permissionText">Web ON • Voice OFF • Commands OFF</span></div>
+        <div class="composer-meta"><span id="coreMeta">Local voice • Agent missions • Creator studio • Project intelligence • Evidence verification • Recovery control</span><span id="permissionText">Web ON • Voice OFF • Commands OFF</span></div>
       </footer>
     </main>
   </div>
@@ -122,5 +154,6 @@
   </template>
 
   <script src="/app.js?v=6.0.0"></script>
+  <script src="/v8-desktop.js"></script>
 </body>
 </html>
