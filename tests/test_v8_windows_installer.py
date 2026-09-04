@@ -22,7 +22,8 @@ def test_installer_defaults_to_per_user_location_without_environment_mutation():
 
 
 def test_uninstall_does_not_delete_user_data_locations():
-    uninstall = ISS.split("[UninstallDelete]", 1)[1]
+    section = ISS.split("[UninstallDelete]", 1)[1].split("[Code]", 1)[0]
+    directives = "\n".join(line.strip() for line in section.splitlines() if line.strip().lower().startswith("type:"))
     forbidden = (
         "workspace",
         "projects",
@@ -35,8 +36,8 @@ def test_uninstall_does_not_delete_user_data_locations():
         "userprofile",
     )
     for token in forbidden:
-        assert token not in uninstall.lower()
-    assert r'Type: filesandordirs; Name: "{app}\__pycache__"' in uninstall
+        assert token not in directives.lower()
+    assert r'Type: filesandordirs; Name: "{app}\__pycache__"' in directives
 
 
 def test_installer_build_verifies_package_integrity_before_compilation():
@@ -67,3 +68,5 @@ def test_installer_manifest_records_upgrade_data_and_signing_policy():
 def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
     assert "if: github.event_name != 'pull_request'" in WORKFLOW
     assert "runs-on: [self-hosted, Windows, X64]" in WORKFLOW
+    assert r".\packaging\windows\build-installer.ps1 -Python python" in WORKFLOW
+    assert "preserve-user-data-outside-install-directory" in WORKFLOW
