@@ -90,7 +90,18 @@ class DesktopApiClient(private val credentialStore: SecureCredentialStore) {
         require(bytes.isNotEmpty()) { "image is empty" }
         require(bytes.size <= MAX_IMAGE_BYTES) { "image exceeds the 20 MB mobile limit" }
         require(mimeType in ALLOWED_IMAGE_TYPES) { "unsupported image type" }
-        val safeFilename = sanitizeFilename(filename, mimeType)
+        return uploadMultipart(bytes, sanitizeImageFilename(filename, mimeType), mimeType, "image")
+    }
+
+    fun uploadFile(bytes: ByteArray, filename: String, mimeType: String): UploadResult {
+        require(bytes.isNotEmpty()) { "file is empty" }
+        require(bytes.size <= MAX_FILE_BYTES) { "file exceeds the 50 MB mobile limit" }
+        val cleanMime = mimeType.trim().lowercase().take(120).ifBlank { "application/octet-stream" }
+        require(cleanMime !in BLOCKED_FILE_TYPES) { "unsupported executable/mobile package type" }
+        return uploadMultipart(bytes, sanitizeGeneralFilename(filename), cleanMime, "file")
+    }
+
+    private fun uploadMultipart(bytes: ByteArray, safeFilename: String, mimeType: String, kind: String): UploadResult {
         val boundary = "DPNMobile-${UUID.randomUUID()}"
         val header = (
             "--$boundary\r\n" +
@@ -119,11 +130,14 @@ class DesktopApiClient(private val credentialStore: SecureCredentialStore) {
         val failed = payload.optJSONArray("failed") ?: JSONArray()
         if (failed.length() > 0) {
             val error = failed.optJSONObject(0)?.optString("error")?.take(400)
-            throw DesktopApiException(error?.ifBlank { null } ?: "desktop rejected image upload")
+            throw DesktopApiException(error?.ifBlank { null } ?: "desktop rejected $kind upload")
         }
         val uploaded = payload.optJSONArray("uploaded") ?: JSONArray()
         val workspacePath = uploaded.optString(0).trim()
-        if (workspacePath.isEmpty()) throw DesktopApiException("desktop API did not return an uploaded image path")
+        if (workspacePath.isEmpty()) throw DesktopApiException("desktop API did not return an uploaded $kind path")
+        require(!workspacePath.startsWith("/") && !workspacePath.contains("..")) {
+            "desktop returned an unsafe attachment path"
+        }
         return UploadResult(workspacePath = workspacePath, filename = safeFilename)
     }
 
@@ -232,24 +246,36 @@ class DesktopApiClient(private val credentialStore: SecureCredentialStore) {
         return URLEncoder.encode(clean, StandardCharsets.UTF_8.toString()).replace("+", "%20")
     }
 
-    private fun sanitizeFilename(filename: String, mimeType: String): String {
+    private fun sanitizeImageFilename(filename: String, mimeType: String): String {
         val fallbackExtension = when (mimeType) {
             "image/png" -> ".png"
             "image/webp" -> ".webp"
             else -> ".jpg"
         }
+        val clean = sanitizeGeneralFilename(filename)
+        return if (clean == "mobile-file.bin") "mobile-vision$fallbackExtension" else clean
+    }
+
+    private fun sanitizeGeneralFilename(filename: String): String {
         val clean = filename.substringAfterLast('/').substringAfterLast('\\')
-            .replace(Regex("[^A-Za-z0-9._-]"), "_")
-            .take(120)
-            .trim('.', '_')
-        return if (clean.isBlank()) "mobile-vision$fallbackExtension" else clean
+            .replace(Regex("[^A-Za-z0-9._ -]"), "_")
+            .replace(Regex("\\s+"), "_")
+            .take(160)
+            .trim('.', '_', ' ')
+        return clean.ifBlank { "mobile-file.bin" }
     }
 
     companion object {
         private const val MAX_RESPONSE_CHARS = 2_000_000
         private const val MAX_IMAGE_BYTES = 20 * 1024 * 1024
+        private const val MAX_FILE_BYTES = 50 * 1024 * 1024
         private const val MAX_ATTACHMENTS = 8
         private val ALLOWED_IMAGE_TYPES = setOf("image/jpeg", "image/png", "image/webp")
+        private val BLOCKED_FILE_TYPES = setOf(
+            "application/vnd.android.package-archive",
+            "application/x-msdownload",
+            "application/x-dosexec",
+        )
         private val ALLOWED_EXECUTION_MODES = setOf("auto", "direct", "mission")
         private val ALLOWED_PROFILES = setOf(
             "auto", "director", "software", "fivem", "research", "business", "documents",
