@@ -35,9 +35,11 @@ class FakeProcess:
 
 def make_repo(tmp_path: Path) -> Path:
     (tmp_path / "app").mkdir()
+    (tmp_path / "desktop").mkdir()
     (tmp_path / "VERSION").write_text("8.0.0-dev\n", encoding="utf-8")
     (tmp_path / "requirements.txt").write_text("# deps\n", encoding="utf-8")
     (tmp_path / "app" / "main.py").write_text("# app\n", encoding="utf-8")
+    (tmp_path / "desktop" / "service.py").write_text("# desktop service\n", encoding="utf-8")
     return tmp_path
 
 
@@ -50,7 +52,7 @@ def test_supervisor_builds_loopback_uvicorn_command(tmp_path: Path):
         health_check=lambda: True,
     )
     command = supervisor.build_command()
-    assert command[:4] == ["python", "-m", "uvicorn", "app.main:app"]
+    assert command[:4] == ["python", "-m", "uvicorn", "desktop.service:app"]
     assert command[command.index("--host") + 1] == "127.0.0.1"
     assert command[command.index("--port") + 1] == "9000"
 
