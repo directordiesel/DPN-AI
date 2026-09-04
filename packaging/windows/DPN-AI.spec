@@ -14,9 +14,8 @@ ROOT = Path(SPECPATH).resolve().parents[1]
 
 app_data = collect_data_files("app", include_py_files=False)
 
-# Explicit application data that must survive packaging. Secrets, runtime databases,
-# local workspaces, .env files, logs, and user-generated artifacts are intentionally
-# not bundled.
+# Only immutable application assets are bundled. Mutable local state and credentials
+# are intentionally excluded from the package.
 datas = [
     (str(ROOT / "VERSION"), "."),
     (str(ROOT / "requirements.txt"), "."),
