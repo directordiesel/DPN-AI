@@ -1,15 +1,16 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 CSS = (ROOT / "app/static/styles.css").read_text(encoding="utf-8")
 HTML = (ROOT / "app/static/index.html").read_text(encoding="utf-8")
 SW = (ROOT / "app/static/sw.js").read_text(encoding="utf-8")
 
 
 def test_ui_assets_are_cache_busted():
-    assert '/styles.css?v=5.0.7' in HTML
-    assert '/app.js?v=5.0.7' in HTML
-    assert "dpn-ai-v5.0.7-ui-shell" in SW
+    assert f'/styles.css?v={VERSION}' in HTML
+    assert f'/app.js?v={VERSION}' in HTML
+    assert f"dpn-ai-v{VERSION}-ui-shell" in SW
 
 
 def test_sidebar_and_chat_are_explicit_scroll_regions():

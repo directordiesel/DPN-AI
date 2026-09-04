@@ -1,5 +1,5 @@
-const CACHE = 'dpn-ai-v5.0.7-ui-shell';
-const SHELL = ['/', '/styles.css?v=5.0.7', '/app.js?v=5.0.7', '/manifest.webmanifest'];
+const CACHE = 'dpn-ai-v6.0.0-ui-shell';
+const SHELL = ['/', '/styles.css?v=6.0.0', '/app.js?v=6.0.0', '/manifest.webmanifest'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', event => {
