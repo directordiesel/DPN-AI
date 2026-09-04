@@ -33,7 +33,8 @@ jobs:
           $main = Get-Content $mainPath -Raw
           $oldMain = 'APP_VERSION = "6.0.0"'
           $newMain = 'APP_VERSION = "8.0.0"'
-          if (($main.Split($oldMain).Count - 1) -ne 1) { throw "Expected exactly one APP_VERSION 6.0.0 assignment" }
+          $mainMatches = [regex]::Matches($main, [regex]::Escape($oldMain)).Count
+          if ($mainMatches -ne 1) { throw "Expected exactly one APP_VERSION 6.0.0 assignment; found $mainMatches" }
           $main = $main.Replace($oldMain, $newMain)
           Set-Content -Path $mainPath -Value $main -Encoding utf8 -NoNewline
 
