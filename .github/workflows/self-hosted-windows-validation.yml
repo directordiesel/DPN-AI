@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   trusted-windows-validation:
-    name: Trusted Windows validation on DIESEL-118
+    name: Trusted Windows validation on DPN runner
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
@@ -34,7 +34,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify local Python
+      - name: Bootstrap Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Verify configured Python
         shell: cmd
         run: |
           where python
@@ -79,5 +85,5 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Architecture: $env:RUNNER_ARCH"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: local runner installation"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: pinned 3.12 bootstrap via actions/setup-python"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Trusted main/manual execution only"
