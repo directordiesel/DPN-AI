@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - ".github/workflows/self-hosted-windows-validation.yml"
+      - ".github/scripts/resolve_windows_python.cmd"
       - "app/**"
       - "tests/**"
       - "requirements*.txt"
@@ -34,11 +35,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Bootstrap Python 3.12
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.12"
-          cache: pip
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
 
       - name: Verify configured Python
         shell: cmd
@@ -85,5 +84,5 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Architecture: $env:RUNNER_ARCH"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: pinned 3.12 bootstrap via actions/setup-python"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: trusted resolver with fail-closed validation"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Trusted main/manual execution only"
