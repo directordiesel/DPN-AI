@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = (ROOT / "packaging" / "windows" / "DPN-AI.spec").read_text(encoding="utf-8")
 BUILD = (ROOT / "packaging" / "windows" / "build.ps1").read_text(encoding="utf-8")
+SIGN = (ROOT / "packaging" / "windows" / "sign.ps1").read_text(encoding="utf-8")
 BUILD_REQUIREMENTS = (ROOT / "requirements-build.txt").read_text(encoding="utf-8")
 
 
@@ -45,8 +46,20 @@ def test_build_fails_closed_and_runs_desktop_regressions_before_packaging():
     assert "PyInstaller --noconfirm --clean" in BUILD
 
 
-def test_build_generates_sha256_manifest_and_does_not_claim_signature():
-    assert "Get-FileHash -Algorithm SHA256" in BUILD
-    assert 'signing = "unsigned-development-artifact"' in BUILD
+def test_development_builds_remain_explicitly_unsigned():
+    assert '$SigningState = "unsigned-development-artifact"' in BUILD
+    assert "development artifact remains unsigned" in BUILD
     assert "build-manifest.json" in BUILD
-    assert "NOTE: development artifacts remain unsigned" in BUILD
+
+
+def test_release_build_can_require_verified_authenticode_signing():
+    assert "[switch]$RequireSigned" in BUILD
+    assert "Production signing is required but no CertificateThumbprint was supplied" in BUILD
+    assert 'signed-production-artifact' in BUILD
+    assert "sign.ps1" in BUILD
+    assert "Get-AuthenticodeSignature" in SIGN
+    assert "signtool.exe" in SIGN
+    assert "/fd SHA256" in SIGN
+    assert "/td SHA256" in SIGN
+    assert "SignerCertificate.Thumbprint" in SIGN
+    assert "Authenticode verification failed" in SIGN
