@@ -3,7 +3,11 @@
 
   const STATUS_ENDPOINTS = {
     core: '/api/health',
+    summary: '/api/v1/desktop/summary',
+    events: '/api/v1/desktop/events',
   };
+  let streamAbort = null;
+  let reconnectTimer = null;
 
   const setState = (id, state, title, detail) => {
     const card = document.getElementById(id);
@@ -20,14 +24,111 @@
     if (target) target.click();
   };
 
-  async function probeCore() {
-    setState('desktopCoreCard', 'unknown', 'Checking…', 'Local runtime health probe');
+  const authHeaders = () => {
+    const token = sessionStorage.getItem('dpnApiToken') || '';
+    return token ? { 'X-DPN-Token': token } : {};
+  };
+
+  function renderSummary(summary) {
+    const missions = summary?.missions || {};
+    const approvals = summary?.approvals || {};
+    const model = summary?.model || {};
+    const automations = summary?.automations || {};
+    const connectors = summary?.connectors || {};
+
+    setState(
+      'desktopCoreCard',
+      'healthy',
+      'Online',
+      `Desktop API ${summary?.api_version || 'v1'} • unified local runtime`,
+    );
+    setState(
+      'desktopMissionCard',
+      Number(missions.failed || 0) > 0 ? 'warning' : 'healthy',
+      `${Number(missions.running || 0)} running`,
+      `${Number(missions.queued || 0)} queued • ${Number(missions.total || 0)} total`,
+    );
+    setState(
+      'desktopApprovalCard',
+      Number(approvals.pending || 0) > 0 ? 'warning' : 'healthy',
+      `${Number(approvals.pending || 0)} pending`,
+      'Human-control approval boundary',
+    );
+    setState(
+      'desktopModelCard',
+      model?.warm_status?.ok ? 'healthy' : 'unknown',
+      String(model.active || 'warming'),
+      model?.warm_status?.ok ? 'Active intelligence model ready' : 'Model runtime warming or unavailable',
+    );
+    setState(
+      'desktopAutomationCard',
+      'healthy',
+      `${Number(automations.enabled || 0)} enabled`,
+      `${Number(automations.total || 0)} configured automations`,
+    );
+    setState(
+      'desktopConnectorCard',
+      'healthy',
+      `${Number(connectors.enabled || 0)} enabled`,
+      `${Number(connectors.total || 0)} configured connectors`,
+    );
+  }
+
+  async function probeDesktopSummary() {
+    setState('desktopCoreCard', 'unknown', 'Checking…', 'Versioned local desktop API probe');
     try {
-      const response = await fetch(STATUS_ENDPOINTS.core, { cache: 'no-store' });
+      const response = await fetch(STATUS_ENDPOINTS.summary, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      setState('desktopCoreCard', 'healthy', 'Online', 'Local DPN AI runtime responding');
+      renderSummary(await response.json());
+      return true;
+    } catch (_) {
+      setState('desktopCoreCard', 'blocked', 'Unavailable', 'Desktop API is not responding');
+      return false;
+    }
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = window.setTimeout(() => {
+      reconnectTimer = null;
+      connectEventStream();
+    }, 3000);
+  }
+
+  async function connectEventStream() {
+    if (streamAbort) streamAbort.abort();
+    streamAbort = new AbortController();
+    try {
+      const response = await fetch(STATUS_ENDPOINTS.events, {
+        cache: 'no-store',
+        headers: { ...authHeaders(), Accept: 'text/event-stream' },
+        signal: streamAbort.signal,
+      });
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() || '';
+        for (const frame of frames) {
+          const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
+          if (!dataLine) continue;
+          try {
+            renderSummary(JSON.parse(dataLine.slice(6)));
+          } catch (_) {}
+        }
+      }
+      scheduleReconnect();
     } catch (error) {
-      setState('desktopCoreCard', 'blocked', 'Unavailable', 'Local runtime health endpoint not responding');
+      if (error?.name !== 'AbortError') scheduleReconnect();
     }
   }
 
@@ -77,20 +178,17 @@
     } catch (_) {}
   }
 
-  function markUnavailableSurfaces() {
-    setState('desktopMissionCard', 'unknown', 'No live feed', 'Waiting for mission summary API');
-    setState('desktopApprovalCard', 'unknown', 'No live feed', 'Waiting for approval summary API');
-    setState('desktopModelCard', 'unknown', 'No live feed', 'Waiting for model runtime summary API');
-    setState('desktopAutomationCard', 'unknown', 'No live feed', 'Waiting for scheduler summary API');
-    setState('desktopConnectorCard', 'unknown', 'No live feed', 'Waiting for connector health summary API');
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     document.body.classList.add('desktop-v8');
     bindQuickActions();
     bindWorkspaceTabs();
-    markUnavailableSurfaces();
-    probeCore();
-    window.setInterval(probeCore, 30000);
+    const online = await probeDesktopSummary();
+    if (online) connectEventStream();
+    window.setInterval(probeDesktopSummary, 30000);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (streamAbort) streamAbort.abort();
+    if (reconnectTimer) window.clearTimeout(reconnectTimer);
   });
 })();
