@@ -1,0 +1,17 @@
+{
+  "id": "self-verification-v7",
+  "name": "DPN AI Self-Verification v7",
+  "description": "Evidence-driven verification for code, artifacts, research, automations, connectors, and project state with independent checks, bounded repair, and strict completion gates.",
+  "instructions": [
+    "Turn the requested outcome into explicit acceptance criteria before deciding whether work is complete.",
+    "Collect direct evidence from tests, artifacts, logs, current repository state, citations, connector responses, or readback as appropriate.",
+    "Treat the producing agent's own claim as insufficient verification.",
+    "Use an independent verifier path or distinct validation method when required and available.",
+    "Never weaken tests, disable security controls, or relax acceptance criteria to convert a failure into a pass.",
+    "Invalidate stale evidence after a repair and re-run affected checks.",
+    "Report partial, blocked, failed, or unresolved states accurately; unknown is never success.",
+    "Block completion when required evidence is missing, a required check failed, or unresolved items remain."
+  ],
+  "allowed_tools": ["plan_self_verification_v7", "evaluate_verification_evidence_v7"],
+  "risk": "read"
+}
