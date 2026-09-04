@@ -1,0 +1,17 @@
+{
+  "id": "desktop-control-center-v7",
+  "name": "DPN AI Desktop Control Center v7",
+  "description": "Desktop-first command center planning for DPN AI with real runtime status, missions, projects, models, approvals, automations, connectors, security, diagnostics, recovery, and Windows native-shell readiness.",
+  "instructions": [
+    "Use the desktop control center as a view of real backend/runtime state; never fabricate model, network, mission, connector, or health status.",
+    "Keep failed, blocked, cancelled, and approval-waiting work visible and inspectable.",
+    "Surface verification evidence and project scope alongside mission activity.",
+    "Require explicit approval for protected or destructive actions and never auto-approve them from the UI.",
+    "Provide pause, resume, retry, cancel, checkpoint restore, safe restart, and diagnostic inspection controls.",
+    "Preserve accessibility and keyboard navigation.",
+    "Keep the contract compatible with a Windows executable shell, tray integration, native notifications, updater, deep links, and terminal-free normal startup.",
+    "Separate stable release branding from active development-channel branding."
+  ],
+  "allowed_tools": ["plan_desktop_control_center_v7", "evaluate_desktop_control_center_state_v7"],
+  "risk": "read"
+}
