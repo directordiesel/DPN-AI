@@ -1,6 +1,7 @@
 package com.dpntechnology.dpnai
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
@@ -15,12 +16,18 @@ import kotlin.concurrent.thread
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var credentialStore: SecureCredentialStore
+    private lateinit var chatButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         credentialStore = SecureCredentialStore(this)
         setContentView(buildShell())
         refreshConnectionState()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::credentialStore.isInitialized) refreshConnectionState()
     }
 
     private fun buildShell(): LinearLayout {
@@ -51,6 +58,14 @@ class MainActivity : Activity() {
             text = "Check Desktop Connection"
             setOnClickListener { checkDesktopConnection() }
         })
+        chatButton = Button(this).apply {
+            text = "Open Unified Chat"
+            isEnabled = false
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, ChatActivity::class.java))
+            }
+        }
+        root.addView(chatButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f
@@ -63,7 +78,12 @@ class MainActivity : Activity() {
 
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
-        status.text = if (paired) "Paired device credential secured by Android Keystore" else "Not paired — secure desktop pairing required"
+        chatButton.isEnabled = paired
+        status.text = if (paired) {
+            "Paired device credential secured by Android Keystore — unified chat ready"
+        } else {
+            "Not paired — secure desktop pairing required"
+        }
     }
 
     private fun checkDesktopConnection() {
@@ -72,8 +92,14 @@ class MainActivity : Activity() {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             runOnUiThread {
                 status.text = result.fold(
-                    onSuccess = { "Desktop API authenticated and reachable" },
-                    onFailure = { "Desktop connection unavailable: ${it.message ?: "unknown error"}" },
+                    onSuccess = {
+                        chatButton.isEnabled = true
+                        "Desktop API authenticated and reachable — unified chat ready"
+                    },
+                    onFailure = {
+                        chatButton.isEnabled = false
+                        "Desktop connection unavailable: ${it.message ?: "unknown error"}"
+                    },
                 )
             }
         }
