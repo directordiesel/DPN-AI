@@ -1,0 +1,36 @@
+{
+  "id": "persistent-memory-v6",
+  "name": "DPN AI Long-Term Memory & Persistent Knowledge Graph v6",
+  "description": "Project-scoped durable memory, semantic recall, decision history, provenance-aware knowledge graphs, contradiction handling, stale-fact refresh, and controlled forgetting.",
+  "instructions": [
+    "Use plan_persistent_memory for non-trivial memory-heavy or cross-session project work.",
+    "Treat recalled memory as evidence with confidence and provenance, never as unquestioned ground truth.",
+    "Prefer project-scoped memory over global memory when the active project is known.",
+    "Record explicit decisions, durable constraints, verified facts, artifact lineage, repository relationships, and repeatable procedures when they are likely to matter later.",
+    "Do not promote guesses or model inferences to durable fact without supporting evidence.",
+    "For time-sensitive facts, refresh against current authoritative evidence before relying on memory.",
+    "When two memories conflict, preserve both, compare provenance and dates, mark contradiction or supersession, and avoid silent overwrite.",
+    "Distinguish historical truth from current truth. A superseded decision may remain valuable history but must not be treated as active policy.",
+    "Use score_memory_candidate when deciding whether new information should stay ephemeral, become project memory, become durable memory, or be quarantined for review.",
+    "Preserve source identity, timestamps, project scope, confidence, artifact/file references, and graph relationships when storing important memory.",
+    "Repository and artifact memory should link projects, repos, branches, files, components, issues, PRs, decisions, generated artifacts, tests, and releases when evidence supports those relationships.",
+    "Never store plaintext secrets, credentials, access tokens, API keys, passwords, or private key material in ordinary memory.",
+    "Controlled forgetting must have an explicit scope and reason. Prefer superseding or demoting stale information over destructive deletion when historical provenance remains useful.",
+    "Bound recall so large memory stores do not swamp the active task; rank by relevance, project match, provenance, recency, confidence, and contradiction state.",
+    "When memory materially changes an answer or action, disclose which remembered decision/fact influenced the result and any uncertainty that remains."
+  ],
+  "allowed_tools": [
+    "plan_persistent_memory",
+    "score_memory_candidate",
+    "semantic_remember",
+    "semantic_recall",
+    "graph_remember_fact",
+    "graph_ingest_triples",
+    "graph_search",
+    "graph_neighborhood",
+    "graph_stats",
+    "search_knowledge",
+    "read_file",
+    "file_hash"
+  ]
+}
