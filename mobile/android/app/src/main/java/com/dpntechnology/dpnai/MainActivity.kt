@@ -19,6 +19,7 @@ class MainActivity : Activity() {
     private lateinit var chatButton: Button
     private lateinit var voiceButton: Button
     private lateinit var visionButton: Button
+    private lateinit var fileButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +79,12 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@MainActivity, VisionActivity::class.java)) }
         }
         root.addView(visionButton)
+        fileButton = Button(this).apply {
+            text = "Open File Console"
+            isEnabled = false
+            setOnClickListener { startActivity(Intent(this@MainActivity, FileActivity::class.java)) }
+        }
+        root.addView(fileButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f
@@ -90,14 +97,19 @@ class MainActivity : Activity() {
 
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
-        chatButton.isEnabled = paired
-        voiceButton.isEnabled = paired
-        visionButton.isEnabled = paired
+        setCapabilityButtons(paired)
         status.text = if (paired) {
-            "Paired device credential secured by Android Keystore — chat, voice, and vision ready"
+            "Paired device credential secured by Android Keystore — chat, voice, vision, and files ready"
         } else {
             "Not paired — secure desktop pairing required"
         }
+    }
+
+    private fun setCapabilityButtons(enabled: Boolean) {
+        chatButton.isEnabled = enabled
+        voiceButton.isEnabled = enabled
+        visionButton.isEnabled = enabled
+        fileButton.isEnabled = enabled
     }
 
     private fun checkDesktopConnection() {
@@ -107,15 +119,11 @@ class MainActivity : Activity() {
             runOnUiThread {
                 status.text = result.fold(
                     onSuccess = {
-                        chatButton.isEnabled = true
-                        voiceButton.isEnabled = true
-                        visionButton.isEnabled = true
-                        "Desktop API authenticated and reachable — chat, voice, and vision ready"
+                        setCapabilityButtons(true)
+                        "Desktop API authenticated and reachable — chat, voice, vision, and files ready"
                     },
                     onFailure = {
-                        chatButton.isEnabled = false
-                        voiceButton.isEnabled = false
-                        visionButton.isEnabled = false
+                        setCapabilityButtons(false)
                         "Desktop connection unavailable: ${it.message ?: "unknown error"}"
                     },
                 )
