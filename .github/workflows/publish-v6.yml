@@ -1,12 +1,7 @@
 name: Publish DPN AI v6.0.0
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - VERSION
-      - .github/workflows/publish-v6.yml
-      - docs/V6_RELEASE_READINESS.md
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,11 +12,13 @@ concurrency:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify stable release version
         shell: bash
