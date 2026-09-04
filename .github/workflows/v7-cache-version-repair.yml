@@ -1,0 +1,89 @@
+name: DPN AI v7 Cache Version Repair
+
+on:
+  push:
+    branches:
+      - feature/dpn-ai-agentic-v7
+
+permissions:
+  contents: write
+
+jobs:
+  repair-cache-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dpn-ai-agentic-v7
+          fetch-depth: 0
+
+      - name: Align UI cache versions and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          version = Path('VERSION').read_text(encoding='utf-8').strip()
+
+          app_js = Path('app/static/app.js')
+          text = app_js.read_text(encoding='utf-8')
+          text = text.replace("/sw.js?v=5.0.7", f"/sw.js?v={version}")
+          app_js.write_text(text, encoding='utf-8')
+
+          sw = Path('app/static/sw.js')
+          text = sw.read_text(encoding='utf-8')
+          text = text.replace('dpn-ai-v5.0.7-ui-shell', f'dpn-ai-v{version}-ui-shell')
+          text = text.replace('/styles.css?v=5.0.7', f'/styles.css?v={version}')
+          text = text.replace('/app.js?v=5.0.7', f'/app.js?v={version}')
+          sw.write_text(text, encoding='utf-8')
+
+          layout = Path('tests/test_v5_ui_layout.py')
+          text = layout.read_text(encoding='utf-8')
+          if 'VERSION = ' not in text:
+              text = text.replace(
+                  'ROOT = Path(__file__).resolve().parents[1]\n',
+                  'ROOT = Path(__file__).resolve().parents[1]\nVERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()\n',
+                  1,
+              )
+          text = text.replace("assert '/styles.css?v=5.0.7' in HTML", "assert f'/styles.css?v={VERSION}' in HTML")
+          text = text.replace("assert '/app.js?v=5.0.7' in HTML", "assert f'/app.js?v={VERSION}' in HTML")
+          text = text.replace('assert "dpn-ai-v5.0.7-ui-shell" in SW', 'assert f"dpn-ai-v{VERSION}-ui-shell" in SW')
+          layout.write_text(text, encoding='utf-8')
+
+          voice = Path('tests/test_v5_ui_voice_polish.py')
+          text = voice.read_text(encoding='utf-8')
+          if 'VERSION = ' not in text:
+              text = text.replace(
+                  'ROOT = Path(__file__).resolve().parents[1]\n',
+                  'ROOT = Path(__file__).resolve().parents[1]\nVERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()\n',
+                  1,
+              )
+          text = text.replace(
+              'assert "navigator.serviceWorker.register(\'/sw.js?v=5.0.7\')" in JS',
+              'assert f"navigator.serviceWorker.register(\'/sw.js?v={VERSION}\')" in JS',
+          )
+          text = text.replace('assert "/styles.css?v=5.0.7" in HTML', 'assert f"/styles.css?v={VERSION}" in HTML')
+          voice.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Run full regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r requirements.txt -r requirements-dev.txt
+          python -m pytest -q
+
+      - name: Commit repair if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- app/static/app.js app/static/sw.js tests/test_v5_ui_layout.py tests/test_v5_ui_voice_polish.py; then
+            echo "Cache versions already aligned."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/static/app.js app/static/sw.js tests/test_v5_ui_layout.py tests/test_v5_ui_voice_polish.py
+          git commit -m "fix(v7): align UI cache versions with VERSION"
+          git push origin HEAD:feature/dpn-ai-agentic-v7
