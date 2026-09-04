@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     private lateinit var visionButton: Button
     private lateinit var fileButton: Button
     private lateinit var projectsButton: Button
+    private lateinit var missionsButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +58,8 @@ class MainActivity : Activity() {
         root.addView(fileButton)
         projectsButton = Button(this).apply { text = "Open Projects & Tasks"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ProjectsActivity::class.java)) } }
         root.addView(projectsButton)
+        missionsButton = Button(this).apply { text = "Open Missions"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, MissionsActivity::class.java)) } }
+        root.addView(missionsButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f; setPadding(0, 48, 0, 0); gravity = Gravity.CENTER; setTextColor(Color.GRAY)
@@ -67,7 +70,7 @@ class MainActivity : Activity() {
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
         setCapabilityButtons(paired)
-        status.text = if (paired) "Paired device credential secured by Android Keystore — chat, voice, vision, files, and projects ready" else "Not paired — secure desktop pairing required"
+        status.text = if (paired) "Paired device credential secured by Android Keystore — chat, voice, vision, files, projects, and missions ready" else "Not paired — secure desktop pairing required"
     }
 
     private fun setCapabilityButtons(enabled: Boolean) {
@@ -76,6 +79,7 @@ class MainActivity : Activity() {
         visionButton.isEnabled = enabled
         fileButton.isEnabled = enabled
         projectsButton.isEnabled = enabled
+        missionsButton.isEnabled = enabled
     }
 
     private fun checkDesktopConnection() {
