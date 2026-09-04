@@ -15,8 +15,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
 import java.util.Locale
@@ -74,9 +72,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         addView(transcript, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         talkButton = Button(this@VoiceActivity).apply {
             text = "Tap to Talk"
-            setOnClickListener {
-                if (listening) stopListening() else requestMicrophoneAndListen()
-            }
+            setOnClickListener { if (listening) stopListening() else requestMicrophoneAndListen() }
         }
         addView(talkButton)
         addView(Button(this@VoiceActivity).apply {
@@ -86,8 +82,8 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
     }
 
     private fun requestMicrophoneAndListen() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_AUDIO)
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_AUDIO)
             return
         }
         startListening()
@@ -148,13 +144,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         talkButton.isEnabled = false
         thread(name = "dpn-mobile-voice-chat") {
             val result = runCatching {
-                api.sendChat(
-                    conversationId = null,
-                    message = spoken,
-                    profile = "auto",
-                    executionMode = "auto",
-                    verify = false,
-                )
+                api.sendChat(conversationId = null, message = spoken, profile = "auto", executionMode = "auto", verify = false)
             }
             runOnUiThread {
                 talkButton.isEnabled = true
@@ -172,8 +162,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
 
     private fun speakReply(text: String) {
         if (text.isBlank()) return
-        val bounded = text.take(MAX_SPEAK_CHARS)
-        tts.speak(bounded, TextToSpeech.QUEUE_FLUSH, null, "dpn-ai-mobile-reply")
+        tts.speak(text.take(MAX_SPEAK_CHARS), TextToSpeech.QUEUE_FLUSH, null, "dpn-ai-mobile-reply")
     }
 
     override fun onInit(statusCode: Int) {
