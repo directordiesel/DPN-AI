@@ -27,8 +27,9 @@ def test_desktop_status_surfaces_are_explicit_and_not_simulated():
     ):
         assert card_id in HTML
     assert 'No simulated production metrics are displayed.' in HTML
-    assert 'Waiting for mission summary API' in HTML
-    assert 'Waiting for connector health summary API' in HTML
+    assert "summary: '/api/v1/desktop/summary'" in JS
+    assert "events: '/api/v1/desktop/events'" in JS
+    assert 'renderSummary' in JS
 
 
 def test_desktop_workspace_navigation_is_present():
@@ -37,9 +38,10 @@ def test_desktop_workspace_navigation_is_present():
     assert 'dpn-ai-v8-workspace' in JS
 
 
-def test_desktop_runtime_probe_is_loopback_service_relative():
-    assert "core: '/api/health'" in JS
-    assert 'fetch(STATUS_ENDPOINTS.core' in JS
+def test_desktop_runtime_probe_is_service_relative_and_authenticated():
+    assert "summary: '/api/v1/desktop/summary'" in JS
+    assert 'fetch(STATUS_ENDPOINTS.summary' in JS
+    assert "sessionStorage.getItem('dpnApiToken')" in JS
     assert 'http://0.0.0.0' not in JS
     assert 'https://0.0.0.0' not in JS
 
