@@ -1,0 +1,70 @@
+name: Windows Desktop Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dpn-ai-desktop-v8
+    paths:
+      - "app/**"
+      - "desktop/**"
+      - "packaging/windows/**"
+      - "requirements*.txt"
+      - "tests/test_v8_*.py"
+      - ".github/workflows/windows-desktop-package.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "desktop/**"
+      - "packaging/windows/**"
+      - "requirements*.txt"
+      - "tests/test_v8_*.py"
+      - ".github/workflows/windows-desktop-package.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-desktop-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    # Pull requests remain source/test-reviewed by the normal gates. Binary packaging
+    # is restricted to trusted branch/workflow-dispatch execution on Diesel's runner.
+    if: github.event_name != 'pull_request'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Show local Python
+        shell: powershell
+        run: |
+          python --version
+          python -m pip --version
+
+      - name: Build tested Windows package
+        shell: powershell
+        run: .\packaging\windows\build.ps1 -Python python
+
+      - name: Validate package manifest
+        shell: powershell
+        run: |
+          $manifestPath = ".\dist\DPN-AI\build-manifest.json"
+          if (-not (Test-Path $manifestPath)) { throw "Missing build manifest" }
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          $exe = ".\dist\DPN-AI\DPN-AI.exe"
+          if (-not (Test-Path $exe)) { throw "Missing DPN-AI.exe" }
+          $actual = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
+          if ($actual -ne $manifest.sha256) { throw "Executable SHA-256 does not match build manifest" }
+          if ($manifest.signing -ne "unsigned-development-artifact") { throw "Unexpected signing state" }
+
+      - name: Upload development package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DPN-AI-Windows-development-${{ github.sha }}
+          path: dist/DPN-AI/
+          if-no-files-found: error
+          retention-days: 7
