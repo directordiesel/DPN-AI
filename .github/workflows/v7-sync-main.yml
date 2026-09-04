@@ -20,6 +20,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           if git merge-base --is-ancestor origin/main HEAD; then
             echo "main already integrated"
@@ -43,8 +45,6 @@ jobs:
             echo "Unresolved conflicts remain"
             exit 1
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(v7): reconcile current stable main"
       - name: Install test dependencies
         shell: bash
