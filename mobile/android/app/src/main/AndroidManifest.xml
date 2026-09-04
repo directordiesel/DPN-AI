@@ -10,6 +10,9 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.DPNAI">
         <activity
+            android:name=".VisionActivity"
+            android:exported="false" />
+        <activity
             android:name=".VoiceActivity"
             android:exported="false" />
         <activity
