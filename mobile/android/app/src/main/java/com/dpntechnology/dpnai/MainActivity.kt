@@ -20,6 +20,7 @@ class MainActivity : Activity() {
     private lateinit var voiceButton: Button
     private lateinit var visionButton: Button
     private lateinit var fileButton: Button
+    private lateinit var projectsButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,56 +42,24 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.rgb(7, 7, 10))
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
-        root.addView(TextView(this).apply {
-            text = "DPN AI"
-            textSize = 30f
-            setTextColor(Color.WHITE)
-        })
-        root.addView(TextView(this).apply {
-            text = "MOBILE CONTROL CENTER v1"
-            textSize = 12f
-            setTextColor(Color.rgb(167, 139, 250))
-        })
-        status = TextView(this).apply {
-            textSize = 16f
-            setPadding(0, 72, 0, 36)
-            setTextColor(Color.LTGRAY)
-        }
+        root.addView(TextView(this).apply { text = "DPN AI"; textSize = 30f; setTextColor(Color.WHITE) })
+        root.addView(TextView(this).apply { text = "MOBILE CONTROL CENTER v1"; textSize = 12f; setTextColor(Color.rgb(167, 139, 250)) })
+        status = TextView(this).apply { textSize = 16f; setPadding(0, 72, 0, 36); setTextColor(Color.LTGRAY) }
         root.addView(status)
-        root.addView(Button(this).apply {
-            text = "Check Desktop Connection"
-            setOnClickListener { checkDesktopConnection() }
-        })
-        chatButton = Button(this).apply {
-            text = "Open Unified Chat"
-            isEnabled = false
-            setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) }
-        }
+        root.addView(Button(this).apply { text = "Check Desktop Connection"; setOnClickListener { checkDesktopConnection() } })
+        chatButton = Button(this).apply { text = "Open Unified Chat"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) } }
         root.addView(chatButton)
-        voiceButton = Button(this).apply {
-            text = "Open Voice Console"
-            isEnabled = false
-            setOnClickListener { startActivity(Intent(this@MainActivity, VoiceActivity::class.java)) }
-        }
+        voiceButton = Button(this).apply { text = "Open Voice Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, VoiceActivity::class.java)) } }
         root.addView(voiceButton)
-        visionButton = Button(this).apply {
-            text = "Open Vision Console"
-            isEnabled = false
-            setOnClickListener { startActivity(Intent(this@MainActivity, VisionActivity::class.java)) }
-        }
+        visionButton = Button(this).apply { text = "Open Vision Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, VisionActivity::class.java)) } }
         root.addView(visionButton)
-        fileButton = Button(this).apply {
-            text = "Open File Console"
-            isEnabled = false
-            setOnClickListener { startActivity(Intent(this@MainActivity, FileActivity::class.java)) }
-        }
+        fileButton = Button(this).apply { text = "Open File Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, FileActivity::class.java)) } }
         root.addView(fileButton)
+        projectsButton = Button(this).apply { text = "Open Projects & Tasks"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ProjectsActivity::class.java)) } }
+        root.addView(projectsButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
-            textSize = 13f
-            setPadding(0, 48, 0, 0)
-            gravity = Gravity.CENTER
-            setTextColor(Color.GRAY)
+            textSize = 13f; setPadding(0, 48, 0, 0); gravity = Gravity.CENTER; setTextColor(Color.GRAY)
         })
         return root
     }
@@ -98,11 +67,7 @@ class MainActivity : Activity() {
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
         setCapabilityButtons(paired)
-        status.text = if (paired) {
-            "Paired device credential secured by Android Keystore — chat, voice, vision, and files ready"
-        } else {
-            "Not paired — secure desktop pairing required"
-        }
+        status.text = if (paired) "Paired device credential secured by Android Keystore — chat, voice, vision, files, and projects ready" else "Not paired — secure desktop pairing required"
     }
 
     private fun setCapabilityButtons(enabled: Boolean) {
@@ -110,6 +75,7 @@ class MainActivity : Activity() {
         voiceButton.isEnabled = enabled
         visionButton.isEnabled = enabled
         fileButton.isEnabled = enabled
+        projectsButton.isEnabled = enabled
     }
 
     private fun checkDesktopConnection() {
@@ -118,14 +84,8 @@ class MainActivity : Activity() {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             runOnUiThread {
                 status.text = result.fold(
-                    onSuccess = {
-                        setCapabilityButtons(true)
-                        "Desktop API authenticated and reachable — chat, voice, vision, and files ready"
-                    },
-                    onFailure = {
-                        setCapabilityButtons(false)
-                        "Desktop connection unavailable: ${it.message ?: "unknown error"}"
-                    },
+                    onSuccess = { setCapabilityButtons(true); "Desktop API authenticated and reachable — mobile controls ready" },
+                    onFailure = { setCapabilityButtons(false); "Desktop connection unavailable: ${it.message ?: "unknown error"}" },
                 )
             }
         }
