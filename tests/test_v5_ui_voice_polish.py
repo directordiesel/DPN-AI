@@ -3,6 +3,7 @@ from pathlib import Path
 from app.voice_adapter import VOICE_PROFILES, VoiceAdapter
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 CSS = (ROOT / "app/static/styles.css").read_text(encoding="utf-8")
 JS = (ROOT / "app/static/app.js").read_text(encoding="utf-8")
 HTML = (ROOT / "app/static/index.html").read_text(encoding="utf-8")
@@ -19,8 +20,8 @@ def test_every_control_center_surface_is_bounded_and_scrollable():
 def test_ui_cache_and_missing_shell_recovery_are_present():
     assert "validateInterfaceShell" in JS
     assert "Repair cached interface" in JS
-    assert "navigator.serviceWorker.register('/sw.js?v=5.0.7')" in JS
-    assert "/styles.css?v=5.0.7" in HTML
+    assert f"navigator.serviceWorker.register('/sw.js?v={VERSION}')" in JS
+    assert f"/styles.css?v={VERSION}" in HTML
 
 
 def test_sentinel_uses_hd_primary_with_legacy_fallback_and_natural_pace():

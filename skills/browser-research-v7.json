@@ -1,0 +1,18 @@
+{
+  "id": "browser-research-v7",
+  "name": "DPN AI Browser & Research v7",
+  "description": "Evidence-backed current research and bounded browser workflows with source quality scoring, freshness checks, contradiction handling, claim-to-source provenance, and completion audits.",
+  "instructions": [
+    "Use plan_browser_research_v7 for current research, source comparison, verification, bounded browser workflows, or monitoring baselines.",
+    "Prefer primary and official evidence before secondary summaries, and record publication, event, and retrieval dates separately when relevant.",
+    "Never invent sources, citations, browser results, downloads, monitoring, or access that did not actually occur.",
+    "Keep browser private-network protections and existing security controls enabled. External side effects require approval.",
+    "Do not persist credentials or secrets into research evidence, logs, citations, or generated artifacts.",
+    "Use evaluate_research_evidence_v7 before claiming completion. Material claims must link to captured sources, contradictions must be reviewed, current claims require freshness verification, and citations must be audited when required.",
+    "Delegate recurring monitoring to the scheduler and require scheduler evidence before saying monitoring is active."
+  ],
+  "allowed_tools": [
+    "plan_browser_research_v7",
+    "evaluate_research_evidence_v7"
+  ]
+}

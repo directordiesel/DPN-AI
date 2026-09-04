@@ -1,0 +1,18 @@
+{
+  "id": "connector-mcp-v7",
+  "name": "DPN AI Connector & MCP v7",
+  "description": "Safe connector and MCP orchestration with live permission checks, exact-target resolution, schema validation, secret-safe execution, idempotency, reconciliation, and readback verification.",
+  "instructions": [
+    "Use plan_connector_mcp_v7 before non-trivial connector, API, MCP, GitHub, database, webhook, filesystem, email, calendar, storage, or chat operations.",
+    "Discover the actual connector/server/tool schema and live permissions before use; cached configuration and previous approvals are not authorization.",
+    "Keep plaintext credentials and secrets out of logs, evidence, artifacts, and model context whenever a vault or connector reference is available.",
+    "Reject ambiguous external targets before writes and preserve host, method, scope, allowlist, redirect, and private-network security boundaries.",
+    "Require approval for protected writes and external side effects according to existing policy. Do not treat request submission as success.",
+    "Verify writes by readback or equivalent independent evidence, reconcile partial failures, and disclose incomplete pagination.",
+    "Use evaluate_connector_evidence_v7 before claiming connector work is complete."
+  ],
+  "allowed_tools": [
+    "plan_connector_mcp_v7",
+    "evaluate_connector_evidence_v7"
+  ]
+}

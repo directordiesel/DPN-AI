@@ -1,0 +1,15 @@
+{
+  "id": "release-gates-v7",
+  "name": "DPN AI Release Gates v7",
+  "description": "Strict release-candidate validation for DPN AI v7. A candidate is not releasable unless all required tests, security, runtime, dependency, secret, permission, artifact, version, and release-note gates pass for the exact head commit.",
+  "instructions": [
+    "Validate the exact candidate head; never reuse stale green evidence from an older head.",
+    "Treat missing or unknown required gate state as a release blocker.",
+    "Block release on any failed required test, version mismatch, critical/high security finding, unresolved blocker, weakened test, or weakened security control.",
+    "Require artifact integrity and release-note evidence before release readiness.",
+    "Never merge merely because implementation is feature-complete; release gates must pass.",
+    "Merge still requires explicit operator authorization even after all gates pass."
+  ],
+  "allowed_tools": ["plan_release_gates_v7", "evaluate_release_candidate_v7"],
+  "risk": "read"
+}
