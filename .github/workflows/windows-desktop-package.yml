@@ -31,7 +31,8 @@ concurrency:
 jobs:
   package:
     # Pull requests remain source/test-reviewed by the normal gates. Binary packaging
-    # is restricted to trusted branch/workflow-dispatch execution on Diesel's runner.
+    # and installer compilation are restricted to trusted branch/workflow-dispatch
+    # execution on Diesel's runner.
     if: github.event_name != 'pull_request'
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 45
@@ -61,10 +62,37 @@ jobs:
           if ($actual -ne $manifest.sha256) { throw "Executable SHA-256 does not match build manifest" }
           if ($manifest.signing -ne "unsigned-development-artifact") { throw "Unexpected signing state" }
 
+      - name: Build validated Windows installer
+        shell: powershell
+        run: .\packaging\windows\build-installer.ps1 -Python python
+
+      - name: Validate installer manifest
+        shell: powershell
+        run: |
+          $version = (Get-Content .\VERSION -Raw).Trim()
+          $manifestPath = ".\dist\installer\installer-manifest.json"
+          if (-not (Test-Path $manifestPath)) { throw "Missing installer manifest" }
+          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.version -ne $version) { throw "Installer manifest version mismatch" }
+          $installer = Join-Path ".\dist\installer" $manifest.installer
+          if (-not (Test-Path $installer)) { throw "Missing installer executable" }
+          $actual = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          if ($actual -ne $manifest.sha256) { throw "Installer SHA-256 does not match installer manifest" }
+          if ($manifest.signing -ne "unsigned-development-installer") { throw "Unexpected installer signing state" }
+          if ($manifest.uninstall_data_policy -ne "preserve-user-data-outside-install-directory") { throw "Unsafe uninstall data policy" }
+
       - name: Upload development package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: DPN-AI-Windows-development-${{ github.sha }}
           path: dist/DPN-AI/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload development installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DPN-AI-Windows-installer-development-${{ github.sha }}
+          path: dist/installer/
           if-no-files-found: error
           retention-days: 7
