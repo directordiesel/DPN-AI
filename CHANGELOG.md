@@ -27,16 +27,29 @@
 ## Security, QA, and release gates
 
 - Added dedicated v8 desktop validation on the trusted DIESEL-118 self-hosted Windows runner.
-- Added full v8 regression coverage for desktop platform, supervisor, service API, updater, Windows installer/integration/packaging, recovery, and resource controls.
-- Added a strict non-publishing v8 release-readiness gate for version metadata, required files, documentation, packaging isolation, release policy, and signing readiness.
+- Added full v8 regression coverage for desktop platform, supervisor, service API, updater, Windows installer/integration/packaging, recovery, resource controls, and signing readiness.
+- Added a strict non-publishing v8 release-readiness gate for version metadata, required files, documentation, packaging isolation, release policy, and signing integration.
 - Kept pull-request Windows binary packaging intentionally skipped.
-- Kept production signing as an explicit blocker until a real trusted signing provider/certificate is integrated; unsigned development artifacts are not misrepresented as signed production releases.
+- Added fail-closed Windows Authenticode signing support without embedding credentials or claiming that a production certificate already exists.
+
+## Production Windows signing
+
+- Added `packaging/windows/sign.ps1` with explicit certificate-thumbprint selection.
+- Added Windows SDK `signtool.exe` resolution without implicit downloads or installation.
+- Added SHA-256 file signing and RFC3161 timestamping.
+- Added post-signing `Get-AuthenticodeSignature` verification.
+- Added signer-certificate thumbprint verification so the resulting signature must match the requested certificate.
+- Added `-RequireSigned` mode to both application and installer build scripts.
+- Release-mode builds fail closed if a trusted certificate is unavailable or signing verification fails.
+- Development package and installer builds remain explicitly marked unsigned.
+- Private keys, certificate passwords, and signing credentials remain outside the repository and must be provisioned separately on the authorized release runner.
 
 ## Current release-candidate blockers
 
 - Stable version promotion from 6.0.0 to 8.0.0 must be performed as one coordinated change across VERSION, runtime metadata, UI version markers, and related release metadata.
-- Production Windows signing must be integrated and verified before stable publication.
-- PR #29 must remain draft until exact-head release gates are green and an explicit stable merge/release is authorized.
+- A real trusted Windows code-signing certificate/provider still needs to be provisioned on the authorized release runner before production artifacts can be signed.
+- Final exact-head source and signed-artifact release gates must pass.
+- PR #29 must remain draft until the final gates are green and an explicit stable merge/release is authorized.
 
 ---
 
