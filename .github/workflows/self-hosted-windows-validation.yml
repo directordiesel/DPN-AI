@@ -1,0 +1,80 @@
+name: DPN Self-Hosted Windows Validation
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/self-hosted-windows-validation.yml"
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "launch.py"
+      - "manage.py"
+      - "installer_python_probe.py"
+      - "INSTALL_DPN_AI.ps1"
+      - "*.bat"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: self-hosted-windows-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  trusted-windows-validation:
+    name: Trusted Windows validation on DIESEL-118
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install development dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Run repository and version guard
+        shell: cmd
+        run: python .github\scripts\ci_repository_guard.py
+
+      - name: Compile DPN AI sources on Windows
+        shell: cmd
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github\scripts\ci_repository_guard.py
+
+      - name: Run focused Windows regression suite
+        shell: cmd
+        run: python -m pytest -q tests\test_authorization_boundaries.py tests\test_v5_chat_recovery.py tests\test_snapshot_restore_integrity.py
+
+      - name: Verify Windows installer PowerShell parses
+        shell: powershell
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\INSTALL_DPN_AI.ps1'), [ref]$null, [ref]$errors) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host "INSTALL_DPN_AI.ps1 parsed successfully on $env:RUNNER_NAME"
+
+      - name: Runner validation summary
+        if: always()
+        shell: powershell
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## DPN Self-Hosted Windows Validation"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Architecture: $env:RUNNER_ARCH"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Trusted main/manual execution only"
