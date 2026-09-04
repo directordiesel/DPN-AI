@@ -2,6 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 HTML = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
 CSS = (ROOT / "app" / "static" / "v8-desktop.css").read_text(encoding="utf-8")
 JS = (ROOT / "app" / "static" / "v8-desktop.js").read_text(encoding="utf-8")
@@ -11,6 +12,8 @@ def test_v8_desktop_assets_are_linked():
     assert '/v8-desktop.css' in HTML
     assert '/v8-desktop.js' in HTML
     assert 'WINDOWS DESKTOP PLATFORM v8' in HTML
+    assert f'/styles.css?v={VERSION}' in HTML
+    assert f'/app.js?v={VERSION}' in HTML
 
 
 def test_desktop_status_surfaces_are_explicit_and_not_simulated():
