@@ -30,31 +30,20 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.11"
-
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
       - name: Verify repository standards
         shell: python
         run: |
           from pathlib import Path
-          required = [
-              "README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md",
-              "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md",
-              "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS",
-              ".github/scripts/generate_supply_chain.py", ".github/workflows/release.yml",
-              ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml",
-              ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml",
-              ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md",
-              ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml",
-              ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml",
-          ]
+          required = ["README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md", "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md", "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS", ".github/scripts/generate_supply_chain.py", ".github/workflows/release.yml", ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml", ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml", ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml"]
           missing = [p for p in required if not Path(p).is_file()]
           if missing:
               raise SystemExit("Missing required standards: " + ", ".join(missing))
           print(f"Validated {len(required)} required repository standards")
-
       - name: Enforce immutable GitHub Action references and checkout credential isolation
         shell: python
         run: |
@@ -86,7 +75,6 @@ jobs:
           if failures:
               raise SystemExit("GitHub Actions policy violations:\n- " + "\n- ".join(failures))
           print(f"Validated immutable action references across {len(workflows)} workflows")
-
       - name: Enforce controlled release ref
         shell: python
         run: |
@@ -103,7 +91,6 @@ jobs:
           if failures:
               raise SystemExit("Release control policy violations: " + "; ".join(failures))
           print("Validated main-only manual release policy")
-
       - name: Reject tracked runtime secrets and private state
         shell: python
         run: |
@@ -114,7 +101,6 @@ jobs:
           if sensitive:
               raise SystemExit("Sensitive/runtime files are tracked: " + ", ".join(sensitive))
           print("No tracked runtime secrets or private state detected")
-
       - name: Detect unresolved merge conflicts and oversized files
         shell: python
         run: |
@@ -142,8 +128,49 @@ jobs:
               raise SystemExit("Tracked files exceed 95 MB: " + ", ".join(oversized))
           print("No unresolved merge conflicts or oversized tracked files detected")
 
-  repository-health-pr:
-    if: github.event_name == 'pull_request'
+  repository-health-pr-trusted:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
+    name: Repository Health
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Run portable repository and version guard
+        shell: cmd
+        run: python .github\scripts\ci_repository_guard.py
+      - name: Enforce immutable action references
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          workflows = sorted(Path(".github/workflows").glob("*.y*ml"))
+          uses_re = re.compile(r"^\s*-?\s*uses:\s*([^\s#]+)")
+          sha_re = re.compile(r"^[0-9a-fA-F]{40}$")
+          failures = []
+          for workflow in workflows:
+              lines = workflow.read_text(encoding="utf-8").splitlines()
+              for index, line in enumerate(lines):
+                  match = uses_re.match(line)
+                  if not match:
+                      continue
+                  reference = match.group(1)
+                  if reference.startswith("./") or reference.startswith("docker://"):
+                      continue
+                  if "@" not in reference or not sha_re.fullmatch(reference.rsplit("@", 1)[-1]):
+                      failures.append(f"{workflow}:{index + 1}: non-immutable action reference: {reference}")
+          if failures:
+              raise SystemExit("GitHub Actions policy violations:\n- " + "\n- ".join(failures))
+
+  repository-health-pr-hosted:
+    if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
     name: Repository Health
     runs-on: ubuntu-latest
     steps:
@@ -151,10 +178,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-
       - name: Run portable repository and version guard
         run: python .github/scripts/ci_repository_guard.py
-
       - name: Enforce immutable action references
         shell: python
         run: |
