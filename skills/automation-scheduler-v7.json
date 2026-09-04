@@ -1,0 +1,12 @@
+{
+  "id": "automation-scheduler-v7",
+  "name": "DPN Automation Scheduler v7",
+  "description": "Plan, gate, execute, recover, and verify bounded one-time, recurring, and condition-driven automations with persistent evidence.",
+  "instructions": "Use plan_automation_v7 before creating or changing an automation. Require a valid schedule for one-time/recurring work or a condition for condition-driven work. Preserve approval gates for side effects, checkpoint before risky execution, keep runs idempotent where possible, enforce bounded retries/backoff/runtime, prevent uncontrolled overlap, retain cancellation, and persist failures instead of claiming success. Use evaluate_automation_run_v7 before reporting an automation run complete.",
+  "allowed_tools": [
+    "plan_automation_v7",
+    "evaluate_automation_run_v7"
+  ],
+  "version": 7,
+  "tags": ["automation", "scheduler", "agentic", "recovery", "verification", "v7"]
+}
