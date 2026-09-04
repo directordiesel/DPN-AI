@@ -70,6 +70,60 @@ class SnapshotService:
             item["archive_exists"] = Path(item["archive_path"]).exists()
         return {"ok": True, "snapshots": snapshots}
 
+    def _validate_restore_archive(self, zf: zipfile.ZipFile, snapshot: dict[str, Any]) -> tuple[bool, str]:
+        manifest = snapshot.get("manifest")
+        files = manifest.get("files") if isinstance(manifest, dict) else None
+        if not isinstance(files, list) or manifest.get("file_count") != len(files):
+            return False, "Snapshot manifest is invalid"
+
+        expected: dict[str, tuple[int, str]] = {}
+        for entry in files:
+            if not isinstance(entry, dict):
+                return False, "Snapshot manifest is invalid"
+            path = entry.get("path")
+            size = entry.get("size_bytes")
+            digest = entry.get("sha256")
+            if (
+                not isinstance(path, str)
+                or not path
+                or path in expected
+                or not isinstance(size, int)
+                or size < 0
+                or not isinstance(digest, str)
+                or len(digest) != 64
+                or any(ch not in "0123456789abcdefABCDEF" for ch in digest)
+            ):
+                return False, "Snapshot manifest is invalid"
+            try:
+                self.fs.resolve(path)
+            except ValueError:
+                return False, "Snapshot manifest contains an unsafe path"
+            expected[path] = (size, digest.lower())
+
+        infos = [info for info in zf.infolist() if not info.is_dir()]
+        names = [info.filename for info in infos]
+        if len(names) != len(set(names)):
+            return False, "Snapshot archive contains duplicate file entries"
+        if set(names) != set(expected):
+            return False, "Snapshot archive does not match its manifest"
+
+        for info in infos:
+            expected_size, expected_digest = expected[info.filename]
+            if info.file_size != expected_size:
+                return False, "Snapshot archive failed integrity verification"
+            digest = hashlib.sha256()
+            actual_size = 0
+            with zf.open(info) as src:
+                while True:
+                    chunk = src.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    actual_size += len(chunk)
+                    digest.update(chunk)
+            if actual_size != expected_size or digest.hexdigest() != expected_digest:
+                return False, "Snapshot archive failed integrity verification"
+        return True, ""
+
     def restore(self, snapshot_id: str, overwrite: bool = False) -> dict[str, Any]:
         snapshot = self.db.get_snapshot(snapshot_id)
         if not snapshot:
@@ -79,18 +133,34 @@ class SnapshotService:
             return {"ok": False, "error": "Snapshot archive is missing"}
         restored = 0
         skipped = 0
-        with zipfile.ZipFile(archive, "r") as zf:
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
-                target = self.fs.resolve(info.filename)
-                if target.exists() and not overwrite:
-                    skipped += 1
-                    continue
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(info) as src, target.open("wb") as dst:
-                    shutil.copyfileobj(src, dst)
-                restored += 1
+        try:
+            with zipfile.ZipFile(archive, "r") as zf:
+                valid, error = self._validate_restore_archive(zf, snapshot)
+                if not valid:
+                    self.db.audit(
+                        "snapshot.restore_rejected",
+                        f"Rejected snapshot restore {snapshot['name']}",
+                        {"snapshot_id": snapshot_id, "reason": error},
+                    )
+                    return {"ok": False, "error": error}
+                for info in zf.infolist():
+                    if info.is_dir():
+                        continue
+                    target = self.fs.resolve(info.filename)
+                    if target.exists() and not overwrite:
+                        skipped += 1
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(info) as src, target.open("wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    restored += 1
+        except (OSError, zipfile.BadZipFile, RuntimeError):
+            self.db.audit(
+                "snapshot.restore_rejected",
+                f"Rejected snapshot restore {snapshot['name']}",
+                {"snapshot_id": snapshot_id, "reason": "invalid archive"},
+            )
+            return {"ok": False, "error": "Snapshot archive is invalid or unreadable"}
         self.db.audit("snapshot.restored", f"Restored snapshot {snapshot['name']}", {"snapshot_id": snapshot_id, "restored": restored, "skipped": skipped})
         return {"ok": True, "restored": restored, "skipped": skipped, "overwrite": overwrite}
 
