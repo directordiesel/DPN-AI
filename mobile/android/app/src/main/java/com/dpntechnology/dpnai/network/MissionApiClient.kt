@@ -85,10 +85,15 @@ class MissionApiClient(private val credentialStore: SecureCredentialStore) {
         conversationId?.trim()?.takeIf { it.isNotEmpty() }?.let { body.put("conversation_id", boundedId(it)) }
 
         val payload = JSONObject(request("POST", "/api/missions", body.toString()))
-        val missionObject = payload.optJSONObject("mission") ?: payload
-        val summary = parseSummary(missionObject)
-            ?: throw DesktopApiException("desktop API did not return mission identity")
-        return MissionDetail(summary, missionObject)
+        payload.optJSONObject("mission")?.let { mission ->
+            parseSummary(mission)?.let { return MissionDetail(it, mission) }
+        }
+
+        val missionId = payload.optString("mission_id").trim()
+        if (missionId.isNotEmpty()) return getMission(missionId)
+
+        parseSummary(payload)?.let { return MissionDetail(it, payload) }
+        throw DesktopApiException("desktop API did not return mission identity")
     }
 
     private fun parseSummary(item: JSONObject): MissionSummary? {
@@ -130,21 +135,16 @@ class MissionApiClient(private val credentialStore: SecureCredentialStore) {
         }
 
         return try {
-            if (jsonBody != null) {
-                connection.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
-            }
+            if (jsonBody != null) connection.outputStream.use { it.write(jsonBody.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val response = stream?.bufferedReader(Charsets.UTF_8)?.use {
                 val text = it.readText()
-                if (text.length > MAX_RESPONSE_CHARS) {
-                    throw DesktopApiException("desktop mission response exceeded mobile safety limit")
-                }
+                if (text.length > MAX_RESPONSE_CHARS) throw DesktopApiException("desktop mission response exceeded mobile safety limit")
                 text
             }.orEmpty()
             if (code !in 200..299) {
-                val detail = runCatching { JSONObject(response).optString("detail") }.getOrNull()
-                    ?.take(400)?.ifBlank { null }
+                val detail = runCatching { JSONObject(response).optString("detail") }.getOrNull()?.take(400)?.ifBlank { null }
                 throw DesktopApiException(detail ?: "desktop mission API rejected request with HTTP $code")
             }
             response
@@ -153,15 +153,8 @@ class MissionApiClient(private val credentialStore: SecureCredentialStore) {
         }
     }
 
-    private fun encodePathSegment(value: String): String = URLEncoder.encode(
-        boundedId(value),
-        StandardCharsets.UTF_8.toString(),
-    ).replace("+", "%20")
-
-    private fun encodeQueryValue(value: String): String = URLEncoder.encode(
-        value,
-        StandardCharsets.UTF_8.toString(),
-    ).replace("+", "%20")
+    private fun encodePathSegment(value: String): String = URLEncoder.encode(boundedId(value), StandardCharsets.UTF_8.toString()).replace("+", "%20")
+    private fun encodeQueryValue(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.toString()).replace("+", "%20")
 
     private fun boundedId(value: String): String {
         val clean = value.trim()
