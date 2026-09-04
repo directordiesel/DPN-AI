@@ -41,7 +41,7 @@ def test_build_fails_closed_and_runs_desktop_regressions_before_packaging():
     assert "Set-StrictMode -Version Latest" in BUILD
     assert "tests/test_v8_desktop_platform.py" in BUILD
     assert "tests/test_v8_desktop_supervisor.py" in BUILD
-    assert "tests/test_v8_desktop_service.py" in BUILD
+    assert "tests/test_v8_desktop_service_api.py" in BUILD
     assert "tests/test_v8_windows_packaging.py" in BUILD
     assert "PyInstaller --noconfirm --clean" in BUILD
 
