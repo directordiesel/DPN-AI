@@ -1,0 +1,65 @@
+name: DPN AI v7 Sync Main
+
+on:
+  push:
+    branches:
+      - feature/dpn-ai-agentic-v7
+
+permissions:
+  contents: write
+
+jobs:
+  sync-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/dpn-ai-agentic-v7
+          fetch-depth: 0
+      - name: Merge current stable main safely
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "main already integrated"
+            exit 0
+          fi
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -ne 0 ]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            if [ "${#conflicts[@]}" -ne 1 ] || [ "${conflicts[0]}" != "README.md" ]; then
+              printf 'Unexpected merge conflicts:\n%s\n' "${conflicts[*]}"
+              git merge --abort || true
+              exit 1
+            fi
+            git checkout --ours README.md
+            git add README.md
+          fi
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            echo "Unresolved conflicts remain"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(v7): reconcile current stable main"
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then python -m pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then python -m pip install -r requirements-dev.txt; fi
+      - name: Run full regression suite
+        shell: bash
+        run: python -m pytest -q
+      - name: Push reconciled candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor origin/main HEAD && [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/feature/dpn-ai-agentic-v7)" ]; then
+            git push origin HEAD:feature/dpn-ai-agentic-v7
+          fi
