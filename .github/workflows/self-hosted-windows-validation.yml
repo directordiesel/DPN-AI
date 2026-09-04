@@ -34,10 +34,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.11"
-          cache: pip
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+          python -m pip --version
 
       - name: Install development dependencies
         shell: cmd
@@ -77,4 +79,5 @@ jobs:
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Architecture: $env:RUNNER_ARCH"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: local runner installation"
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Trusted main/manual execution only"
