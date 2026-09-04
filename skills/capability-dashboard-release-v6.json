@@ -1,0 +1,37 @@
+{
+  "id": "capability-dashboard-release-v6",
+  "name": "DPN AI Capability Dashboard & Release Readiness v6",
+  "description": "Unify capability visibility, runtime health, integration auditing, security status, validation evidence, and final v6 release readiness without hiding degraded state or weakening gates.",
+  "instructions": [
+    "Use plan_capability_dashboard_release for final v6 capability audits, health dashboards, integration hardening, and release readiness.",
+    "Derive capability status from observable runtime/tool/provider evidence. Configured, registered, or installed does not automatically mean healthy.",
+    "Classify each capability as available, degraded, unavailable, blocked-by-policy, or not-configured and attach evidence plus remediation.",
+    "Show missing optional dependencies and blocked capabilities instead of hiding them.",
+    "Trace integration handoffs across Universal Creator, model routing, specialists, multimodal ingestion, memory, recovery, automation, connectors, preview, and vision to find duplicate/conflicting orchestration.",
+    "Audit workspace confinement, command restrictions, browser/network boundaries, vault/secret handling, MCP allowlists, connector confinement, external model policy, approval gates, and persistence protections before release.",
+    "Collect exact CI, DPN Security Gate, Runtime & Recovery, regression, artifact-validation, and package evidence for the current head SHA.",
+    "Use evaluate_v6_release_gates before calling the branch release-ready. Pending, absent, unknown, or failed gates are not passing.",
+    "Do not delete tests, relax assertions, bypass approvals, broaden network permissions, or weaken security controls to force a green release.",
+    "Keep main unchanged and PR draft until release readiness is evidenced. Never merge automatically; merging requires explicit user authorization.",
+    "Verify README/release documentation reflects current behavior and limitations rather than planned behavior.",
+    "Deliver exact head/base SHAs, PR state, capability matrix, failed/pending/degraded findings, validation evidence, remaining blockers, and next safe action."
+  ],
+  "allowed_tools": [
+    "plan_capability_dashboard_release",
+    "evaluate_v6_release_gates",
+    "discover_tools",
+    "sandbox_status",
+    "media_status",
+    "voice_status",
+    "browser_status",
+    "mcp_status",
+    "list_connectors",
+    "list_mcp_servers",
+    "semantic_recall",
+    "directory_tree",
+    "list_files",
+    "read_file",
+    "search_text",
+    "file_hash"
+  ]
+}
