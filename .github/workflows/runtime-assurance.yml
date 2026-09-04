@@ -27,24 +27,70 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  runtime-recovery:
+  runtime-recovery-trusted:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
+    name: runtime-recovery
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Install DPN AI development dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Run focused persistence and recovery regression suite
+        shell: cmd
+        run: python -m pytest -q tests\test_secure_database.py tests\test_database_maintenance.py tests\test_persistence_security.py tests\test_v5_chat_recovery.py tests\test_authorization_boundaries.py
+      - name: Run live startup, auth, restart, corruption, and recovery assurance
+        shell: cmd
+        run: python .github\scripts\runtime_assurance.py
+      - name: Reject leaked runtime state after assurance
+        shell: powershell
+        run: |
+          $leaked = git status --porcelain --untracked-files=all | Select-String -Pattern '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/'
+          if ($leaked) {
+            Write-Error 'Runtime assurance leaked private state into the checkout'
+            $leaked | ForEach-Object { Write-Host $_ }
+            exit 1
+          }
+      - name: Phase 3 summary
+        shell: powershell
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## DPN Phase 3 runtime & recovery assurance"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- live application startup: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- token authorization boundary: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- graceful shutdown and same-state restart: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- corrupted SQLite state fails closed: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- restored-state recovery restart: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- focused persistence/recovery regression suite: passed"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- runtime state leak check: passed"
+
+  runtime-recovery-external:
+    if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
+    name: runtime-recovery
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install DPN AI development dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
-
       - name: Run focused persistence and recovery regression suite
         run: |
           pytest -q \
@@ -53,26 +99,10 @@ jobs:
             tests/test_persistence_security.py \
             tests/test_v5_chat_recovery.py \
             tests/test_authorization_boundaries.py
-
       - name: Run live startup, auth, restart, corruption, and recovery assurance
         run: python .github/scripts/runtime_assurance.py
-
       - name: Reject leaked runtime state after assurance
         shell: bash
         run: |
           leaked="$(git status --porcelain --untracked-files=all | grep -Ei '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/' || true)"
           test -z "$leaked" || { echo "::error::Runtime assurance leaked private state into the checkout"; echo "$leaked"; exit 1; }
-
-      - name: Phase 3 summary
-        run: |
-          {
-            echo "## DPN Phase 3 runtime & recovery assurance"
-            echo ""
-            echo "- live application startup: passed"
-            echo "- token authorization boundary: passed"
-            echo "- graceful shutdown and same-state restart: passed"
-            echo "- corrupted SQLite state fails closed: passed"
-            echo "- restored-state recovery restart: passed"
-            echo "- focused persistence/recovery regression suite: passed"
-            echo "- runtime state leak check: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
