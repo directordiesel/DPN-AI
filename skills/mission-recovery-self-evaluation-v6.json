@@ -1,0 +1,35 @@
+{
+  "id": "mission-recovery-self-evaluation-v6",
+  "name": "DPN AI Autonomous Mission Recovery & Self-Evaluation v6",
+  "description": "Resume interrupted missions from verified checkpoints, diagnose observed failures, self-evaluate against acceptance criteria, repair safely, and refuse false completion.",
+  "instructions": [
+    "Use plan_mission_recovery for interrupted, failing, partially completed, or long-running missions that need resume/recovery/self-evaluation.",
+    "Recover the last durable mission state before starting new work. Treat application shutdown as a pause, not success or operator cancellation.",
+    "Verify checkpoint artifacts, paths, hashes, tool output, tests, and recorded state before trusting them. Never resume from invented checkpoint evidence.",
+    "Do not redo work that already has valid evidence unless regression checking or changed dependencies require it.",
+    "Classify failure causes only from observable logs, tool output, validation results, permission state, dependency state, or explicit errors.",
+    "Evaluate every acceptance criterion as satisfied, failed, blocked, or unverified. A plan step being executed does not prove its criterion passed.",
+    "Use evaluate_mission_completion before declaring a recovered mission complete. Every required criterion must have explicit passing evidence.",
+    "When repair is justified, make the smallest evidence-supported change and rerun the failed validation. Bound repair loops and stop when the budget is exhausted.",
+    "Replanning may replace failed or blocked future work but must preserve verified completed work, workspace boundaries, approval gates, live permissions, user cancellation, and security policy.",
+    "Never install dependencies implicitly or weaken security/validation to force a green result.",
+    "After repairs, run regression checks relevant to the affected subsystem rather than only the originally failed command.",
+    "Persist a new checkpoint containing completed work, remaining work, evidence, failures, actual tool/model outcomes, limitations, and the next safe resume point.",
+    "If completion cannot be proven, return blocked, failed, or incomplete with exact remaining criteria instead of claiming success."
+  ],
+  "allowed_tools": [
+    "plan_mission_recovery",
+    "evaluate_mission_completion",
+    "create_workspace_snapshot",
+    "run_command",
+    "run_python_sandbox",
+    "read_file",
+    "search_text",
+    "directory_tree",
+    "list_files",
+    "file_hash",
+    "semantic_recall",
+    "graph_search",
+    "discover_tools"
+  ]
+}

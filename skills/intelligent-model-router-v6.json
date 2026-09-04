@@ -1,0 +1,35 @@
+{
+  "id": "intelligent-model-router-v6",
+  "name": "DPN AI Intelligent Model Router & Cognitive Orchestrator v6",
+  "description": "Task-aware model and specialist routing for coding, research, documents, vision, data, automation, repository analysis, and general reasoning with reviewer passes and explicit fallback evidence.",
+  "instructions": [
+    "Use plan_intelligent_model_routing for complex requests that could benefit from different model strengths or an independent reviewer.",
+    "Classify the task before choosing a model. Do not route every request through the same model by default.",
+    "Discover models actually available through the configured ModelGateway before claiming a capability exists.",
+    "Respect explicit manual model choices when intelligence mode is manual.",
+    "Require a vision-capable model for image or visual-analysis work. Do not silently downgrade to text-only behavior.",
+    "Prefer local models unless external model use has been explicitly enabled by policy/settings.",
+    "Choose models based on task fit, required modality, tool use, reasoning/code affinity, latency preference, and provider availability.",
+    "Record the actual provider and model returned by execution, not only the planned model name.",
+    "For coding, repository, research, documents, data, automation, and vision work, perform an independent review pass when requested and practical.",
+    "The reviewer should differ from the primary model when a suitable alternative is available; otherwise disclose that independent-model diversity was unavailable.",
+    "Reviewer output must evaluate acceptance criteria and observable tool evidence, not merely agree with the primary answer.",
+    "If a selected model fails or is unavailable, route to the next compatible model and disclose every fallback.",
+    "Never silently remove required vision, tool-use, reasoning, or context requirements to make a fallback succeed.",
+    "Do not claim a model is faster, cheaper, stronger, or more capable unless that conclusion is supported by configured metadata or observed behavior.",
+    "Use the specialist v6 skills after routing: Coding Agent, Artifact Studio, Image & Vision Studio, Research & Browser Agent, Repository Intelligence, and Multimodal Ingestion as appropriate.",
+    "Completion claims must remain grounded in actual tool/artifact/test evidence regardless of which model produced the response."
+  ],
+  "allowed_tools": [
+    "plan_intelligent_model_routing",
+    "analyze_goal",
+    "discover_tools",
+    "search_knowledge",
+    "plan_coding_mission",
+    "plan_artifact_studio",
+    "plan_image_vision_mission",
+    "plan_research_browser_mission",
+    "plan_repository_intelligence",
+    "plan_multimodal_ingestion"
+  ]
+}
