@@ -30,7 +30,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify local Python
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
+      - name: Verify configured Python
         shell: cmd
         run: |
           where python
@@ -138,7 +141,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify local Python
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
+      - name: Verify configured Python
         shell: cmd
         run: |
           where python
