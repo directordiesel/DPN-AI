@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
@@ -54,7 +55,16 @@ class ChatActivity : Activity() {
             setPadding(0, 4, 0, 20)
         })
 
-        conversationSpinner = Spinner(this)
+        conversationSpinner = Spinner(this).apply {
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    val selected = conversations.getOrNull(position) ?: return
+                    if (selected.id != activeConversationId) loadConversation(selected.id)
+                }
+
+                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            }
+        }
         root.addView(conversationSpinner, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val actionRow = LinearLayout(this).apply {
@@ -78,9 +88,7 @@ class ChatActivity : Activity() {
         }
         root.addView(status)
 
-        transcript = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-        }
+        transcript = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val scroll = ScrollView(this).apply {
             addView(transcript)
             isFillViewport = true
@@ -118,8 +126,8 @@ class ChatActivity : Activity() {
                     conversationSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
                     val index = selectId?.let { id -> items.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
                     if (items.isNotEmpty()) {
-                        conversationSpinner.setSelection(index)
                         activeConversationId = items[index].id
+                        conversationSpinner.setSelection(index)
                         loadConversation(items[index].id)
                     } else {
                         activeConversationId = null
@@ -198,7 +206,8 @@ class ChatActivity : Activity() {
     }
 
     private fun addMessage(role: String, content: String) {
-        val label = when (role.lowercase()) {
+        val normalizedRole = role.lowercase()
+        val label = when (normalizedRole) {
             "user" -> "YOU"
             "assistant" -> "DPN AI"
             else -> role.uppercase()
@@ -206,8 +215,8 @@ class ChatActivity : Activity() {
         transcript.addView(TextView(this).apply {
             text = "$label\n$content"
             textSize = 15f
-            setTextColor(if (role == "assistant") Color.WHITE else Color.LTGRAY)
-            setBackgroundColor(if (role == "assistant") Color.rgb(24, 18, 39) else Color.rgb(16, 16, 20))
+            setTextColor(if (normalizedRole == "assistant") Color.WHITE else Color.LTGRAY)
+            setBackgroundColor(if (normalizedRole == "assistant") Color.rgb(24, 18, 39) else Color.rgb(16, 16, 20))
             setPadding(18, 14, 18, 14)
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
             setMargins(0, 0, 0, 12)
@@ -220,5 +229,7 @@ class ChatActivity : Activity() {
         conversationSpinner.isEnabled = !busy
     }
 
-    private fun apiReady(): Boolean = runCatching { SecureCredentialStore(this).loadDesktopCredential() != null }.getOrDefault(false)
+    private fun apiReady(): Boolean = runCatching {
+        SecureCredentialStore(this).loadDesktopCredential() != null
+    }.getOrDefault(false)
 }
