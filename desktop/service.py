@@ -75,16 +75,11 @@ def get_desktop_summary() -> dict[str, Any]:
 
 
 async def _desktop_event_stream(request: Request) -> AsyncIterator[str]:
-    last_payload = ""
     sequence = 0
     while not await request.is_disconnected():
+        sequence += 1
         payload = json.dumps(desktop_summary(), sort_keys=True, separators=(",", ":"))
-        if payload != last_payload:
-            sequence += 1
-            yield f"id: {sequence}\nevent: desktop.summary\ndata: {payload}\n\n"
-            last_payload = payload
-        else:
-            yield ": keepalive\n\n"
+        yield f"id: {sequence}\nevent: desktop.summary\ndata: {payload}\n\n"
         await asyncio.sleep(2.0)
 
 
@@ -98,6 +93,19 @@ async def desktop_events(request: Request) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+def _keep_static_mount_last() -> None:
+    """Ensure the existing catch-all UI mount cannot shadow v8 API routes."""
+    static_routes = [route for route in app.router.routes if getattr(route, "name", None) == "static"]
+    if not static_routes:
+        return
+    for route in static_routes:
+        app.router.routes.remove(route)
+    app.router.routes.extend(static_routes)
+
+
+_keep_static_mount_last()
 
 
 __all__ = ["app", "desktop_summary", "DESKTOP_API_VERSION"]
