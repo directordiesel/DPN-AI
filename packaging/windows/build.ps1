@@ -2,7 +2,10 @@
 param(
     [string]$Python = "python",
     [switch]$SkipInstall,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [string]$CertificateThumbprint,
+    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [switch]$RequireSigned
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +24,10 @@ function Invoke-Checked {
 
 if (-not (Test-Path (Join-Path $RepoRoot "VERSION"))) {
     throw "VERSION file is missing. Refusing to create an unversioned package."
+}
+
+if ($RequireSigned -and -not $CertificateThumbprint) {
+    throw "Production signing is required but no CertificateThumbprint was supplied."
 }
 
 if (-not $SkipInstall) {
@@ -43,6 +50,25 @@ if (-not (Test-Path $Exe)) {
     throw "PyInstaller completed without producing DPN-AI.exe"
 }
 
+$SigningState = "unsigned-development-artifact"
+$SignerThumbprint = $null
+$SignerSubject = $null
+if ($CertificateThumbprint) {
+    $signScript = Join-Path $PSScriptRoot "sign.ps1"
+    $signingJson = & $signScript -FilePath $Exe -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    if ($LASTEXITCODE -ne 0) { throw "Production signing helper failed." }
+    $signing = $signingJson | ConvertFrom-Json
+    if ($signing.status -ne "signed-production-artifact") {
+        throw "Unexpected signing helper state '$($signing.status)'."
+    }
+    $SigningState = "signed-production-artifact"
+    $SignerThumbprint = $signing.thumbprint
+    $SignerSubject = $signing.subject
+}
+if ($RequireSigned -and $SigningState -ne "signed-production-artifact") {
+    throw "Production signing was required but DPN-AI.exe is not verified as signed."
+}
+
 $Version = (Get-Content (Join-Path $RepoRoot "VERSION") -Raw).Trim()
 $Hash = (Get-FileHash -Algorithm SHA256 $Exe).Hash.ToLowerInvariant()
 $Manifest = [ordered]@{
@@ -52,12 +78,17 @@ $Manifest = [ordered]@{
     sha256 = $Hash
     architecture = $env:PROCESSOR_ARCHITECTURE
     built_utc = [DateTime]::UtcNow.ToString("o")
-    signing = "unsigned-development-artifact"
+    signing = $SigningState
+    signer_thumbprint = $SignerThumbprint
+    signer_subject = $SignerSubject
 }
 $ManifestPath = Join-Path $DistRoot "DPN-AI\build-manifest.json"
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
 
 Write-Host "DPN AI Windows package created: $Exe"
 Write-Host "SHA-256: $Hash"
+Write-Host "Signing: $SigningState"
 Write-Host "Manifest: $ManifestPath"
-Write-Host "NOTE: development artifacts remain unsigned until the release signing stage."
+if ($SigningState -eq "unsigned-development-artifact") {
+    Write-Host "NOTE: development artifact remains unsigned. Use -RequireSigned with a trusted certificate for release builds."
+}
