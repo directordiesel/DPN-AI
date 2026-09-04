@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
 
+# Guarded reconciliation workflow; remove before merge to main.
 jobs:
   sync-main:
     runs-on: ubuntu-latest
