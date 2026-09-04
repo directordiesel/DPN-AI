@@ -1,0 +1,30 @@
+name: DPN Self-Hosted Runner Test
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/self-hosted-runner-test.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: Self-hosted runner smoke test
+    runs-on: self-hosted
+    timeout-minutes: 5
+    steps:
+      - name: Confirm runner assignment
+        shell: cmd
+        run: echo Self-hosted runner is online and accepting DPN-AI jobs.
+
+      - name: Report runner context
+        shell: cmd
+        run: |
+          echo Runner name: ${{ runner.name }}
+          echo Runner OS: ${{ runner.os }}
+          echo Runner architecture: ${{ runner.arch }}
+          echo Repository: ${{ github.repository }}
+          echo Commit: ${{ github.sha }}
