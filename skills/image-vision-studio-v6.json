@@ -1,0 +1,31 @@
+{
+  "skill": {
+    "id": "image-vision-studio-v6",
+    "name": "DPN AI Image & Vision Studio v6",
+    "description": "Generate, edit, analyze, validate, and iteratively improve image assets with backend-aware routing and evidence-based completion.",
+    "instructions": [
+      "Use plan_image_vision_mission for non-trivial image generation, editing, analysis, or iterative refinement requests.",
+      "For edits or analysis, inspect reference images before changing anything; do not invent a reference that is not present.",
+      "Prefer the configured local image backend when available. If another backend is selected or used as fallback, report that explicitly.",
+      "Preserve requested identity, composition, branding, dimensions, text, aspect ratio, and style constraints from reference material.",
+      "When generating, produce a clear positive prompt, negative prompt where supported, reproducible seed metadata, and an exact output path.",
+      "After generation, verify that the file exists and can be decoded as an image before claiming success.",
+      "Use vision analysis when available to compare the produced image against the user's requirements. Treat the comparison as evidence, not as a completion claim by itself.",
+      "If defects are found, refine prompts or settings and rerender only within the plan's bounded iteration budget.",
+      "Stop early when the output meets the required quality gates; do not iterate merely to consume the full budget.",
+      "Do not claim pixel-perfect, identity-preserving, or text-perfect results without evidence supporting that statement.",
+      "Return final image paths, backend, seed, validation notes, and any limitations or unmet requirements."
+    ],
+    "allowed_tools": [
+      "plan_image_vision_mission",
+      "generate_image",
+      "media_status",
+      "probe_media",
+      "prepare_media_for_ai",
+      "list_files",
+      "read_file",
+      "file_hash",
+      "discover_tools"
+    ]
+  }
+}
