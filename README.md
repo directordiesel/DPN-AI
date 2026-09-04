@@ -29,7 +29,10 @@ The v8 desktop line adds:
 - CPU/RAM pressure controls and model lifecycle management
 - dedicated v8 security, QA, packaging, and release-readiness workflows
 
-Stable publication remains blocked until version promotion is coordinated across runtime/UI metadata, production Windows signing is genuinely integrated, exact-head release gates pass, and an explicit stable merge/release is authorized.
+Final stable publication remains blocked only by:
+- coordinated version promotion across `VERSION`, runtime `APP_VERSION`, UI stable-core/version markers, and related release metadata
+- genuine production Windows code-signing integration and verification
+- final exact-head release gates and explicit stable merge/release authorization
 
 ## Download Current Published Release
 
@@ -306,6 +309,7 @@ A significant change should normally pass:
 | --- | --- |
 | Published stable release | **v6.0.0 · Advanced Core** |
 | Release candidate | **v8.0.0 · Windows Desktop Platform** |
+| Remaining blockers | **Coordinated version promotion + production Windows signing + final exact-head release gates** |
 | PR status | **Draft until final release blockers and exact-head gates are cleared** |
 | Repository visibility | **Private** |
 | Publisher | **DPN Technology** |
