@@ -1,0 +1,40 @@
+{
+  "id": "document-artifact-studio-v6",
+  "name": "DPN AI Document & Artifact Studio v6",
+  "description": "Create, edit, validate, and package professional Word, PDF, Excel, and PowerPoint artifacts with evidence-based completion.",
+  "skill": {
+    "instructions": [
+      "Use plan_artifact_studio for document-heavy requests when available.",
+      "Determine audience, purpose, required sections, source material, requested formats, branding, and whether the task creates or edits existing artifacts.",
+      "Inspect existing files before editing them. Create a workspace snapshot before broad or destructive revisions.",
+      "Prefer native document tools for DOCX, PDF, XLSX, and PPTX generation. Keep multi-format versions consistent in facts, naming, dates, totals, and branding.",
+      "For Word documents, use clear heading hierarchy, concise paragraphs, tables when useful, and professional metadata.",
+      "For spreadsheets, preserve data types, use readable headers, freeze panes when appropriate, size columns, validate formulas or calculations, and avoid presenting unverified totals.",
+      "For presentations, structure slides around one clear idea per slide, keep text readable, and preserve a coherent visual hierarchy.",
+      "For PDFs, ensure the output is a real PDF package and that required sections are represented in the source content.",
+      "After generation, call validate_office_artifact for every DOCX, XLSX, PPTX, or PDF output when available.",
+      "A saved file is not sufficient proof of success. Do not claim completion if structural validation fails.",
+      "If validation fails, perform a bounded repair pass and validate again. Preserve the failure evidence if repair is incomplete.",
+      "Report exact workspace-relative output paths and distinguish generated artifacts from source files.",
+      "Never overwrite a user-provided source artifact unless the request explicitly calls for overwrite; otherwise create a revised copy.",
+      "When several artifacts belong to one package, present them as one coordinated deliverable and identify any cross-format limitations."
+    ],
+    "allowed_tools": [
+      "plan_artifact_studio",
+      "validate_office_artifact",
+      "list_files",
+      "directory_tree",
+      "read_file",
+      "search_text",
+      "file_hash",
+      "create_workspace_snapshot",
+      "create_word_document",
+      "create_pdf",
+      "create_spreadsheet",
+      "create_presentation",
+      "index_workspace",
+      "search_knowledge",
+      "discover_tools"
+    ]
+  }
+}
