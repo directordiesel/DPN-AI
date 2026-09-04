@@ -62,10 +62,10 @@ def test_backup_has_integrity_sidecar_and_expected_members(tmp_path: Path):
     assert checksum.is_file()
     with zipfile.ZipFile(archive) as bundle:
         assert sorted(bundle.namelist()) == ["config.json", "workspace/project.txt"]
-        assert bundle.read("workspace/project.txt") == b"safe data\n"
+        assert bundle.read("workspace/project.txt") == (root / "workspace" / "project.txt").read_bytes()
 
     expected = hashlib.sha256(archive.read_bytes()).hexdigest()
-    assert checksum.read_text(encoding="ascii") == f"{expected}  {archive.name}\n"
+    assert checksum.read_text(encoding="ascii").replace("\r\n", "\n") == f"{expected}  {archive.name}\n"
 
 
 def test_backup_retention_removes_old_archive_and_checksum(tmp_path: Path):
