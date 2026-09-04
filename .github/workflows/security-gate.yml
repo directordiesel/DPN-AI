@@ -14,7 +14,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  source-security-trusted:
+  source-security-main:
+    if: github.event_name != 'pull_request'
+    name: Source Security
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Run DPN source security scanner
+        shell: cmd
+        run: python tools\dpn_security_gate.py --github
+
+  dependency-audit-main:
+    if: github.event_name != 'pull_request'
+    name: Python Dependency Vulnerability Audit
+    runs-on: [self-hosted, Windows, X64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Verify local Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Install pip-audit
+        shell: cmd
+        run: python -m pip install --upgrade pip pip-audit
+      - name: Audit declared Python dependencies
+        shell: cmd
+        run: python -m pip_audit -r requirements.txt
+
+  source-security-pr-trusted:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
     name: Source Security
     runs-on: [self-hosted, Windows, X64]
@@ -32,7 +70,7 @@ jobs:
         shell: cmd
         run: python tools\dpn_security_gate.py --github
 
-  dependency-audit-trusted:
+  dependency-audit-pr-trusted:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
     name: Python Dependency Vulnerability Audit
     runs-on: [self-hosted, Windows, X64]
@@ -52,7 +90,7 @@ jobs:
         shell: cmd
         run: python -m pip_audit -r requirements.txt
 
-  source-security-external:
+  source-security-pr:
     if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
     name: Source Security
     runs-on: ubuntu-latest
@@ -67,7 +105,7 @@ jobs:
       - name: Run DPN source security scanner
         run: python tools/dpn_security_gate.py --github
 
-  dependency-audit-external:
+  dependency-audit-pr:
     if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
     name: Python Dependency Vulnerability Audit
     runs-on: ubuntu-latest
