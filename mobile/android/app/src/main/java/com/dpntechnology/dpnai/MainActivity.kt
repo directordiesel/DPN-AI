@@ -18,6 +18,7 @@ class MainActivity : Activity() {
     private lateinit var credentialStore: SecureCredentialStore
     private lateinit var chatButton: Button
     private lateinit var voiceButton: Button
+    private lateinit var visionButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,6 +72,12 @@ class MainActivity : Activity() {
             setOnClickListener { startActivity(Intent(this@MainActivity, VoiceActivity::class.java)) }
         }
         root.addView(voiceButton)
+        visionButton = Button(this).apply {
+            text = "Open Vision Console"
+            isEnabled = false
+            setOnClickListener { startActivity(Intent(this@MainActivity, VisionActivity::class.java)) }
+        }
+        root.addView(visionButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f
@@ -85,8 +92,9 @@ class MainActivity : Activity() {
         val paired = credentialStore.loadDesktopCredential() != null
         chatButton.isEnabled = paired
         voiceButton.isEnabled = paired
+        visionButton.isEnabled = paired
         status.text = if (paired) {
-            "Paired device credential secured by Android Keystore — chat and voice ready"
+            "Paired device credential secured by Android Keystore — chat, voice, and vision ready"
         } else {
             "Not paired — secure desktop pairing required"
         }
@@ -101,11 +109,13 @@ class MainActivity : Activity() {
                     onSuccess = {
                         chatButton.isEnabled = true
                         voiceButton.isEnabled = true
-                        "Desktop API authenticated and reachable — chat and voice ready"
+                        visionButton.isEnabled = true
+                        "Desktop API authenticated and reachable — chat, voice, and vision ready"
                     },
                     onFailure = {
                         chatButton.isEnabled = false
                         voiceButton.isEnabled = false
+                        visionButton.isEnabled = false
                         "Desktop connection unavailable: ${it.message ?: "unknown error"}"
                     },
                 )
