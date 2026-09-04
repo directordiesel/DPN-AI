@@ -26,7 +26,7 @@ def _count_status(items: list[dict[str, Any]], status: str) -> int:
 
 
 def desktop_summary() -> dict[str, Any]:
-    """Return a bounded, secret-free desktop read model from the unified runtime."""
+    """Return a bounded desktop read model from the unified runtime."""
     missions = db.list_missions(limit=1000)
     approvals = db.list_approvals("pending", 1000)
     automations = db.list_automations()
