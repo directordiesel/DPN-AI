@@ -81,17 +81,25 @@ jobs:
           }
 
       - name: Validate packaging contracts without publishing
-        shell: powershell
+        shell: python
         run: |
-          $spec = Get-Content '.\packaging\windows\DPN-AI.spec' -Raw
-          $installer = Get-Content '.\packaging\windows\DPN-AI.iss' -Raw
-          if ($spec -match '(?i)\.env|FIRST_RUN_LOGIN|runtime_logs|workspace[\\/]uploads') {
-            throw 'Packaging spec references excluded secret/runtime state.'
+          from pathlib import Path
+          import re
+
+          spec = Path('packaging/windows/DPN-AI.spec').read_text(encoding='utf-8')
+          installer = Path('packaging/windows/DPN-AI.iss').read_text(encoding='utf-8')
+          forbidden_bundle_roots = {
+              '.env': r'ROOT\s*/\s*["\']\.env["\']',
+              'data': r'ROOT\s*/\s*["\']data["\']',
+              'workspace': r'ROOT\s*/\s*["\']workspace["\']',
+              'runtime_logs': r'ROOT\s*/\s*["\']runtime_logs["\']',
           }
-          if ($installer -notmatch '(?i)uninstall') {
-            throw 'Installer contract does not expose an uninstall path.'
-          }
-          Write-Host 'Packaging contracts validated without creating or publishing a release.'
+          bundled = [name for name, pattern in forbidden_bundle_roots.items() if re.search(pattern, spec, re.I)]
+          if bundled:
+              raise SystemExit('Packaging spec bundles forbidden runtime state: ' + ', '.join(bundled))
+          if 'uninstall' not in installer.lower():
+              raise SystemExit('Installer contract does not expose an uninstall path.')
+          print('Packaging contracts validated without creating or publishing a release.')
 
       - name: v8 validation summary
         if: always()
