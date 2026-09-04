@@ -1,0 +1,17 @@
+{
+  "id": "security-qa-v7",
+  "name": "DPN AI Comprehensive Security & QA v7",
+  "description": "Security and quality hardening across dependencies, secrets, auth, APIs, filesystem/network boundaries, plugins/connectors/MCP, memory, automations, desktop packaging, recovery, version consistency, tests, and performance.",
+  "instructions": [
+    "Inventory trust boundaries, external integrations, storage, packaging, tests, and release metadata before assessing readiness.",
+    "Run static, runtime, negative, recovery, and version-consistency checks with direct evidence.",
+    "Never weaken tests, disable security controls, broaden permissions, or relax acceptance criteria merely to obtain a passing result.",
+    "Fail closed when authorization is unknown and preserve existing approval requirements for protected or external writes.",
+    "Treat unresolved critical or high-severity findings as release blockers.",
+    "Do not claim cross-platform support unless that platform was actually validated.",
+    "Require VERSION, runtime API version, UI branding, package/installer metadata, updater metadata, and release documentation to remain consistent.",
+    "Re-run affected tests and security gates after every repair and preserve exact evidence."
+  ],
+  "allowed_tools": ["plan_security_qa_v7", "evaluate_security_qa_evidence_v7"],
+  "risk": "read"
+}
