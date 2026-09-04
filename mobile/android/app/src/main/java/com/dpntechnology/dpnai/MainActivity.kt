@@ -24,6 +24,7 @@ class MainActivity : Activity() {
     private lateinit var missionsButton: Button
     private lateinit var approvalsButton: Button
     private lateinit var notificationsButton: Button
+    private lateinit var gatewayButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,34 +50,44 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply { text = "MOBILE CONTROL CENTER v1"; textSize = 12f; setTextColor(Color.rgb(167, 139, 250)) })
         status = TextView(this).apply { textSize = 16f; setPadding(0, 72, 0, 36); setTextColor(Color.LTGRAY) }
         root.addView(status)
-        root.addView(Button(this).apply { text = "Check Desktop Connection"; setOnClickListener { checkDesktopConnection() } })
-        chatButton = Button(this).apply { text = "Open Unified Chat"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) } }
-        root.addView(chatButton)
-        voiceButton = Button(this).apply { text = "Open Voice Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, VoiceActivity::class.java)) } }
-        root.addView(voiceButton)
-        visionButton = Button(this).apply { text = "Open Vision Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, VisionActivity::class.java)) } }
-        root.addView(visionButton)
-        fileButton = Button(this).apply { text = "Open File Console"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, FileActivity::class.java)) } }
-        root.addView(fileButton)
-        projectsButton = Button(this).apply { text = "Open Projects & Tasks"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ProjectsActivity::class.java)) } }
-        root.addView(projectsButton)
-        missionsButton = Button(this).apply { text = "Open Missions"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, MissionsActivity::class.java)) } }
-        root.addView(missionsButton)
-        approvalsButton = Button(this).apply { text = "Open Approval Inbox"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, ApprovalsActivity::class.java)) } }
-        root.addView(approvalsButton)
-        notificationsButton = Button(this).apply { text = "Open Notification Center"; isEnabled = false; setOnClickListener { startActivity(Intent(this@MainActivity, NotificationsActivity::class.java)) } }
-        root.addView(notificationsButton)
+        root.addView(Button(this).apply { text = "Check Active Connection"; setOnClickListener { checkDesktopConnection() } })
+        chatButton = capabilityButton("Open Unified Chat", ChatActivity::class.java); root.addView(chatButton)
+        voiceButton = capabilityButton("Open Voice Console", VoiceActivity::class.java); root.addView(voiceButton)
+        visionButton = capabilityButton("Open Vision Console", VisionActivity::class.java); root.addView(visionButton)
+        fileButton = capabilityButton("Open File Console", FileActivity::class.java); root.addView(fileButton)
+        projectsButton = capabilityButton("Open Projects & Tasks", ProjectsActivity::class.java); root.addView(projectsButton)
+        missionsButton = capabilityButton("Open Missions", MissionsActivity::class.java); root.addView(missionsButton)
+        approvalsButton = capabilityButton("Open Approval Inbox", ApprovalsActivity::class.java); root.addView(approvalsButton)
+        notificationsButton = capabilityButton("Open Notification Center", NotificationsActivity::class.java); root.addView(notificationsButton)
+        gatewayButton = Button(this).apply {
+            text = "Secure Remote Gateway"
+            isEnabled = false
+            setOnClickListener { startActivity(Intent(this@MainActivity, GatewayActivity::class.java)) }
+        }
+        root.addView(gatewayButton)
         root.addView(TextView(this).apply {
-            text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals • Notifications"
+            text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals • Notifications • Remote Gateway"
             textSize = 13f; setPadding(0, 48, 0, 0); gravity = Gravity.CENTER; setTextColor(Color.GRAY)
         })
         return root
     }
 
+    private fun capabilityButton(label: String, target: Class<out Activity>) = Button(this).apply {
+        text = label
+        isEnabled = false
+        setOnClickListener { startActivity(Intent(this@MainActivity, target)) }
+    }
+
     private fun refreshConnectionState() {
-        val paired = credentialStore.loadDesktopCredential() != null
-        setCapabilityButtons(paired)
-        status.text = if (paired) "Paired device credential secured by Android Keystore — mobile controls ready" else "Not paired — secure desktop pairing required"
+        val locallyPaired = credentialStore.loadLocalCredential() != null
+        val active = credentialStore.loadDesktopCredential() != null
+        setCapabilityButtons(active)
+        gatewayButton.isEnabled = locallyPaired
+        status.text = when {
+            !locallyPaired -> "Not paired — secure local desktop pairing required"
+            credentialStore.isRemoteMode() -> "Secure remote gateway mode active — mobile controls ready"
+            else -> "Local desktop mode active — mobile controls ready"
+        }
     }
 
     private fun setCapabilityButtons(enabled: Boolean) {
@@ -91,13 +102,13 @@ class MainActivity : Activity() {
     }
 
     private fun checkDesktopConnection() {
-        status.text = "Checking encrypted desktop connection…"
+        status.text = "Checking active encrypted connection…"
         thread(name = "dpn-mobile-health") {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             runOnUiThread {
                 status.text = result.fold(
-                    onSuccess = { setCapabilityButtons(true); "Desktop API authenticated and reachable — mobile controls ready" },
-                    onFailure = { setCapabilityButtons(false); "Desktop connection unavailable: ${it.message ?: "unknown error"}" },
+                    onSuccess = { setCapabilityButtons(true); if (credentialStore.isRemoteMode()) "Remote gateway authenticated and reachable" else "Local desktop authenticated and reachable" },
+                    onFailure = { setCapabilityButtons(false); "Active connection unavailable: ${it.message ?: "unknown error"}" },
                 )
             }
         }
