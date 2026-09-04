@@ -23,7 +23,7 @@ from desktop.platform import DesktopMode, DesktopPreflight, DesktopRuntimePolicy
 class SupervisorConfig:
     repository_root: Path
     python_executable: str = sys.executable
-    module: str = "app.main:app"
+    module: str = "desktop.service:app"
     startup_timeout_seconds: float = 30.0
     graceful_shutdown_seconds: float = 8.0
     max_restart_attempts: int = 2
@@ -95,7 +95,9 @@ class DesktopServiceSupervisor:
         return env
 
     def preflight(self) -> None:
-        result = DesktopPreflight(self.config.repository_root, self.policy).run()
+        result = DesktopPreflight(self.config.repository_root, self.policy).run(
+            ("desktop/service.py",)
+        )
         if not result.ready:
             self.snapshot.state = ServiceState.FAILED
             self.snapshot.last_error = "; ".join(result.blockers)
