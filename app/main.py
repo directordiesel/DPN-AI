@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import json
@@ -62,7 +62,7 @@ from app.services import ExportService
 from app.tools.registry import ToolRegistry
 
 
-APP_VERSION = "6.0.0"
+APP_VERSION = "8.0.0"
 db = Database(settings.database_path)
 tools = ToolRegistry(settings, db)
 ollama = ModelGateway(settings, db, tools.vault)
