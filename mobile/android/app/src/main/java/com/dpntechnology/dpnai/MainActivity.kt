@@ -17,6 +17,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var credentialStore: SecureCredentialStore
     private lateinit var chatButton: Button
+    private lateinit var voiceButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,11 +62,15 @@ class MainActivity : Activity() {
         chatButton = Button(this).apply {
             text = "Open Unified Chat"
             isEnabled = false
-            setOnClickListener {
-                startActivity(Intent(this@MainActivity, ChatActivity::class.java))
-            }
+            setOnClickListener { startActivity(Intent(this@MainActivity, ChatActivity::class.java)) }
         }
         root.addView(chatButton)
+        voiceButton = Button(this).apply {
+            text = "Open Voice Console"
+            isEnabled = false
+            setOnClickListener { startActivity(Intent(this@MainActivity, VoiceActivity::class.java)) }
+        }
+        root.addView(voiceButton)
         root.addView(TextView(this).apply {
             text = "Chat • Voice • Vision • Files • Projects • Missions • Approvals"
             textSize = 13f
@@ -79,8 +84,9 @@ class MainActivity : Activity() {
     private fun refreshConnectionState() {
         val paired = credentialStore.loadDesktopCredential() != null
         chatButton.isEnabled = paired
+        voiceButton.isEnabled = paired
         status.text = if (paired) {
-            "Paired device credential secured by Android Keystore — unified chat ready"
+            "Paired device credential secured by Android Keystore — chat and voice ready"
         } else {
             "Not paired — secure desktop pairing required"
         }
@@ -94,10 +100,12 @@ class MainActivity : Activity() {
                 status.text = result.fold(
                     onSuccess = {
                         chatButton.isEnabled = true
-                        "Desktop API authenticated and reachable — unified chat ready"
+                        voiceButton.isEnabled = true
+                        "Desktop API authenticated and reachable — chat and voice ready"
                     },
                     onFailure = {
                         chatButton.isEnabled = false
+                        voiceButton.isEnabled = false
                         "Desktop connection unavailable: ${it.message ?: "unknown error"}"
                     },
                 )
