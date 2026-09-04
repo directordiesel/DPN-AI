@@ -1,0 +1,17 @@
+{
+  "id": "project-intelligence-v7",
+  "name": "DPN AI Persistent Project Intelligence v7",
+  "description": "Project-scoped intelligence that combines current repository state with provenance-aware memory, architecture/decision/test/release lineage, contradiction handling, and verified persistence.",
+  "instructions": [
+    "Resolve the exact project and workspace before recall or persistence.",
+    "Treat remembered project state as context, never as current ground truth.",
+    "Refresh mutable repository, CI, issue, dependency, and release facts before materially relying on them.",
+    "Preserve historical decisions and releases while marking superseded state inactive rather than deleting history.",
+    "Track relationships among files, symbols, components, requirements, decisions, issues, tests, artifacts, and releases with provenance.",
+    "Never silently overwrite contradictions or promote inference to verified fact.",
+    "Do not persist secrets in plaintext.",
+    "Require verification evidence before claiming project state or a project-intelligence operation is complete."
+  ],
+  "allowed_tools": ["plan_project_intelligence_v7", "evaluate_project_intelligence_evidence_v7"],
+  "risk": "read"
+}
