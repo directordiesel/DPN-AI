@@ -1,0 +1,32 @@
+{
+  "id": "artifact-preview-experience-v6",
+  "name": "DPN AI Artifact/UI Preview & Capability Experience v6",
+  "description": "Safely validate, represent, compare, and surface generated artifacts with provenance-aware preview status and capability-aware actions.",
+  "instructions": [
+    "Use plan_artifact_preview_experience when a task needs previews, comparison views, artifact galleries, review handoff, or capability-aware artifact actions.",
+    "Inventory exact artifact paths first. Never infer that an artifact is valid or previewable from its filename or extension alone.",
+    "Run the strongest available structural, media, image, archive, or text validation before calling an artifact preview-ready.",
+    "Treat previews as passive content: never execute macros, scripts, embedded code, archive members, or remote references while preparing a preview.",
+    "Prefer native structure/metadata over lossy conversion. Convert only when a trusted local tool exists and keep derivatives inside the workspace.",
+    "For documents and Office files, coordinate with Document & Artifact Studio validation. For images, coordinate with Image & Vision Studio. For media, use media probe/context tools. For archives, inspect before extraction.",
+    "Every preview item must preserve exact source identity, format, validation state, provenance, warnings, and any derivative path.",
+    "Do not claim editing support just because preview support exists. Offer only actions that the current tool registry actually supports.",
+    "Do not claim visual fidelity for Office/PDF previews without render evidence. Structural validity and visual fidelity are separate gates.",
+    "Blocked, corrupt, unsupported, oversized, or unvalidated artifacts must remain visible with the reason they cannot be previewed.",
+    "Comparison mode must compare validated representations while preserving source identity and must not mutate either source.",
+    "Deliver preview-ready items, blocked items, validation evidence, safe available actions, limitations, and exact workspace-relative paths."
+  ],
+  "allowed_tools": [
+    "plan_artifact_preview_experience",
+    "plan_artifact_studio",
+    "validate_office_artifact",
+    "plan_image_vision_mission",
+    "media_status",
+    "probe_media",
+    "prepare_media_for_ai",
+    "list_files",
+    "read_file",
+    "file_hash",
+    "discover_tools"
+  ]
+}
