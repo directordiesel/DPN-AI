@@ -18,7 +18,7 @@ function Invoke-Checked {
     param([Parameter(Mandatory=$true)][string]$FilePath, [Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code $LASTEXITCODE: $FilePath $($Arguments -join ' ')"
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
     }
 }
 
@@ -35,7 +35,7 @@ if (-not $SkipInstall) {
 }
 
 if (-not $SkipTests) {
-    Invoke-Checked $Python -m pytest -q tests/test_v8_desktop_platform.py tests/test_v8_desktop_supervisor.py tests/test_v8_desktop_control_center.py tests/test_v8_desktop_service.py tests/test_v8_windows_packaging.py
+    Invoke-Checked $Python -m pytest -q tests/test_v8_desktop_platform.py tests/test_v8_desktop_supervisor.py tests/test_v8_desktop_control_center.py tests/test_v8_desktop_service_api.py tests/test_v8_windows_packaging.py
 }
 
 $DistRoot = Join-Path $RepoRoot "dist"
