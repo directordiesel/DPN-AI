@@ -6,6 +6,7 @@
     summary: '/api/v1/desktop/summary',
     events: '/api/v1/desktop/events',
   };
+  const MODEL_AUTO_LABEL = 'AUTO — Strongest Installed Model';
   let streamAbort = null;
   let reconnectTimer = null;
 
@@ -28,6 +29,21 @@
     const token = sessionStorage.getItem('dpnApiToken') || '';
     return token ? { 'X-DPN-Token': token } : {};
   };
+
+  function normalizeModelAutoLabel() {
+    const select = document.getElementById('modelSelect');
+    if (!select) return;
+    const option = Array.from(select.options).find((item) => item.value === '__maximum__');
+    if (option && option.textContent !== MODEL_AUTO_LABEL) option.textContent = MODEL_AUTO_LABEL;
+  }
+
+  function watchModelAutoLabel() {
+    const select = document.getElementById('modelSelect');
+    if (!select) return;
+    normalizeModelAutoLabel();
+    const observer = new MutationObserver(normalizeModelAutoLabel);
+    observer.observe(select, { childList: true, subtree: true, characterData: true });
+  }
 
   function renderSummary(summary) {
     const missions = summary?.missions || {};
@@ -182,6 +198,7 @@
     document.body.classList.add('desktop-v8');
     bindQuickActions();
     bindWorkspaceTabs();
+    watchModelAutoLabel();
     const online = await probeDesktopSummary();
     if (online) connectEventStream();
     window.setInterval(probeDesktopSummary, 30000);
