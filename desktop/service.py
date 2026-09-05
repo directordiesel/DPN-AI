@@ -2,8 +2,8 @@
 
 This module reuses the existing unified FastAPI application, database, tools, model
 runtime, automation engine, and agent state. It adds desktop-specific versioned
-read models, an SSE stream, and the Mobile v1 device authentication adapter without
-creating a second AI runtime.
+read models, an SSE stream, and the Mobile v1 device authentication/pairing adapter
+without creating a second AI runtime.
 """
 
 from __future__ import annotations
@@ -13,17 +13,28 @@ import json
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.main import app, db, agent
 from mobile.auth_boundary import MobileDeviceAuthBoundary
 from mobile.device_registry import DeviceRegistryError
+from mobile.pairing import PairingError
+from mobile.pairing_service import MobilePairingService
 
 
 DESKTOP_API_VERSION = "v1"
 _mobile_auth = MobileDeviceAuthBoundary(db)
+_mobile_pairing = MobilePairingService(_mobile_auth)
+
+
+class MobilePairingCompleteRequest(BaseModel):
+    challenge_id: str = Field(min_length=1, max_length=128)
+    secret: str = Field(min_length=1, max_length=256)
+    device_id: str = Field(min_length=1, max_length=128)
+    device_name: str = Field(min_length=1, max_length=80)
 
 
 def _count_status(items: list[dict[str, Any]], status: str) -> int:
@@ -46,6 +57,10 @@ async def mobile_device_access_boundary(request: Request, call_next):
     mobile device must first pass the persistent device registry. Only then is the
     request translated into an internal trusted call so app.main's existing API
     boundary remains the single downstream authorization gate.
+
+    The one unauthenticated transport surface is the exact non-``/api`` pairing
+    completion route. It is authenticated by a short-lived, one-time high-entropy
+    pairing proof and exposes no general runtime API access.
     """
     path = request.url.path
     device_id = request.headers.get("X-DPN-Device-ID", "").strip()
@@ -118,6 +133,49 @@ def get_desktop_summary() -> dict[str, Any]:
     return desktop_summary()
 
 
+@app.post("/api/v1/mobile/pairing/challenge")
+def create_mobile_pairing_challenge() -> dict[str, Any]:
+    """Create a short-lived pairing proof from the already-protected desktop API."""
+    _mobile_pairing.purge_expired_challenges()
+    return _mobile_pairing.create_challenge()
+
+
+@app.post("/mobile/v1/pairing/complete")
+def complete_mobile_pairing(payload: MobilePairingCompleteRequest) -> dict[str, Any]:
+    """Exchange one valid pairing proof for one device-scoped credential.
+
+    This route intentionally lives outside ``/api`` so an unpaired Android device
+    never needs the desktop-wide API token. The one-time pairing proof is the only
+    authority accepted here. No other runtime operation is exposed on this surface.
+    """
+    try:
+        return _mobile_pairing.complete_pairing(
+            challenge_id=payload.challenge_id,
+            secret=payload.secret,
+            device_id=payload.device_id,
+            device_name=payload.device_name,
+        )
+    except PairingError as exc:
+        raise HTTPException(status_code=401, detail="Pairing proof rejected or expired.") from exc
+    except DeviceRegistryError as exc:
+        raise HTTPException(status_code=409, detail="Pairing could not register this device.") from exc
+
+
+@app.get("/api/v1/mobile/devices")
+def list_mobile_devices() -> dict[str, Any]:
+    """Return only secret-free paired-device metadata to the protected desktop API."""
+    return {"devices": _mobile_pairing.list_devices()}
+
+
+@app.post("/api/v1/mobile/devices/{device_id}/revoke")
+def revoke_mobile_device(device_id: str) -> dict[str, Any]:
+    """Persistently revoke a device; subsequent API calls fail at middleware."""
+    clean_id = device_id.strip()
+    if not clean_id or len(clean_id) > 128:
+        raise HTTPException(status_code=400, detail="Invalid device identifier.")
+    return {"device_id": clean_id, "revoked": _mobile_pairing.revoke_device(clean_id)}
+
+
 async def _desktop_event_stream(request: Request) -> AsyncIterator[str]:
     sequence = 0
     while not await request.is_disconnected():
@@ -140,7 +198,7 @@ async def desktop_events(request: Request) -> StreamingResponse:
 
 
 def _keep_static_mount_last() -> None:
-    """Ensure the existing catch-all UI mount cannot shadow v8 API routes."""
+    """Ensure the existing catch-all UI mount cannot shadow v8/mobile routes."""
     static_routes = [route for route in app.router.routes if getattr(route, "name", None) == "static"]
     if not static_routes:
         return
