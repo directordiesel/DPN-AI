@@ -11,63 +11,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-mobile-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  android-debug-validation-trusted:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
-    name: android-debug-validation
-    runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Setup Java 17
-        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
-
-      - name: Setup Gradle 8.9
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
-        with:
-          gradle-version: '8.9'
-
-      - name: Build debug APK
-        working-directory: mobile/android
-        shell: cmd
-        run: gradle --no-daemon :app:assembleDebug
-
-      - name: Run Android lint
-        working-directory: mobile/android
-        shell: cmd
-        run: gradle --no-daemon :app:lintDebug
-
-      - name: Verify release build stays unsigned without explicit secrets
-        shell: python
-        run: |
-          from pathlib import Path
-          import re
-          pattern = re.compile(r'(BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|storePassword\s*=\s*"|keyPassword\s*=\s*")')
-          hits = []
-          for path in Path('mobile/android').rglob('*'):
-              if not path.is_file():
-                  continue
-              try:
-                  text = path.read_text(encoding='utf-8')
-              except (UnicodeDecodeError, OSError):
-                  continue
-              if pattern.search(text):
-                  hits.append(str(path))
-          if hits:
-              raise SystemExit('Potential signing secret material found in source control: ' + ', '.join(hits))
-
-  android-debug-validation-hosted:
-    if: github.event_name != 'pull_request' || !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
+  android-debug-validation:
     name: android-debug-validation
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,26 +25,21 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-
       - name: Setup Java 17
         uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
         with:
           gradle-version: '8.9'
-
       - name: Build debug APK
         working-directory: mobile/android
         run: gradle --no-daemon :app:assembleDebug
-
       - name: Run Android lint
         working-directory: mobile/android
         run: gradle --no-daemon :app:lintDebug
-
       - name: Verify release build stays unsigned without explicit secrets
         shell: bash
         run: |
@@ -104,27 +48,7 @@ jobs:
             exit 1
           fi
 
-  mobile-contract-tests-trusted:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
-    name: mobile-contract-tests
-    runs-on: [self-hosted, Windows, X64]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-
-      - name: Resolve trusted Windows Python
-        shell: cmd
-        run: .github\scripts\resolve_windows_python.cmd
-
-      - name: Run mobile regression guards
-        shell: cmd
-        run: python -m unittest discover -s tests -p "test_mobile_*.py"
-
-  mobile-contract-tests-hosted:
-    if: github.event_name != 'pull_request' || !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
+  mobile-contract-tests:
     name: mobile-contract-tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -133,11 +57,9 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-
       - name: Setup Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
-
       - name: Run mobile regression guards
         run: python -m unittest discover -s tests -p 'test_mobile_*.py'
