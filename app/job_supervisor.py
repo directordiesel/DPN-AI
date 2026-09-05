@@ -15,13 +15,26 @@ class JobSupervisor:
     or multiple supervisors cannot execute the same queued job concurrently.
     """
 
-    def __init__(self, db: Database, agent: Any, orchestrator: Any, workflows: Any, max_concurrency: int = 2):
+    DEFAULT_MAX_QUEUE_DEPTH = 1000
+
+    def __init__(
+        self,
+        db: Database,
+        agent: Any,
+        orchestrator: Any,
+        workflows: Any,
+        max_concurrency: int = 2,
+        max_queue_depth: int = DEFAULT_MAX_QUEUE_DEPTH,
+    ):
         self.db = db
         self.agent = agent
         self.orchestrator = orchestrator
         self.workflows = workflows
         self.max_concurrency = max(1, min(int(max_concurrency), 8))
-        self.queue: asyncio.Queue[str] = asyncio.Queue()
+        if isinstance(max_queue_depth, bool) or not isinstance(max_queue_depth, int):
+            raise ValueError("max_queue_depth must be an integer")
+        self.max_queue_depth = max(1, min(max_queue_depth, 10_000))
+        self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=self.max_queue_depth)
         self.workers: list[asyncio.Task[Any]] = []
         self.active: dict[str, asyncio.Task[Any]] = {}
         self._stopping = False
@@ -34,8 +47,12 @@ class JobSupervisor:
             return
         self._stopping = False
         self.db.requeue_interrupted_jobs()
-        for job in reversed(self.db.list_background_jobs("queued", 1000)):
-            await self.queue.put(job["id"])
+        queued_jobs = list(reversed(self.db.list_background_jobs("queued", self.max_queue_depth)))
+        for job in queued_jobs:
+            try:
+                self.queue.put_nowait(job["id"])
+            except asyncio.QueueFull:
+                break
         self.workers = [asyncio.create_task(self._worker(index), name=f"dpn-job-worker-{index}") for index in range(self.max_concurrency)]
 
     async def stop(self) -> None:
@@ -51,10 +68,33 @@ class JobSupervisor:
     async def submit(self, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
         if kind not in {"direct", "mission", "workflow"}:
             return {"ok": False, "error": "Job kind must be direct, mission, or workflow"}
+        if self.queue.full():
+            return {
+                "ok": False,
+                "error": "Background job queue is at its configured capacity",
+                "queue": {"depth": self.queue.qsize(), "capacity": self.max_queue_depth},
+            }
         job = self.db.create_background_job(kind, payload)
-        await self.queue.put(job["id"])
+        try:
+            self.queue.put_nowait(job["id"])
+        except asyncio.QueueFull:
+            # Fail closed without leaving an unreachable persistent job behind.
+            self._cancel_queued_job(job["id"])
+            return {
+                "ok": False,
+                "error": "Background job queue reached capacity before admission completed",
+                "queue": {"depth": self.queue.qsize(), "capacity": self.max_queue_depth},
+            }
         self.db.audit("job.queued", f"Queued {kind} job", {"job_id": job["id"]})
         return {"ok": True, "job": job}
+
+    def queue_status(self) -> dict[str, int]:
+        return {
+            "depth": self.queue.qsize(),
+            "capacity": self.max_queue_depth,
+            "active": len(self.active),
+            "workers": len([worker for worker in self.workers if not worker.done()]),
+        }
 
     def _claim_job(self, job_id: str) -> bool:
         """Atomically move one queued job to running.
