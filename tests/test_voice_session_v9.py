@@ -25,12 +25,75 @@ def test_barge_in_interrupts_active_speech(tmp_path: Path):
     assert result["interrupted"] is True
     assert result["state"] == "interrupted"
     assert result["turn"]["interrupted"] is True
+    assert result["turn"]["interruption_reason"] == "barge_in"
+    assert runtime.status()["interruption_count"] == 1
 
 
 def test_interrupt_is_fail_closed_when_not_speaking(tmp_path: Path):
     runtime = VoiceSessionRuntime(tmp_path)
     result = runtime.interrupt()
     assert result == {"ok": False, "interrupted": False, "state": "idle"}
+
+
+def test_interrupted_turn_must_be_abandoned_before_next_turn(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path, hands_free=True)
+    runtime.start()
+    runtime.begin_turn("Read the report")
+    runtime.begin_speaking()
+    runtime.interrupt("user_started_speaking")
+    with pytest.raises(ValueError, match="already active"):
+        runtime.begin_turn("New request")
+    with pytest.raises(ValueError, match="must be abandoned"):
+        runtime.complete_turn()
+    result = runtime.abandon_interrupted_turn()
+    assert result["abandoned"] is True
+    assert result["next_state"] == "listening"
+    assert runtime.begin_turn("New request")["state"] == "thinking"
+
+
+def test_begin_speaking_requires_thinking_state(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path)
+    runtime.begin_turn("Answer me")
+    runtime.begin_speaking()
+    with pytest.raises(ValueError, match="Cannot begin speaking"):
+        runtime.begin_speaking()
+
+
+def test_stop_invalidates_active_turn_and_requires_restart(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path)
+    runtime.start()
+    runtime.begin_turn("Still there?")
+    stopped = runtime.stop()
+    assert stopped["state"] == "stopped"
+    assert stopped["active_turn_id"] is None
+    with pytest.raises(ValueError, match="session is stopped"):
+        runtime.begin_turn("Try again")
+    assert runtime.start()["state"] == "listening"
+    assert runtime.begin_turn("Try again")["state"] == "thinking"
+
+
+def test_restart_rejected_while_turn_is_active(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path)
+    runtime.start()
+    runtime.begin_turn("Busy")
+    with pytest.raises(ValueError, match="while a turn is active"):
+        runtime.start()
+
+
+def test_voice_turn_source_is_bounded(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path)
+    result = runtime.begin_turn("From mic", source="microphone")
+    assert result["turn"]["source"] == "microphone"
+    runtime.complete_turn()
+    with pytest.raises(ValueError, match="Unsupported voice turn source"):
+        runtime.begin_turn("Bad source", source="arbitrary-provider")
+
+
+def test_status_is_honest_about_microphone_provider(tmp_path: Path):
+    runtime = VoiceSessionRuntime(tmp_path)
+    status = runtime.status()
+    assert status["live_microphone_capture"] is False
+    assert "No trusted platform microphone" in status["live_microphone_reason"]
 
 
 def test_multimodal_turn_tracks_modalities(tmp_path: Path):
