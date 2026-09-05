@@ -1,95 +1,23 @@
-name: Publish DPN AI v6.0.0
+name: Legacy (Retired) DPN AI v6 Publisher
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: publish-dpn-ai-v6.0.0
+  group: retired-publish-dpn-ai-v6.0.0
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/main'
+  retired:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify stable release version
-        shell: bash
-        run: test "$(tr -d '\r\n ' < VERSION)" = "6.0.0"
-
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install development dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
-
-      - name: Compile sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py
-
-      - name: Run release tests
-        run: pytest -q
-
-      - name: Reject tracked runtime secrets and private state
+      - name: Legacy publisher retired
         shell: bash
         run: |
-          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)FIRST_RUN_LOGIN\.txt$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)backups/|(^|/)runtime_logs/|(^|/)install_logs/|(^|/)workspace/generated/|(^|/)workspace/uploads/' || true)"
-          test -z "$sensitive" || { echo "::error::Sensitive/runtime files are tracked:"; echo "$sensitive"; exit 1; }
-
-      - name: Generate supply-chain evidence
-        env:
-          DPN_VERSION: v6.0.0
-        run: python .github/scripts/generate_supply_chain.py
-
-      - name: Build source archive and release manifest
-        shell: bash
-        run: |
-          git archive --format=zip --output DPN-AI-v6.0.0-source.zip HEAD
-          sha256sum DPN-AI-v6.0.0-source.zip > SHA256SUMS.txt
-          {
-            echo "Repository: ${GITHUB_REPOSITORY}"
-            echo "Version: v6.0.0"
-            echo "Commit: ${GITHUB_SHA}"
-            echo "Workflow run: ${GITHUB_RUN_ID}"
-            echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          } > RELEASE_MANIFEST.txt
-
-      - name: Publish stable v6.0.0 release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view v6.0.0 >/dev/null 2>&1; then
-            echo "v6.0.0 already exists; leaving the existing immutable release in place."
-            exit 0
-          fi
-          gh release create v6.0.0 \
-            --target "$GITHUB_SHA" \
-            --title "DPN-AI v6.0.0" \
-            --generate-notes \
-            DPN-AI-v6.0.0-source.zip \
-            SHA256SUMS.txt \
-            RELEASE_MANIFEST.txt \
-            SBOM.spdx.json \
-            SOURCE_SHA256SUMS.txt \
-            DEPENDENCY_INVENTORY.txt
-
-      - name: Release summary
-        shell: bash
-        run: |
-          {
-            echo "## DPN AI v6.0.0"
-            echo ""
-            echo "Stable v6.0.0 publication completed or was already present."
-            echo "Commit: $GITHUB_SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "DPN AI v6.0.0 is a historical immutable release."
+          echo "This workflow is intentionally retained only as a visible retirement marker."
+          echo "Use .github/workflows/release.yml for current explicitly authorized releases."
+          echo "No tag, release, artifact, repository file, permission, or secret is modified by this workflow."
