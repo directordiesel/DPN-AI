@@ -40,6 +40,6 @@ def test_notification_permission_is_requested_only_for_system_notifications():
 
 def test_main_control_center_pairing_gates_notifications():
     source = read("java/com/dpntechnology/dpnai/MainActivity.kt")
-    assert "Open Notification Center" in source
-    assert "notificationsButton.isEnabled = enabled" in source
-    assert "NotificationsActivity::class.java" in source
+    assert 'addCapability(root, "Notification Center", NotificationsActivity::class.java)' in source
+    assert 'setCapabilityButtons(active)' in source
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in source
