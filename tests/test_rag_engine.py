@@ -42,11 +42,29 @@ def test_hybrid_retrieval_deduplicates_and_attributes_sources():
     assert hybrid["source_type"] == "hybrid"
     assert hybrid["semantic_score"] > 0
     assert hybrid["keyword_score"] > 0
+    assert "lexical_score" in hybrid
     assert result["citations"][0]["ref"] == "S1"
     assert "[S1]" in result["context"]
 
 
-def test_context_budget_is_enforced():
+def test_lexical_overlap_breaks_equal_signal_ties_toward_query_relevance():
+    async def semantic(query: str, namespace: str, limit: int):
+        return {
+            "results": [
+                {"id": "a", "source": "memory:a", "content": "generic unrelated material", "score": 0.7},
+                {"id": "b", "source": "memory:b", "content": "automation retries condition providers", "score": 0.7},
+            ]
+        }
+
+    engine = RAGEngine(semantic, lambda query, limit: {"results": []})
+    result = asyncio.run(engine.retrieve("automation retries condition providers", limit=2))
+
+    assert result["sources"][0]["locator"] == "memory:b"
+    assert result["sources"][0]["lexical_score"] == 1.0
+    assert result["sources"][1]["lexical_score"] == 0.0
+
+
+def test_context_budget_is_enforced_and_citation_reports_truncation():
     async def semantic(query: str, namespace: str, limit: int):
         return {"results": [{"id": "1", "source": "large", "content": "x" * 4000, "score": 1.0}]}
 
@@ -54,7 +72,23 @@ def test_context_budget_is_enforced():
     result = asyncio.run(engine.retrieve("large"))
 
     assert len(result["context"]) <= 1000
-    assert result["context_chars"] <= 1000
+    assert result["context_chars"] == len(result["context"])
+    citation = result["citations"][0]
+    assert citation["truncated"] is True
+    assert citation["excerpt_chars"] == 800
+    assert citation["source_chars"] == 4000
+
+
+def test_citation_reports_complete_excerpt_when_source_fits_budget():
+    async def semantic(query: str, namespace: str, limit: int):
+        return {"results": [{"id": "1", "source": "small", "content": "small source", "score": 1.0}]}
+
+    engine = RAGEngine(semantic, lambda query, limit: {"results": []}, max_context_chars=1000, per_source_chars=800)
+    result = asyncio.run(engine.retrieve("small"))
+
+    citation = result["citations"][0]
+    assert citation["truncated"] is False
+    assert citation["excerpt_chars"] == citation["source_chars"] == len("small source")
 
 
 def test_empty_query_fails_closed():
