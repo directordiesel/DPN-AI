@@ -106,6 +106,14 @@ class ModelRoutingPolicy:
 
         requested = request.requested_model.strip()
         fallback = request.fallback_model.strip()
+
+        if requested:
+            explicit_discovered = next((candidate for candidate in discovered if candidate.name == requested), None)
+            if explicit_discovered is None:
+                raise ModelRoutingError("requested model was not discovered")
+            if not self._eligible(explicit_discovered, request):
+                raise ModelRoutingError("requested model is unavailable or lacks required capabilities")
+
         eligible = [candidate for candidate in discovered if self._eligible(candidate, request)]
         if not eligible:
             raise ModelRoutingError("no healthy model satisfies the requested capabilities")
