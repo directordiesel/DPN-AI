@@ -90,6 +90,35 @@ def test_bundle_has_stable_citation_refs_and_respects_budget():
     assert result["ok"] is True
     assert result["citations"][0]["ref"] == "R1"
     assert len(result["context"]) <= 2000
+    assert result["context_chars"] == len(result["context"])
+
+
+def test_bundle_exposes_source_quality_components_and_truncation_evidence():
+    engine = ResearchIntelligence(max_content_chars=2000)
+    result = engine.evidence_bundle(
+        "python documentation",
+        [
+            {
+                "title": "Python Documentation",
+                "url": "https://docs.python.org/3/",
+                "content": "python documentation " + ("reference " * 400),
+                "published_at": "2026-09-04T00:00:00Z",
+            }
+        ],
+    )
+    citation = result["citations"][0]
+    assert citation["quality_tier"] in {"high", "medium", "low"}
+    assert citation["authority_score"] == 0.84
+    assert 0.0 < citation["freshness_score"] <= 1.0
+    assert 0.0 < citation["relevance_score"] <= 1.0
+    assert citation["source_chars"] > citation["excerpt_chars"]
+    assert citation["truncated"] is True
+
+
+def test_quality_tier_has_deterministic_thresholds():
+    assert ResearchIntelligence.quality_tier(0.90) == "high"
+    assert ResearchIntelligence.quality_tier(0.70) == "medium"
+    assert ResearchIntelligence.quality_tier(0.40) == "low"
 
 
 def test_conflict_detection_requires_multiple_meaningful_stances():
@@ -107,6 +136,32 @@ def test_conflict_detection_requires_multiple_meaningful_stances():
             "status": "conflict",
         }
     ]
+
+
+def test_conflict_detection_normalizes_common_stance_aliases():
+    conflicts = ResearchIntelligence.detect_conflicts(
+        [
+            ClaimEvidence("Service is restored", "confirmed", ("a",), 0.9),
+            ClaimEvidence("Service is restored", "denies", ("b",), 0.8),
+        ]
+    )
+    assert conflicts == [
+        {
+            "claim": "Service is restored",
+            "stances": {"supports": ["a"], "refutes": ["b"]},
+            "status": "conflict",
+        }
+    ]
+
+
+def test_low_confidence_claim_does_not_create_false_conflict():
+    conflicts = ResearchIntelligence.detect_conflicts(
+        [
+            ClaimEvidence("Service is restored", "supports", ("a",), 0.95),
+            ClaimEvidence("Service is restored", "refutes", ("b",), 0.2),
+        ]
+    )
+    assert conflicts == []
 
 
 def test_empty_query_fails_closed():
