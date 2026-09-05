@@ -35,9 +35,34 @@ class JobSupervisor:
             raise ValueError("max_queue_depth must be an integer")
         self.max_queue_depth = max(1, min(max_queue_depth, 10_000))
         self.queue: asyncio.Queue[str] = asyncio.Queue(maxsize=self.max_queue_depth)
+        self._queued_ids: set[str] = set()
         self.workers: list[asyncio.Task[Any]] = []
         self.active: dict[str, asyncio.Task[Any]] = {}
         self._stopping = False
+
+    def _enqueue_job_id(self, job_id: str) -> bool:
+        value = str(job_id or "").strip()
+        if not value or value in self._queued_ids or value in self.active:
+            return False
+        try:
+            self.queue.put_nowait(value)
+        except asyncio.QueueFull:
+            return False
+        self._queued_ids.add(value)
+        return True
+
+    def _refill_from_persistence(self) -> int:
+        available = self.max_queue_depth - self.queue.qsize()
+        if available <= 0:
+            return 0
+        added = 0
+        queued_jobs = list(reversed(self.db.list_background_jobs("queued", self.max_queue_depth)))
+        for job in queued_jobs:
+            if added >= available:
+                break
+            if self._enqueue_job_id(str(job.get("id") or "")):
+                added += 1
+        return added
 
     async def start(self) -> None:
         # start() may be called more than once by application lifecycle hooks.
@@ -47,12 +72,7 @@ class JobSupervisor:
             return
         self._stopping = False
         self.db.requeue_interrupted_jobs()
-        queued_jobs = list(reversed(self.db.list_background_jobs("queued", self.max_queue_depth)))
-        for job in queued_jobs:
-            try:
-                self.queue.put_nowait(job["id"])
-            except asyncio.QueueFull:
-                break
+        self._refill_from_persistence()
         self.workers = [asyncio.create_task(self._worker(index), name=f"dpn-job-worker-{index}") for index in range(self.max_concurrency)]
 
     async def stop(self) -> None:
@@ -75,9 +95,7 @@ class JobSupervisor:
                 "queue": {"depth": self.queue.qsize(), "capacity": self.max_queue_depth},
             }
         job = self.db.create_background_job(kind, payload)
-        try:
-            self.queue.put_nowait(job["id"])
-        except asyncio.QueueFull:
+        if not self._enqueue_job_id(job["id"]):
             # Fail closed without leaving an unreachable persistent job behind.
             self._cancel_queued_job(job["id"])
             return {
@@ -129,9 +147,12 @@ class JobSupervisor:
     async def _worker(self, _: int) -> None:
         while not self._stopping:
             job_id = await self.queue.get()
+            self._queued_ids.discard(job_id)
             try:
                 if not self._claim_job(job_id):
+                    self._refill_from_persistence()
                     continue
+                self._refill_from_persistence()
                 job = self.db.get_background_job(job_id)
                 if not job or job.get("status") != "running":
                     continue
