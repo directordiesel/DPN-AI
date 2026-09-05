@@ -42,14 +42,13 @@ class ToolPermissionRuntime:
     """Compatibility bridge between legacy gates and v9 permission policies.
 
     Legacy feature gates remain a hard prerequisite. A disabled feature can never
-    be re-enabled by a v9 permission rule. When no explicit v9 rule is supplied,
-    read/write tools preserve current behavior while side-effectful tools preserve
-    the existing approval-mode behavior. Explicit v9 rules then take precedence
-    within that already-authorized feature boundary.
+    be re-enabled by a v9 permission rule. Legacy behavior is used until v9 policy
+    is explicitly enabled. Once enabled, an unspecified tool defaults to Ask Every
+    Time so the new policy system cannot silently broaden authority.
     """
 
     def __init__(self, engine: PermissionEngine | None = None):
-        self.engine = engine or PermissionEngine(PermissionMode.ALWAYS_ALLOW)
+        self.engine = engine or PermissionEngine(PermissionMode.ASK_EVERY_TIME)
 
     @staticmethod
     def _legacy_gate_allowed(gate: str | None, permissions: dict[str, Any]) -> tuple[bool, str]:
