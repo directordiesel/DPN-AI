@@ -79,5 +79,7 @@ def test_release_installer_requires_signed_source_and_verified_signature():
 def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
     assert "if: github.event_name != 'pull_request'" in WORKFLOW
     assert "runs-on: [self-hosted, Windows, X64]" in WORKFLOW
-    assert r".\packaging\windows\build-installer.ps1 -Python python" in WORKFLOW
+    assert 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\\packaging\\windows\\build-installer.ps1" -Python "%PYTHON_EXE%"' in WORKFLOW
+    assert "shell: cmd" in WORKFLOW
+    assert r".github\scripts\resolve_windows_python.cmd" in WORKFLOW
     assert "preserve-user-data-outside-install-directory" in WORKFLOW
