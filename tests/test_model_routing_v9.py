@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from app.model_routing_v9 import (
@@ -105,3 +107,69 @@ def test_invalid_boolean_priority_and_latency_are_rejected():
             [candidate("bad", ProviderClass.LOCAL, ModelCapability.CHAT, latency_ms=True)],
             RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT})),
         )
+
+
+def test_health_threshold_and_failure_quarantine_fail_closed():
+    policy = ModelRoutingPolicy(quarantine_after_failures=3)
+    decision = policy.decide(
+        [
+            candidate("degraded", ProviderClass.LOCAL, ModelCapability.CHAT, health_score=0.2, priority=1),
+            candidate("quarantined", ProviderClass.LOCAL, ModelCapability.CHAT, health_score=1.0, consecutive_failures=3, priority=2),
+            candidate("healthy", ProviderClass.LOCAL, ModelCapability.CHAT, health_score=0.9, priority=50),
+        ],
+        RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT}), minimum_health_score=0.25),
+    )
+    assert decision.selected.name == "healthy"
+    assert [item.name for item in decision.chain] == ["healthy"]
+
+
+def test_quality_breaks_equal_priority_ties_without_overriding_local_first():
+    policy = ModelRoutingPolicy(max_fallbacks=2)
+    decision = policy.decide(
+        [
+            candidate("local-low", ProviderClass.LOCAL, ModelCapability.CHAT, priority=10, quality_score=0.4),
+            candidate("local-high", ProviderClass.LOCAL, ModelCapability.CHAT, priority=10, quality_score=0.9),
+            candidate("remote-best", ProviderClass.REMOTE, ModelCapability.CHAT, priority=1, quality_score=1.0),
+        ],
+        RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT}), prefer_local=True, allow_remote=True),
+    )
+    assert decision.selected.name == "local-high"
+    assert decision.fallbacks[0].name == "local-low"
+
+
+def test_minimum_quality_excludes_unqualified_models():
+    policy = ModelRoutingPolicy()
+    with pytest.raises(ModelRoutingError, match="no healthy model"):
+        policy.decide(
+            [candidate("weak", ProviderClass.LOCAL, ModelCapability.CODE, quality_score=0.3)],
+            RoutingRequest(required_capabilities=frozenset({ModelCapability.CODE}), minimum_quality_score=0.8),
+        )
+
+
+def test_explicit_requested_model_cannot_bypass_health_quarantine():
+    policy = ModelRoutingPolicy(quarantine_after_failures=2)
+    with pytest.raises(ModelRoutingError, match="requested model"):
+        policy.decide(
+            [candidate("requested", ProviderClass.LOCAL, ModelCapability.CHAT, consecutive_failures=2)],
+            RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT}), requested_model="requested"),
+        )
+
+
+def test_non_finite_scores_and_invalid_request_thresholds_are_rejected():
+    policy = ModelRoutingPolicy()
+    for value in (math.nan, math.inf, -math.inf):
+        with pytest.raises(ModelRoutingError, match="health score"):
+            policy.decide(
+                [candidate("bad", ProviderClass.LOCAL, ModelCapability.CHAT, health_score=value)],
+                RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT})),
+            )
+    with pytest.raises(ModelRoutingError, match="minimum health score"):
+        policy.decide(
+            [candidate("ok", ProviderClass.LOCAL, ModelCapability.CHAT)],
+            RoutingRequest(required_capabilities=frozenset({ModelCapability.CHAT}), minimum_health_score=1.1),
+        )
+
+
+def test_invalid_quarantine_threshold_is_rejected():
+    with pytest.raises(ModelRoutingError, match="quarantine"):
+        ModelRoutingPolicy(quarantine_after_failures=0)
