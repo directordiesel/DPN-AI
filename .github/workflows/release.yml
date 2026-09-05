@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version/tag (example: v1.2.3)"
+        description: "Exact release tag matching VERSION (example: v9.1.0 or v9.1.0-rc.1)"
         required: true
         type: string
       prerelease:
-        description: "Mark as prerelease"
+        description: "Mark as prerelease (must match VERSION prerelease state)"
         required: true
         default: false
         type: boolean
@@ -38,27 +38,20 @@ jobs:
       - name: Resolve release request
         shell: bash
         run: |
-          version="$DISPATCH_VERSION"
-          prerelease="$DISPATCH_PRERELEASE"
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          echo "PRERELEASE=$prerelease" >> "$GITHUB_ENV"
+          echo "VERSION=$DISPATCH_VERSION" >> "$GITHUB_ENV"
+          echo "PRERELEASE=$DISPATCH_PRERELEASE" >> "$GITHUB_ENV"
 
-      - name: Validate release version format
+      - name: Validate exact release request
         shell: bash
         run: |
-          if [[ ! "$VERSION" =~ ^v[0-9]+([.][0-9]+){0,2}([-.][A-Za-z0-9.-]+)?$ ]]; then
-            echo "::error::Version must look like v7, v1.2, v1.2.3, or a documented prerelease variant."
-            exit 1
-          fi
-          if [ "$PRERELEASE" != "true" ] && [ "$PRERELEASE" != "false" ]; then
-            echo "::error::Prerelease must be true or false."
-            exit 1
-          fi
+          repository_version="$(tr -d '\r\n ' < VERSION)"
+          python .github/scripts/validate_release_request.py \
+            --version "$repository_version" \
+            --tag "$DISPATCH_VERSION" \
+            --prerelease "$DISPATCH_PRERELEASE"
 
-      - name: Verify repository version matches requested release
-        shell: bash
-        run: |
-          test "$(tr -d '\r\n ' < VERSION)" = "${VERSION#v}"
+      - name: Run repository and version guard
+        run: python .github/scripts/ci_repository_guard.py
 
       - name: Reject tracked runtime secrets and private state
         shell: bash
