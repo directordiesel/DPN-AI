@@ -59,3 +59,31 @@ def test_accessibility_and_mobile_fallbacks_exist():
     assert '.v9-sr-only' in CSS
     assert '@media(max-width:900px)' in CSS
     assert '.v9-focus-drawer' in CSS
+
+
+def test_dialogs_track_accessibility_state_and_restore_focus():
+    assert 'aria-hidden="true"' in JS
+    assert "setAttribute('aria-hidden', 'false')" in JS
+    assert 'rememberFocus()' in JS
+    assert 'restoreFocus()' in JS
+    assert "$('v9FocusClose')?.focus()" in JS
+
+
+def test_keyboard_focus_is_trapped_inside_modal_surfaces():
+    assert 'function trapFocus(event, root)' in JS
+    assert "event.key !== 'Tab'" in JS
+    assert "addEventListener('keydown', (event) => trapFocus(event, $('v9CommandPalette')))" in JS
+    assert "addEventListener('keydown', (event) => trapFocus(event, $('v9FocusDrawer')))" in JS
+
+
+def test_palette_exposes_active_option_to_assistive_technology():
+    assert 'aria-controls="v9CommandResults"' in JS
+    assert 'aria-activedescendant=""' in JS
+    assert 'v9CommandOption${index}' in JS
+    assert "input.setAttribute('aria-activedescendant'" in JS
+
+
+def test_global_shortcuts_do_not_hijack_editable_content():
+    assert 'function isEditableTarget(target)' in JS
+    assert '[contenteditable="true"]' in JS
+    assert "!isEditableTarget(event.target)" in JS

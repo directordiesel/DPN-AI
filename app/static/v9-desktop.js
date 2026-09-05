@@ -20,19 +20,57 @@
   const $ = (id) => document.getElementById(id);
   const invoke = (id) => $(id)?.click();
   let selected = 0;
+  let lastFocus = null;
+
+  function rememberFocus() {
+    const active = document.activeElement;
+    if (active && active !== document.body) lastFocus = active;
+  }
+
+  function restoreFocus() {
+    if (lastFocus && document.contains(lastFocus) && typeof lastFocus.focus === 'function') {
+      lastFocus.focus();
+    }
+    lastFocus = null;
+  }
+
+  function isEditableTarget(target) {
+    return Boolean(target?.matches?.('input, textarea, select, [contenteditable="true"]'));
+  }
+
+  function focusableWithin(root) {
+    if (!root) return [];
+    return [...root.querySelectorAll('button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
+      .filter((node) => !node.hidden && node.offsetParent !== null);
+  }
+
+  function trapFocus(event, root) {
+    if (event.key !== 'Tab') return;
+    const items = focusableWithin(root);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   function ensureShell() {
     if ($('v9CommandPalette')) return;
     document.body.insertAdjacentHTML('beforeend', `
-      <div id="v9CommandPalette" class="v9-command-palette hidden" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div id="v9CommandPalette" class="v9-command-palette hidden" role="dialog" aria-modal="true" aria-label="Command palette" aria-hidden="true">
         <div class="v9-command-panel">
           <div class="v9-command-head"><strong>DPN AI Command Palette</strong><kbd>Esc</kbd></div>
-          <input id="v9CommandInput" type="search" autocomplete="off" placeholder="Search commands…" aria-label="Search commands" />
+          <input id="v9CommandInput" type="search" autocomplete="off" placeholder="Search commands…" aria-label="Search commands" aria-controls="v9CommandResults" aria-activedescendant="" />
           <div id="v9CommandResults" class="v9-command-results" role="listbox"></div>
         </div>
       </div>
       <aside id="v9ActivityRail" class="v9-activity-rail" aria-label="Live activity">
-        <header><div><span>LIVE ACTIVITY</span><strong id="v9ActivityState">Ready</strong></div><button id="v9ActivityToggle" aria-label="Toggle activity rail">×</button></header>
+        <header><div><span>LIVE ACTIVITY</span><strong id="v9ActivityState">Ready</strong></div><button id="v9ActivityToggle" aria-label="Toggle activity rail" aria-expanded="true">×</button></header>
         <div class="v9-activity-grid">
           <button data-target="missionsBtn"><span>MISSIONS</span><strong id="v9MissionCount">0</strong></button>
           <button data-target="approvalsBtn"><span>APPROVALS</span><strong id="v9ApprovalCount">0</strong></button>
@@ -45,16 +83,20 @@
           <button id="v9AgentActivityBtn"><span>AGENT ACTIVITY</span><small>Operational summaries and evidence only</small></button>
         </div>
       </aside>
-      <section id="v9FocusDrawer" class="v9-focus-drawer hidden" aria-label="Desktop focus center" aria-live="polite">
+      <section id="v9FocusDrawer" class="v9-focus-drawer hidden" role="dialog" aria-modal="true" aria-label="Desktop focus center" aria-live="polite" aria-hidden="true" tabindex="-1">
         <header><div><span id="v9FocusEyebrow">DPN AI</span><strong id="v9FocusTitle">Focus Center</strong></div><button id="v9FocusClose" aria-label="Close focus center">×</button></header>
         <div id="v9FocusBody" class="v9-focus-body"></div>
       </section>
-      <button id="v9PaletteButton" class="v9-palette-button" title="Command palette (Ctrl+K)" aria-label="Open command palette">⌘</button>
+      <button id="v9PaletteButton" class="v9-palette-button" title="Command palette (Ctrl+K)" aria-label="Open command palette" aria-haspopup="dialog" aria-controls="v9CommandPalette">⌘</button>
       <div id="v9LiveRegion" class="v9-sr-only" aria-live="polite"></div>
     `);
 
     $('v9PaletteButton')?.addEventListener('click', openPalette);
-    $('v9ActivityToggle')?.addEventListener('click', () => $('v9ActivityRail')?.classList.toggle('collapsed'));
+    $('v9ActivityToggle')?.addEventListener('click', () => {
+      const rail = $('v9ActivityRail');
+      rail?.classList.toggle('collapsed');
+      $('v9ActivityToggle')?.setAttribute('aria-expanded', String(!rail?.classList.contains('collapsed')));
+    });
     $('v9ActivityRail')?.querySelectorAll('[data-target]').forEach((button) => {
       button.addEventListener('click', () => invoke(button.dataset.target));
     });
@@ -62,9 +104,11 @@
     $('v9ApprovalCenterBtn')?.addEventListener('click', () => openFocus('approvals'));
     $('v9AgentActivityBtn')?.addEventListener('click', () => openFocus('agents'));
     $('v9FocusClose')?.addEventListener('click', closeFocus);
+    $('v9FocusDrawer')?.addEventListener('keydown', (event) => trapFocus(event, $('v9FocusDrawer')));
     $('v9CommandPalette')?.addEventListener('click', (event) => {
       if (event.target === $('v9CommandPalette')) closePalette();
     });
+    $('v9CommandPalette')?.addEventListener('keydown', (event) => trapFocus(event, $('v9CommandPalette')));
     $('v9CommandInput')?.addEventListener('input', renderCommands);
     $('v9CommandInput')?.addEventListener('keydown', onPaletteKey);
   }
@@ -80,9 +124,11 @@
     const host = $('v9CommandResults');
     if (!host) return;
     host.innerHTML = results.map(([label, id, shortcut], index) => `
-      <button class="v9-command-item ${index === selected ? 'selected' : ''}" role="option" aria-selected="${index === selected}" data-target="${id}" data-index="${index}">
+      <button id="v9CommandOption${index}" class="v9-command-item ${index === selected ? 'selected' : ''}" role="option" aria-selected="${index === selected}" data-target="${id}" data-index="${index}">
         <span>${label}</span><kbd>${shortcut}</kbd>
       </button>`).join('') || '<div class="v9-command-empty">No matching commands</div>';
+    const input = $('v9CommandInput');
+    if (input) input.setAttribute('aria-activedescendant', results.length ? `v9CommandOption${selected}` : '');
     host.querySelectorAll('[data-target]').forEach((button) => {
       button.addEventListener('mouseenter', () => { selected = Number(button.dataset.index); renderCommands(); });
       button.addEventListener('click', () => { invoke(button.dataset.target); closePalette(); });
@@ -91,15 +137,22 @@
 
   function openPalette() {
     ensureShell();
+    if (!$('v9CommandPalette')?.classList.contains('hidden')) return;
+    rememberFocus();
     selected = 0;
     $('v9CommandPalette')?.classList.remove('hidden');
+    $('v9CommandPalette')?.setAttribute('aria-hidden', 'false');
     renderCommands();
     window.setTimeout(() => $('v9CommandInput')?.focus(), 0);
   }
 
   function closePalette() {
-    $('v9CommandPalette')?.classList.add('hidden');
+    const palette = $('v9CommandPalette');
+    if (!palette || palette.classList.contains('hidden')) return;
+    palette.classList.add('hidden');
+    palette.setAttribute('aria-hidden', 'true');
     if ($('v9CommandInput')) $('v9CommandInput').value = '';
+    restoreFocus();
   }
 
   function onPaletteKey(event) {
@@ -155,6 +208,7 @@
 
   function openFocus(kind) {
     ensureShell();
+    if ($('v9FocusDrawer')?.classList.contains('hidden')) rememberFocus();
     const template = focusTemplate(kind);
     if ($('v9FocusEyebrow')) $('v9FocusEyebrow').textContent = template.eyebrow;
     if ($('v9FocusTitle')) $('v9FocusTitle').textContent = template.title;
@@ -165,20 +219,26 @@
       });
     }
     $('v9FocusDrawer')?.classList.remove('hidden');
+    $('v9FocusDrawer')?.setAttribute('aria-hidden', 'false');
+    window.setTimeout(() => $('v9FocusClose')?.focus(), 0);
   }
 
   function closeFocus() {
-    $('v9FocusDrawer')?.classList.add('hidden');
+    const drawer = $('v9FocusDrawer');
+    if (!drawer || drawer.classList.contains('hidden')) return;
+    drawer.classList.add('hidden');
+    drawer.setAttribute('aria-hidden', 'true');
+    restoreFocus();
   }
 
   function bindKeyboard() {
     document.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openPalette(); return; }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !isEditableTarget(event.target)) { event.preventDefault(); openPalette(); return; }
       if (event.key === 'Escape') {
-        if (!$('v9CommandPalette')?.classList.contains('hidden')) closePalette();
-        if (!$('v9FocusDrawer')?.classList.contains('hidden')) closeFocus();
+        if (!$('v9CommandPalette')?.classList.contains('hidden')) { closePalette(); return; }
+        if (!$('v9FocusDrawer')?.classList.contains('hidden')) { closeFocus(); return; }
       }
-      if (!(event.ctrlKey || event.metaKey) || event.target?.matches('input, textarea, select')) return;
+      if (!(event.ctrlKey || event.metaKey) || isEditableTarget(event.target)) return;
       const shift = event.shiftKey;
       const key = event.key.toLowerCase();
       const target = ({
