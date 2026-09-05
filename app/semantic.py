@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Any
+from typing import Any, Iterable
 
 from app.db import Database
 from app.ollama_client import OllamaClient
@@ -19,6 +19,7 @@ class SemanticMemory:
         content = content.strip()
         if not content:
             return {"ok": False, "error": "Content is empty"}
+        namespace = (namespace or "global").strip() or "global"
         vectors = await self.ollama.embed(self.embedding_model, [content])
         if not vectors:
             return {"ok": False, "error": "Embedding model returned no vector"}
@@ -35,17 +36,53 @@ class SemanticMemory:
         nb = math.sqrt(sum(y * y for y in b))
         return dot / (na * nb) if na and nb else 0.0
 
-    async def search(self, query: str, namespace: str = "global", limit: int = 8) -> dict[str, Any]:
+    @staticmethod
+    def _normalize_namespaces(namespaces: Iterable[str]) -> list[str]:
+        output: list[str] = []
+        seen: set[str] = set()
+        for namespace in namespaces:
+            value = (namespace or "").strip()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            output.append(value)
+        return output
+
+    async def search_many(self, query: str, namespaces: Iterable[str], limit: int = 8) -> dict[str, Any]:
+        query = (query or "").strip()
+        normalized_namespaces = self._normalize_namespaces(namespaces)
+        if not query:
+            return {"ok": False, "error": "Query is empty", "results": []}
+        if not normalized_namespaces:
+            return {"ok": False, "error": "At least one namespace is required", "results": []}
+
         vectors = await self.ollama.embed(self.embedding_model, [query])
         if not vectors:
             return {"ok": False, "error": "Embedding model returned no vector", "results": []}
         query_vector = vectors[0]
-        scored = []
-        for item in self.db.list_semantic_items(namespace, limit=5000):
-            score = self._cosine(query_vector, item.get("vector", []))
-            scored.append({
-                "id": item["id"], "namespace": item["namespace"], "source": item["source"],
-                "content": item["content"], "metadata": item.get("metadata", {}), "score": round(score, 6),
-            })
-        scored.sort(key=lambda item: item["score"], reverse=True)
-        return {"ok": True, "model": self.embedding_model, "results": scored[:max(1, min(limit, 50))]}
+        scored: list[dict[str, Any]] = []
+        for namespace in normalized_namespaces:
+            for item in self.db.list_semantic_items(namespace, limit=5000):
+                score = self._cosine(query_vector, item.get("vector", []))
+                scored.append({
+                    "id": item["id"],
+                    "namespace": item["namespace"],
+                    "source": item["source"],
+                    "content": item["content"],
+                    "metadata": item.get("metadata", {}),
+                    "score": round(score, 6),
+                })
+        scored.sort(key=lambda item: (-item["score"], item["namespace"], item["id"]))
+        bounded_limit = max(1, min(limit, 50))
+        return {
+            "ok": True,
+            "model": self.embedding_model,
+            "namespaces": normalized_namespaces,
+            "results": scored[:bounded_limit],
+        }
+
+    async def search(self, query: str, namespace: str = "global", limit: int = 8) -> dict[str, Any]:
+        result = await self.search_many(query, [namespace], limit=limit)
+        if result.get("ok"):
+            result["namespace"] = namespace
+        return result
