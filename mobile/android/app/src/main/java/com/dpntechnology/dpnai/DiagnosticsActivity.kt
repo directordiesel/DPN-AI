@@ -45,7 +45,7 @@ class DiagnosticsActivity : Activity() {
 
     private fun renderLocalStatus(extra: String? = null) {
         val local = credentialStore.loadLocalCredential()
-        val remote = credentialStore.loadRemoteCredential()
+        val remoteConfigured = credentialStore.hasRemoteGateway()
         val active = credentialStore.loadDesktopCredential()
         val mode = if (credentialStore.isRemoteMode()) "REMOTE_GATEWAY" else "LOCAL_DESKTOP"
         val lastError = MobileDiagnostics.lastError(this) ?: "None recorded"
@@ -56,7 +56,7 @@ class DiagnosticsActivity : Activity() {
             appendLine("Android API: ${android.os.Build.VERSION.SDK_INT}")
             appendLine()
             appendLine("Local pairing: ${if (local != null) "configured" else "not configured"}")
-            appendLine("Remote gateway: ${if (remote != null) "configured" else "not configured"}")
+            appendLine("Remote gateway: ${if (remoteConfigured) "configured" else "not configured"}")
             appendLine("Active mode: $mode")
             appendLine("Active credential: ${if (active != null) "available" else "unavailable"}")
             appendLine("Cleartext traffic: disabled by manifest")
