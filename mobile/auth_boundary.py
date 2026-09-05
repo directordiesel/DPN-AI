@@ -38,7 +38,7 @@ class MobileDeviceIdentity:
 
 
 class MobileDeviceAuthBoundary:
-    """Validate mobile device credentials using the unified application database."""
+    """Validate and administer mobile device credentials in the unified database."""
 
     def __init__(self, store: SettingsStore) -> None:
         self._store = store
@@ -56,17 +56,55 @@ class MobileDeviceAuthBoundary:
             raise
         return MobileDeviceIdentity(device_id=record.device_id, device_name=record.device_name)
 
-    def _audit_rejection(self, device_id: str) -> None:
-        safe_id = device_id.strip()[:128]
-        try:
-            self._store.audit(
-                "mobile.device_auth_rejected",
-                "Rejected mobile device credential",
-                {"device_id": safe_id},
-                actor="mobile",
+    def register(
+        self,
+        *,
+        device_id: str,
+        device_name: str,
+        credential: str,
+        issued_at: int | None = None,
+    ) -> MobileDeviceIdentity:
+        """Persist only the credential digest and bounded device metadata."""
+        record = self._registry.register(
+            device_id=device_id,
+            device_name=device_name,
+            token=credential,
+            issued_at=issued_at,
+        )
+        self._audit(
+            "mobile.device_registered",
+            "Registered mobile device credential",
+            {"device_id": record.device_id, "device_name": record.device_name},
+        )
+        return MobileDeviceIdentity(device_id=record.device_id, device_name=record.device_name)
+
+    def revoke(self, device_id: str) -> bool:
+        """Persistently revoke a mobile device credential immediately."""
+        revoked = self._registry.revoke(device_id)
+        if revoked:
+            self._audit(
+                "mobile.device_revoked",
+                "Revoked mobile device credential",
+                {"device_id": device_id.strip()[:128]},
             )
+        return revoked
+
+    def list_devices(self) -> list[dict[str, Any]]:
+        """Return secret-free device metadata suitable for desktop administration."""
+        return self._registry.list_devices()
+
+    def _audit_rejection(self, device_id: str) -> None:
+        self._audit(
+            "mobile.device_auth_rejected",
+            "Rejected mobile device credential",
+            {"device_id": device_id.strip()[:128]},
+        )
+
+    def _audit(self, event_type: str, summary: str, metadata: dict[str, Any]) -> None:
+        try:
+            self._store.audit(event_type, summary, metadata, actor="mobile")
         except Exception:
-            # Authentication must never become permissive because audit storage is unavailable.
+            # Authentication/authorization must never become permissive because audit storage is unavailable.
             pass
 
 
