@@ -62,7 +62,25 @@ def test_revocation_is_persistent_and_immediate():
         registry.validate(device_id="android-001", token=token)
 
 
-def test_repairing_same_device_rotates_credential_and_reactivates():
+def test_active_device_cannot_be_silently_repaired_or_credential_replaced():
+    registry, state = make_registry(now=4000)
+    old_token = "A" * 48
+    registry.register(device_id="android-001", device_name="Diesel Phone", token=old_token, issued_at=1000)
+    original_digest = state["devices"]["android-001"]["token_hash"]
+
+    with pytest.raises(DeviceRegistryError, match="revoked before re-pairing"):
+        registry.register(
+            device_id="android-001",
+            device_name="Diesel Phone",
+            token="B" * 48,
+            issued_at=4000,
+        )
+
+    assert state["devices"]["android-001"]["token_hash"] == original_digest
+    assert registry.validate(device_id="android-001", token=old_token, touch=False).active is True
+
+
+def test_repairing_revoked_device_rotates_credential_and_reactivates():
     registry, _ = make_registry(now=4000)
     old_token = "A" * 48
     new_token = "B" * 48
@@ -73,6 +91,37 @@ def test_repairing_same_device_rotates_credential_and_reactivates():
     with pytest.raises(DeviceRegistryError):
         registry.validate(device_id="android-001", token=old_token, touch=False)
     assert registry.validate(device_id="android-001", token=new_token, touch=False).active is True
+
+
+def test_last_seen_never_moves_backward_when_clock_regresses_after_prior_touch():
+    state: dict = {}
+    now = [3000]
+
+    def load_state():
+        return state.copy()
+
+    def save_state(value):
+        state.clear()
+        state.update(value)
+
+    registry = DeviceCredentialRegistry(load_state=load_state, save_state=save_state, clock=lambda: now[0])
+    token = "A" * 48
+    registry.register(device_id="android-001", device_name="Diesel Phone", token=token, issued_at=1000)
+    assert registry.validate(device_id="android-001", token=token).last_seen_at == 3000
+
+    now[0] = 2500
+    assert registry.validate(device_id="android-001", token=token).last_seen_at == 3000
+
+
+def test_clock_before_credential_issue_fails_closed_for_touch_and_revoke():
+    registry, _ = make_registry(now=900)
+    token = "A" * 48
+    registry.register(device_id="android-001", device_name="Diesel Phone", token=token, issued_at=1000)
+
+    with pytest.raises(DeviceRegistryError, match="clock predates"):
+        registry.validate(device_id="android-001", token=token)
+    with pytest.raises(DeviceRegistryError, match="clock predates"):
+        registry.revoke("android-001")
 
 
 def test_device_list_never_exposes_token_hash_or_raw_token():
@@ -94,9 +143,44 @@ def test_corrupt_registry_state_fails_closed():
         registry.list_devices()
 
 
-def test_registry_rejects_short_tokens_and_unbounded_identity():
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("issued_at", True, "issue timestamp"),
+        ("last_seen_at", 999, "predates issuance"),
+        ("revoked_at", 999, "predates issuance"),
+    ],
+)
+def test_corrupt_or_non_monotonic_timestamps_fail_closed(field, value, match):
+    token_hash = "a" * 64
+    device = {
+        "device_name": "Diesel Phone",
+        "token_hash": token_hash,
+        "issued_at": 1000,
+        "last_seen_at": None,
+        "revoked_at": None,
+    }
+    device[field] = value
+    state = {"version": 1, "devices": {"android-001": device}}
+    registry = DeviceCredentialRegistry(load_state=lambda: state, save_state=lambda _: None)
+
+    with pytest.raises(DeviceRegistryError, match=match):
+        registry.list_devices()
+
+
+def test_registry_rejects_short_oversized_or_control_character_credentials():
     registry, _ = make_registry()
     with pytest.raises(DeviceRegistryError, match="too short"):
         registry.register(device_id="android-001", device_name="Diesel Phone", token="short")
+    with pytest.raises(DeviceRegistryError, match="credential is invalid"):
+        registry.register(device_id="android-001", device_name="Diesel Phone", token="A" * 513)
+    with pytest.raises(DeviceRegistryError, match="credential is invalid"):
+        registry.register(device_id="android-001", device_name="Diesel Phone", token=("A" * 40) + "\n")
+
+
+def test_registry_rejects_unbounded_or_control_character_identity():
+    registry, _ = make_registry()
     with pytest.raises(DeviceRegistryError, match="identifier"):
         registry.register(device_id="x" * 129, device_name="Diesel Phone", token="A" * 48)
+    with pytest.raises(DeviceRegistryError, match="identifier"):
+        registry.register(device_id="android\n001", device_name="Diesel Phone", token="A" * 48)
