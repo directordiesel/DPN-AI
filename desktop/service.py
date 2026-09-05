@@ -1,8 +1,9 @@
 """DPN AI v8 desktop service facade.
 
 This module reuses the existing unified FastAPI application, database, tools, model
-runtime, automation engine, and agent state. It adds only desktop-specific,
-versioned read models and an SSE stream; it does not create a second AI runtime.
+runtime, automation engine, and agent state. It adds desktop-specific versioned
+read models, an SSE stream, and the Mobile v1 device authentication adapter without
+creating a second AI runtime.
 """
 
 from __future__ import annotations
@@ -13,16 +14,59 @@ from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 from fastapi import Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
+from app.config import settings
 from app.main import app, db, agent
+from mobile.auth_boundary import MobileDeviceAuthBoundary
+from mobile.device_registry import DeviceRegistryError
 
 
 DESKTOP_API_VERSION = "v1"
+_mobile_auth = MobileDeviceAuthBoundary(db)
 
 
 def _count_status(items: list[dict[str, Any]], status: str) -> int:
     return sum(str(item.get("status", "")).lower() == status.lower() for item in items)
+
+
+def _replace_header(scope: dict[str, Any], name: bytes, value: bytes | None) -> None:
+    lowered = name.lower()
+    headers = [(key, item) for key, item in scope.get("headers", []) if key.lower() != lowered]
+    if value is not None:
+        headers.append((name, value))
+    scope["headers"] = headers
+
+
+@app.middleware("http")
+async def mobile_device_access_boundary(request: Request, call_next):
+    """Validate device-scoped mobile credentials before the existing API boundary.
+
+    Android never receives the desktop-wide access token. A request that declares a
+    mobile device must first pass the persistent device registry. Only then is the
+    request translated into an internal trusted call so app.main's existing API
+    boundary remains the single downstream authorization gate.
+    """
+    path = request.url.path
+    device_id = request.headers.get("X-DPN-Device-ID", "").strip()
+    if path.startswith("/api") and device_id:
+        credential = request.headers.get("X-DPN-Token", "")
+        try:
+            identity = _mobile_auth.authenticate(device_id=device_id, credential=credential)
+        except DeviceRegistryError:
+            return JSONResponse(status_code=401, content={"detail": "Mobile device credential rejected."})
+
+        request.state.mobile_device = identity
+        if settings.access_token:
+            _replace_header(request.scope, b"x-dpn-token", settings.access_token.encode("utf-8"))
+        else:
+            # The mobile credential is the authenticated boundary. For a local-only
+            # desktop configuration, present the validated call to the existing
+            # loopback-only API gate as internal traffic rather than weakening it.
+            request.scope["client"] = ("127.0.0.1", 0)
+            _replace_header(request.scope, b"x-dpn-token", None)
+
+    return await call_next(request)
 
 
 def desktop_summary() -> dict[str, Any]:
