@@ -46,39 +46,57 @@ jobs:
         run: .github\scripts\resolve_windows_python.cmd
 
       - name: Build tested Windows package
-        shell: powershell
-        run: .\packaging\windows\build.ps1 -Python $env:PYTHON_EXE
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build.ps1" -Python "%PYTHON_EXE%"
 
       - name: Validate package manifest
-        shell: powershell
+        shell: python
         run: |
-          $manifestPath = ".\dist\DPN-AI\build-manifest.json"
-          if (-not (Test-Path $manifestPath)) { throw "Missing build manifest" }
-          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          $exe = ".\dist\DPN-AI\DPN-AI.exe"
-          if (-not (Test-Path $exe)) { throw "Missing DPN-AI.exe" }
-          $actual = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLowerInvariant()
-          if ($actual -ne $manifest.sha256) { throw "Executable SHA-256 does not match build manifest" }
-          if ($manifest.signing -ne "unsigned-development-artifact") { throw "Unexpected signing state" }
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest_path = Path("dist/DPN-AI/build-manifest.json")
+          exe = Path("dist/DPN-AI/DPN-AI.exe")
+          if not manifest_path.is_file():
+              raise SystemExit("Missing build manifest")
+          if not exe.is_file():
+              raise SystemExit("Missing DPN-AI.exe")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+          actual = hashlib.sha256(exe.read_bytes()).hexdigest()
+          if actual != manifest.get("sha256"):
+              raise SystemExit("Executable SHA-256 does not match build manifest")
+          if manifest.get("signing") != "unsigned-development-artifact":
+              raise SystemExit("Unexpected signing state")
 
       - name: Build validated Windows installer
-        shell: powershell
-        run: .\packaging\windows\build-installer.ps1 -Python $env:PYTHON_EXE
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build-installer.ps1" -Python "%PYTHON_EXE%"
 
       - name: Validate installer manifest
-        shell: powershell
+        shell: python
         run: |
-          $version = (Get-Content .\VERSION -Raw).Trim()
-          $manifestPath = ".\dist\installer\installer-manifest.json"
-          if (-not (Test-Path $manifestPath)) { throw "Missing installer manifest" }
-          $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          if ($manifest.version -ne $version) { throw "Installer manifest version mismatch" }
-          $installer = Join-Path ".\dist\installer" $manifest.installer
-          if (-not (Test-Path $installer)) { throw "Missing installer executable" }
-          $actual = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
-          if ($actual -ne $manifest.sha256) { throw "Installer SHA-256 does not match installer manifest" }
-          if ($manifest.signing -ne "unsigned-development-installer") { throw "Unexpected installer signing state" }
-          if ($manifest.uninstall_data_policy -ne "preserve-user-data-outside-install-directory") { throw "Unsafe uninstall data policy" }
+          import hashlib
+          import json
+          from pathlib import Path
+
+          version = Path("VERSION").read_text(encoding="utf-8").strip()
+          manifest_path = Path("dist/installer/installer-manifest.json")
+          if not manifest_path.is_file():
+              raise SystemExit("Missing installer manifest")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+          if manifest.get("version") != version:
+              raise SystemExit("Installer manifest version mismatch")
+          installer = Path("dist/installer") / str(manifest.get("installer", ""))
+          if not installer.is_file():
+              raise SystemExit("Missing installer executable")
+          actual = hashlib.sha256(installer.read_bytes()).hexdigest()
+          if actual != manifest.get("sha256"):
+              raise SystemExit("Installer SHA-256 does not match installer manifest")
+          if manifest.get("signing") != "unsigned-development-installer":
+              raise SystemExit("Unexpected installer signing state")
+          if manifest.get("uninstall_data_policy") != "preserve-user-data-outside-install-directory":
+              raise SystemExit("Unsafe uninstall data policy")
 
       - name: Upload development package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
