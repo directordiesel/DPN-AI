@@ -62,6 +62,35 @@ def test_allowlisted_host_can_be_used_without_global_external_permission():
     assert decision.allowed is True
 
 
+def test_allowlist_does_not_bypass_private_network_or_https_policy():
+    private = SecurityHardeningRuntime.authorize_network_url(
+        "http://127.0.0.1:11434", allowed_hosts={"127.0.0.1"}
+    )
+    assert private.allowed is False
+    private_allowed = SecurityHardeningRuntime.authorize_network_url(
+        "http://127.0.0.1:11434", allowed_hosts={"127.0.0.1"}, allow_private=True
+    )
+    assert private_allowed.allowed is True
+    cleartext_external = SecurityHardeningRuntime.authorize_network_url(
+        "http://trusted.example/api", allowed_hosts={"trusted.example"}
+    )
+    assert cleartext_external.allowed is False
+
+
+def test_network_urls_reject_userinfo_controls_and_malformed_ports():
+    assert SecurityHardeningRuntime.authorize_network_url("https://user:pass@example.com/api", allow_external=True).allowed is False
+    assert SecurityHardeningRuntime.authorize_network_url("https://example.com:99999/api", allow_external=True).allowed is False
+    assert SecurityHardeningRuntime.authorize_network_url("https://example.com/\napi", allow_external=True).allowed is False
+
+
+def test_malformed_host_allowlist_fails_closed():
+    decision = SecurityHardeningRuntime.authorize_network_url(
+        "https://example.com/api", allowed_hosts={"https://example.com"}
+    )
+    assert decision.allowed is False
+    assert "allowlist" in decision.reason
+
+
 def test_audit_chain_detects_tampering():
     key = b"test-integrity-key"
     first = SecurityHardeningRuntime.build_audit_envelope(
@@ -110,3 +139,39 @@ def test_audit_sequence_gaps_fail_closed():
         previous_hash=first.event_hash,
     )
     assert SecurityHardeningRuntime.verify_audit_chain([first, second]) is False
+
+
+def test_audit_previous_hash_and_event_hash_must_be_canonical_sha256():
+    with pytest.raises(SecurityHardeningError, match="previous hash"):
+        SecurityHardeningRuntime.build_audit_envelope(
+            sequence=2,
+            event_type="bad",
+            actor="system",
+            summary="bad",
+            previous_hash="not-a-digest",
+        )
+    valid = SecurityHardeningRuntime.build_audit_envelope(
+        sequence=1, event_type="one", actor="system", summary="one"
+    )
+    malformed = AuditEnvelope(
+        sequence=valid.sequence,
+        event_type=valid.event_type,
+        actor=valid.actor,
+        summary=valid.summary,
+        metadata=valid.metadata,
+        previous_hash=valid.previous_hash,
+        event_hash="xyz",
+    )
+    assert SecurityHardeningRuntime.verify_audit_chain([malformed]) is False
+
+
+def test_audit_integrity_key_requires_minimum_strength():
+    with pytest.raises(SecurityHardeningError, match="integrity key"):
+        SecurityHardeningRuntime.build_audit_envelope(
+            sequence=1, event_type="one", actor="system", summary="one", integrity_key=b"short"
+        )
+    assert SecurityHardeningRuntime.verify_audit_chain([], integrity_key=b"short") is False
+
+
+def test_audit_verification_rejects_non_envelope_items():
+    assert SecurityHardeningRuntime.verify_audit_chain([{"sequence": 1}]) is False
