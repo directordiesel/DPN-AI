@@ -58,14 +58,19 @@ jobs:
         shell: cmd
         run: python .github\scripts\runtime_assurance.py
       - name: Reject leaked runtime state after assurance
-        shell: powershell
+        shell: python
         run: |
-          $leaked = git status --porcelain --untracked-files=all | Select-String -Pattern '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/'
-          if ($leaked) {
-            Write-Error 'Runtime assurance leaked private state into the checkout'
-            $leaked | ForEach-Object { Write-Host $_ }
-            exit 1
-          }
+          import re
+          import subprocess
+          status = subprocess.check_output(
+              ["git", "status", "--porcelain", "--untracked-files=all"],
+              text=True,
+              errors="replace",
+          ).splitlines()
+          pattern = re.compile(r"(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/", re.I)
+          leaked = [line for line in status if pattern.search(line)]
+          if leaked:
+              raise SystemExit("Runtime assurance leaked private state into the checkout:\n" + "\n".join(leaked))
 
   runtime-recovery-pr-trusted:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
@@ -96,14 +101,19 @@ jobs:
         shell: cmd
         run: python .github\scripts\runtime_assurance.py
       - name: Reject leaked runtime state after assurance
-        shell: powershell
+        shell: python
         run: |
-          $leaked = git status --porcelain --untracked-files=all | Select-String -Pattern '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/'
-          if ($leaked) {
-            Write-Error 'Runtime assurance leaked private state into the checkout'
-            $leaked | ForEach-Object { Write-Host $_ }
-            exit 1
-          }
+          import re
+          import subprocess
+          status = subprocess.check_output(
+              ["git", "status", "--porcelain", "--untracked-files=all"],
+              text=True,
+              errors="replace",
+          ).splitlines()
+          pattern = re.compile(r"(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/", re.I)
+          leaked = [line for line in status if pattern.search(line)]
+          if leaked:
+              raise SystemExit("Runtime assurance leaked private state into the checkout:\n" + "\n".join(leaked))
 
   runtime-recovery-pr-hosted:
     if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
