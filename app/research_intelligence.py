@@ -11,6 +11,31 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 _TRACKING_PREFIXES = ("utm_",)
 _TRACKING_KEYS = {"fbclid", "gclid", "mc_cid", "mc_eid"}
+_STANCE_ALIASES = {
+    "support": "supports",
+    "supports": "supports",
+    "supported": "supports",
+    "confirm": "supports",
+    "confirms": "supports",
+    "confirmed": "supports",
+    "agree": "supports",
+    "agrees": "supports",
+    "true": "supports",
+    "yes": "supports",
+    "refute": "refutes",
+    "refutes": "refutes",
+    "refuted": "refutes",
+    "deny": "refutes",
+    "denies": "refutes",
+    "denied": "refutes",
+    "disagree": "refutes",
+    "disagrees": "refutes",
+    "false": "refutes",
+    "no": "refutes",
+    "unknown": "unknown",
+    "unclear": "unclear",
+    "mixed": "unclear",
+}
 
 
 @dataclass(frozen=True)
@@ -156,6 +181,15 @@ class ResearchIntelligence:
         content_bonus = 0.05 if has_content else 0.0
         return round(min(1.0, authority * 0.45 + freshness * 0.20 + relevance * 0.35 + content_bonus), 6)
 
+    @staticmethod
+    def quality_tier(score: float) -> str:
+        value = max(0.0, min(1.0, float(score)))
+        if value >= 0.85:
+            return "high"
+        if value >= 0.65:
+            return "medium"
+        return "low"
+
     def build_sources(self, query: str, raw_sources: list[dict[str, Any]], *, now: datetime | None = None) -> list[ResearchSource]:
         deduped: dict[str, ResearchSource] = {}
         for item in raw_sources:
@@ -189,7 +223,7 @@ class ResearchIntelligence:
             existing = deduped.get(url)
             if existing is None or source.quality_score > existing.quality_score or len(source.content) > len(existing.content):
                 deduped[url] = source
-        ranked = sorted(deduped.values(), key=lambda item: (-item.quality_score, item.domain, item.url))
+        ranked = sorted(deduped.values(), key=lambda item: (-item.quality_score, -item.authority_score, item.domain, item.url))
         return ranked[: self.max_sources]
 
     def evidence_bundle(self, query: str, raw_sources: list[dict[str, Any]]) -> dict[str, Any]:
@@ -203,12 +237,16 @@ class ResearchIntelligence:
         for index, source in enumerate(sources, start=1):
             label = f"[R{index}] {source.title} — {source.domain}"
             body = (source.content or source.snippet).strip()
+            source_chars = len(body)
             remaining = self.max_content_chars - used
             if remaining <= 0:
                 break
-            block = f"{label}\nURL: {source.url}\n{body}".strip()
-            if len(block) > remaining:
-                block = block[:remaining]
+            prefix = f"{label}\nURL: {source.url}\n"
+            if len(prefix) >= remaining:
+                break
+            excerpt_budget = remaining - len(prefix)
+            excerpt = body[:excerpt_budget]
+            block = f"{prefix}{excerpt}".strip()
             if not block:
                 continue
             context_parts.append(block)
@@ -219,17 +257,30 @@ class ResearchIntelligence:
                 "url": source.url,
                 "domain": source.domain,
                 "quality_score": source.quality_score,
+                "quality_tier": self.quality_tier(source.quality_score),
+                "authority_score": source.authority_score,
+                "freshness_score": source.freshness_score,
+                "relevance_score": source.relevance_score,
                 "published_at": source.published_at,
+                "source_chars": source_chars,
+                "excerpt_chars": len(excerpt),
+                "truncated": len(excerpt) < source_chars,
             })
-            used += len(block) + 2
+            used = len("\n\n".join(context_parts))
+        context = "\n\n".join(context_parts)
         return {
             "ok": True,
             "query": query,
             "sources": [item.to_dict() for item in sources],
             "citations": citations,
-            "context": "\n\n".join(context_parts),
-            "context_chars": min(used, self.max_content_chars),
+            "context": context,
+            "context_chars": len(context),
         }
+
+    @staticmethod
+    def _normalize_stance(stance: str) -> str:
+        normalized = re.sub(r"\s+", " ", (stance or "").strip().lower())
+        return _STANCE_ALIASES.get(normalized, normalized or "unknown")
 
     @staticmethod
     def detect_conflicts(claims: list[ClaimEvidence | dict[str, Any]]) -> list[dict[str, Any]]:
@@ -245,7 +296,9 @@ class ResearchIntelligence:
             normalized_claim = re.sub(r"\s+", " ", item.claim.strip().lower())
             if not normalized_claim:
                 continue
-            stance = item.stance.strip().lower() or "unknown"
+            if not math.isfinite(item.confidence) or item.confidence < 0.55:
+                continue
+            stance = ResearchIntelligence._normalize_stance(item.stance)
             grouped.setdefault(normalized_claim, {}).setdefault(stance, []).extend(item.source_ids)
             display_claims.setdefault(normalized_claim, item.claim.strip())
         conflicts: list[dict[str, Any]] = []
