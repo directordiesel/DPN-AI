@@ -1,4 +1,4 @@
-name: DPN Self-Hosted Runner Test
+name: DPN GitHub-Hosted Runner Test
 
 on:
   push:
@@ -12,14 +12,13 @@ permissions:
 
 jobs:
   smoke-test:
-    name: Self-hosted runner smoke test
-    runs-on: self-hosted
+    name: GitHub-hosted runner smoke test
+    runs-on: windows-latest
     timeout-minutes: 5
     steps:
       - name: Confirm runner assignment
         shell: cmd
-        run: echo Self-hosted runner is online and accepting DPN-AI jobs.
-
+        run: echo GitHub-hosted Windows runner is online and accepting DPN-AI jobs.
       - name: Report runner context
         shell: cmd
         run: |
