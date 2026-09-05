@@ -15,8 +15,9 @@ def test_vision_activity_is_internal_and_control_center_gated():
     assert 'android:name=".VisionActivity"' in manifest
     vision_registration = manifest.split('android:name=".VisionActivity"', 1)[1].split("/>", 1)[0]
     assert 'android:exported="false"' in vision_registration
-    assert 'text = "Open Vision Console"' in main
-    assert "visionButton.isEnabled = paired" in main
+    assert 'addCapability(root, "Vision Console", VisionActivity::class.java)' in main
+    assert 'setCapabilityButtons(active)' in main
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in main
 
 
 def test_camera_and_gallery_are_explicit_user_actions_without_background_capture():
@@ -44,6 +45,7 @@ def test_mobile_vision_uses_bounded_authenticated_workspace_upload_and_unified_c
 
 def test_attachment_paths_are_workspace_relative_and_bounded():
     api = read(ANDROID / "java" / "com" / "dpntechnology" / "dpnai" / "network" / "DesktopApiClient.kt")
-    assert 'require(!clean.startsWith("/") && !clean.contains(".."))' in api
+    assert 'clean.isNotEmpty() && clean.length <= 1000' in api
+    assert '!clean.startsWith("/") && !clean.contains("..")' in api
     assert "MAX_ATTACHMENTS = 8" in api
     assert "MAX_RESPONSE_CHARS = 2_000_000" in api
