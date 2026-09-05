@@ -30,6 +30,12 @@ RISK_ORDER = {
     RiskLevel.DESKTOP: 4,
 }
 
+# These risks can directly destroy user data or operate the host desktop. They
+# are intentionally never satisfied by session or persistent grants. A human
+# must approve each invocation so a broad rule cannot silently become durable
+# authority for the most consequential actions.
+PER_INVOCATION_RISKS = frozenset({RiskLevel.DESTRUCTIVE, RiskLevel.DESKTOP})
+
 
 @dataclass(frozen=True)
 class PermissionRule:
@@ -55,7 +61,9 @@ class PermissionEngine:
 
     Rule precedence is explicit tool > capability gate > default. Session grants
     never become persistent grants. Risk above the rule ceiling escalates to a
-    human approval rather than silently expanding authority.
+    human approval rather than silently expanding authority. Destructive and
+    desktop-control actions always require fresh per-invocation approval, even if
+    a session or persistent rule would otherwise allow them.
     """
 
     def __init__(self, default_mode: PermissionMode = PermissionMode.ASK_EVERY_TIME):
@@ -121,6 +129,16 @@ class PermissionEngine:
                 rule.mode,
                 f"tool risk {normalized_risk.value} exceeds allowed ceiling {rule.max_risk.value}",
                 source,
+                normalized_risk,
+            )
+
+        if normalized_risk in PER_INVOCATION_RISKS:
+            return PermissionDecision(
+                False,
+                True,
+                PermissionMode.ASK_EVERY_TIME,
+                f"{normalized_risk.value} actions require fresh human approval for every invocation",
+                "high_risk_floor",
                 normalized_risk,
             )
 
