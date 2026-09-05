@@ -1,4 +1,4 @@
-name: DPN Self-Hosted PowerShell Repair
+name: DPN GitHub-Hosted PowerShell Validation
 
 on:
   push:
@@ -11,27 +11,20 @@ permissions:
   contents: read
 
 jobs:
-  repair-powershell:
-    name: Repair and verify PowerShell on DIESEL-118
-    runs-on: self-hosted
+  validate-powershell:
+    name: Validate PowerShell on GitHub-hosted Windows
+    runs-on: windows-latest
     timeout-minutes: 5
-
     steps:
-      - name: Identify runner account and current policy
+      - name: Identify hosted runner and execution policy
         shell: cmd
         run: |
           whoami
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Get-ExecutionPolicy -List | Format-Table -AutoSize"
-
-      - name: Set CurrentUser policy to RemoteSigned
-        shell: cmd
-        run: |
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force; Write-Host 'CurrentUser policy:' (Get-ExecutionPolicy -Scope CurrentUser)"
-
-      - name: Verify standard GitHub PowerShell execution
+      - name: Verify GitHub PowerShell execution
         shell: powershell
         run: |
           Write-Host "PowerShell is working normally on runner $env:RUNNER_NAME"
           Write-Host "Effective policy: $(Get-ExecutionPolicy)"
           Get-ExecutionPolicy -List | Format-Table -AutoSize
-          Write-Host "DPN self-hosted PowerShell repair verified."
+          Write-Host "DPN GitHub-hosted PowerShell validation passed."
