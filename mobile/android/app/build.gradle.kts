@@ -64,6 +64,10 @@ android {
         abortOnError = true
         checkReleaseBuilds = true
         warningsAsErrors = true
+        // Mobile v1 is intentionally English-only. Keep every compatibility,
+        // security, privacy, API, and correctness lint rule fatal while deferring
+        // localization-resource migration to the localization release track.
+        disable += "SetTextI18n"
     }
 
     packaging {
