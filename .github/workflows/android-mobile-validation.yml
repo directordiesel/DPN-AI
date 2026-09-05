@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
 
+# DPN-AI mobile validation runs entirely on GitHub-hosted runners.
 concurrency:
   group: android-mobile-validation-${{ github.ref }}
   cancel-in-progress: true
