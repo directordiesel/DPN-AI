@@ -33,17 +33,23 @@ class ResearchTools:
         }
 
 
-def install_research_tools(registry: Any) -> ResearchTools:
-    """Install v9 research intelligence as core ToolRegistry capabilities.
+def install_research_tools(registry: Any) -> ResearchTools | None:
+    """Install v9 research intelligence when the runtime supports tool registration.
 
-    This hook is called from the core plugin initialization path, before optional
-    user plugins are loaded, so the research tools are available in the unified
-    registry without relying on a configurable plugin file.
+    ``load_plugins`` is also exercised by security tests with minimal registry
+    stubs. Those callers intentionally do not implement the full ToolRegistry
+    contract, so this core capability hook must not weaken or interfere with the
+    plugin-loader boundary. Full registries receive the research capabilities;
+    minimal stubs are left untouched.
     """
+    register = getattr(registry, "register", None)
+    if not callable(register):
+        return None
+
     tools = ResearchTools()
     registry.research = tools
 
-    registry.register(
+    register(
         "research_web",
         "Run bounded multi-source web research with source authority, freshness, relevance scoring, deduplication, and citation-ready evidence.",
         {
@@ -56,7 +62,7 @@ def install_research_tools(registry: Any) -> ResearchTools:
         gate="web",
         risk="external",
     )
-    registry.register(
+    register(
         "detect_claim_conflicts",
         "Detect conflicting stances for the same research claim using explicit source evidence references.",
         {
