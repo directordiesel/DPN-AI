@@ -96,3 +96,42 @@ def test_invalid_device_and_unknown_operation_are_rejected():
         policy.evaluate(DeviceTrustContext(device_id="bad\ndevice", paired=True), "read")
     with pytest.raises(TrustPolicyError, match="unsupported"):
         policy.evaluate(DeviceTrustContext(device_id="phone", paired=True), "shell")
+
+
+def test_transport_like_truthy_values_cannot_forge_authorization_flags():
+    policy = MobileTrustPolicyV2()
+    with pytest.raises(TrustPolicyError, match="paired"):
+        policy.evaluate(DeviceTrustContext(device_id="phone", paired="true"), "read")  # type: ignore[arg-type]
+    with pytest.raises(TrustPolicyError, match="approval present"):
+        policy.evaluate(
+            DeviceTrustContext(device_id="phone", paired=True, approval_present=1),  # type: ignore[arg-type]
+            "execute",
+        )
+
+
+def test_invalid_connection_modes_and_session_ages_fail_closed():
+    policy = MobileTrustPolicyV2()
+    with pytest.raises(TrustPolicyError, match="connection mode"):
+        policy.evaluate(
+            DeviceTrustContext(device_id="phone", paired=True, connection_mode="vpn"),  # type: ignore[arg-type]
+            "read",
+        )
+    with pytest.raises(TrustPolicyError, match="session age"):
+        policy.evaluate(DeviceTrustContext(device_id="phone", paired=True, session_age_seconds=True), "read")
+    with pytest.raises(TrustPolicyError, match="session age"):
+        policy.evaluate(DeviceTrustContext(device_id="phone", paired=True, session_age_seconds=-1), "read")
+
+
+def test_valid_string_connection_mode_is_normalized_explicitly():
+    policy = MobileTrustPolicyV2()
+    result = policy.evaluate(
+        DeviceTrustContext(
+            device_id="phone",
+            paired=True,
+            connection_mode=" REMOTE ",  # type: ignore[arg-type]
+            remote_gateway_authenticated=True,
+        ),
+        "read",
+    )
+    assert result["ok"] is True
+    assert result["connection_mode"] == "remote"
