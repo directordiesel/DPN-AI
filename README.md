@@ -1,257 +1,362 @@
 <h1 align="center">DPN AI</h1>
 
-<p align="center"><strong>Developed by DPN Technology</strong></p>
+<p align="center"><strong>Local-first autonomous AI operations platform by DPN Technology</strong></p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/Stable-v6.0.0-2563eb?style=for-the-badge">
-  <img alt="Release Candidate" src="https://img.shields.io/badge/9.0.0--rc.1-Release%20Candidate-7c3aed?style=for-the-badge">
-  <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
-  <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
-  <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-REQUIRED-16a34a?style=for-the-badge"></a>
+  <img alt="Stable" src="https://img.shields.io/badge/Stable-v9.0.0-6d28d9?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/badge/Release-Published-16a34a?style=for-the-badge">
+  <img alt="Repository" src="https://img.shields.io/badge/Repository-Public-111827?style=for-the-badge">
+  <img alt="Architecture" src="https://img.shields.io/badge/Architecture-Local--First-7c3aed?style=for-the-badge">
+  <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-Required-2563eb?style=for-the-badge"></a>
 </p>
 
-> **Published stable release:** v6.0.0 · Advanced Core  
-> **Published stable release:** v9.0.0 · DPN AI v9
-> **Technology:** Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal
+<p align="center">
+  <strong>Stable release:</strong> v9.0.0 &nbsp;•&nbsp;
+  <strong>Publisher:</strong> DPN Technology &nbsp;•&nbsp;
+  <strong>Primary stack:</strong> Python + Local AI + Desktop + Android + Agents + Tools
+</p>
 
-## v8.0.0 Release Candidate Status
+---
 
-DPN AI v8.0.0 is implementation-complete on the dedicated desktop development branch and is being held behind strict release-readiness gates. It is not yet published as the stable GitHub release.
+## What DPN AI Is
 
-The v8 desktop line adds:
-- native Windows desktop launcher/supervisor and safe-mode recovery
-- black/purple Desktop Control Center with live runtime status
-- versioned desktop API and protected SSE status stream
-- Windows executable packaging and installer foundations
-- updater/rollback integrity contracts
-- per-user Windows startup/context-menu/tray integration
-- persistent crash journaling, integrity-tagged backups, and diagnostics hardening
-- CPU/RAM pressure controls and model lifecycle management
-- dedicated v8 security, QA, packaging, and release-readiness workflows
+DPN AI is an evidence-driven, local-first AI operations platform designed to do substantially more than chat. It combines agent orchestration, coding assistance, project memory, retrieval, research, office-artifact creation, voice, image generation, automation, model routing, connectors, recovery systems, desktop/mobile interfaces, security controls, and release engineering inside one coordinated application architecture.
 
-Final stable publication remains blocked only by:
-- coordinated version promotion across `VERSION`, runtime `APP_VERSION`, UI stable-core/version markers, and related release metadata
-- genuine production Windows code-signing integration and verification
-- final exact-head release gates and explicit stable merge/release authorization
+The platform is built around a simple operating principle: **powerful AI actions should remain observable, bounded, reviewable, recoverable, and subject to explicit permissions.**
 
-## Download Current Published Release
+DPN AI can plan multi-step work, route tasks to specialized agents, invoke approved tools, create artifacts, analyze repositories, perform research, retain scoped memory, schedule workflows, use local models, interact with reviewed integrations, record evidence, and recover from failures without pretending an unsupported or failed capability succeeded.
 
-The current verified published stable release is **v6.0.0**.
+## Download v9.0.0
 
-| Release Resource | Link |
+The current published stable release is **DPN AI v9.0.0**.
+
+| Release resource | Link |
 | --- | --- |
-| GitHub Release | [DPN AI v6.0.0](https://github.com/directordiesel/DPN-AI/releases/tag/v6.0.0) |
-| Source archive | [`DPN-AI-v6.0.0-source.zip`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/DPN-AI-v6.0.0-source.zip) |
-| SHA-256 checksums | [`SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SHA256SUMS.txt) |
-| Release manifest | [`RELEASE_MANIFEST.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/RELEASE_MANIFEST.txt) |
-| SPDX SBOM | [`SBOM.spdx.json`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SBOM.spdx.json) |
-| Source integrity manifest | [`SOURCE_SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v6.0.0/SOURCE_SHA256SUMS.txt) |
+| GitHub Release | [DPN AI v9.0.0](https://github.com/directordiesel/DPN-AI/releases/tag/v9.0.0) |
+| Source archive | [`DPN-AI-v9.0.0-source.zip`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/DPN-AI-v9.0.0-source.zip) |
+| SHA-256 checksum | [`SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/SHA256SUMS.txt) |
+| Release manifest | [`RELEASE_MANIFEST.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/RELEASE_MANIFEST.txt) |
+| SPDX SBOM | [`SBOM.spdx.json`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/SBOM.spdx.json) |
+| Source integrity manifest | [`SOURCE_SHA256SUMS.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/SOURCE_SHA256SUMS.txt) |
+| Dependency inventory | [`DEPENDENCY_INVENTORY.txt`](https://github.com/directordiesel/DPN-AI/releases/download/v9.0.0/DEPENDENCY_INVENTORY.txt) |
 
-Release artifacts are generated from the verified release commit through controlled GitHub Actions release gates.
+Release artifacts are generated by the controlled GitHub Actions release pipeline after version checks, repository-state checks, tests, SBOM generation, source hashing, and release validation.
 
-## Overview
+## v9.0.0 at a Glance
 
-DPN AI is a local-first AI operations platform designed for agentic software engineering, artifact creation, multimodal work, automation, persistent projects, research, connectors, memory, verification, recovery, and controlled computer/web capabilities.
+| Area | v9 capability |
+| --- | --- |
+| Intelligence | Planner / executor / reviewer orchestration with dependencies, retries, evidence, and failure blocking |
+| Coding | Repository-aware engineering, change-risk analysis, test planning, CI diagnosis, and self-review foundations |
+| Tools | Permission-aware tools, risk classification, approval boundaries, sandbox controls, timeouts, and auditability |
+| Memory | Scoped persistent memory, semantic retrieval, RAG, context assembly, and knowledge-base foundations |
+| Research | Web research runtime, source ranking, evidence collection, and contradiction/conflict handling |
+| Artifacts | DOCX, PDF, XLSX, PPTX, structured data, validation metadata, and Artifact Studio orchestration |
+| Images | Real ComfyUI image generation plus provider-ready editing and vision routes that fail closed when unconfigured |
+| Automation | Persistent scheduling, workflow dependencies, retries, overlap policy, run history, and recovery foundations |
+| Voice | Offline/local STT/TTS architecture, Piper voices, faster-whisper support, session state, and barge-in controls |
+| Desktop | Black/purple Control Center, command palette, live activity surfaces, approvals/tasks, and accessibility improvements |
+| Android | Secure pairing, device trust, credential revocation, authenticated gateway controls, chat/tasks/approvals/voice foundations |
+| Models | Local-first model routing, Ollama support, OpenAI-compatible endpoints, capability/health scoring, and bounded fallback |
+| Security | Encrypted vault, approval revalidation, prompt-injection defenses, network policy, tamper-evident audit chains |
+| Recovery | Snapshots, integrity checking, rollback/recovery controls, diagnostics, updater/release readiness |
+| SDK / Integrations | Governed connector requests, idempotency expectations, SDK contracts, and integration safety boundaries |
+| Evaluation | Production-readiness scoring, regression/security evaluations, critical-case fail-closed behavior |
+| Release Engineering | Version coherence, SBOM/checksums, release manifests, package verification, rollback evidence, exact-head gates |
 
-The platform is intentionally more than a chat interface. It can plan work, execute approved tools, persist state, create artifacts, operate multi-step missions, schedule jobs, connect to reviewed services, retain evidence, recover from failures, and apply approval/security boundaries before side effects.
-
-## Stable v6 Advanced Core
-
-v6.0.0 established the production foundation used by later development lines, including:
-- Universal Creator foundation
-- Coding Agent
-- Document and artifact workflows
-- Image and vision planning
-- Research/browser agent capability
-- Repository intelligence
-- Multimodal ingestion
-- Model routing and cognitive orchestration
-- Persistent memory and knowledge graph capability
-- Mission recovery and self-evaluation
-- Automation operations
-- Connector orchestration
-- Artifact preview/capability experience
-- Native vision reasoning foundations
-- Release readiness and security gates
-
-## v8 Desktop Platform Roadmap
-
-The v8 integration branch contains all planned implementation batches:
-1. Desktop platform foundation and security contracts
-2. Native launcher/supervisor and safe mode
-3. Desktop Control Center shell/navigation
-4. Unified desktop API and SSE status stream
-5. Windows executable packaging foundation
-6. Installer/repair/upgrade/uninstall foundation
-7. Signed updater/rollback verification contract
-8. Windows startup/context-menu/tray integration
-9. Crash recovery/backups/diagnostics hardening
-10. Performance/resource/model lifecycle controls
-11. Comprehensive security/QA/package validation
-12. Strict v8 release gates
-
-The v8 branch remains separate from stable `main` until final release blockers are resolved and an explicit merge/release is authorized.
-
-## Core Execution Model
+## Core Operating Model
 
 ```text
-User / API / Automation
-        ↓
-Goal Contract
-        ↓
-Agent Runtime / Specialist Routing
-        ↓
-Plan + Dependencies + Approval Gates
-        ↓
-Focused Tools / Connectors / Models
-        ↓
-Execution + Checkpoints + Recovery
-        ↓
-Evidence Verification
-        ↓
-Persistent Result / Artifact / Audit
+User / Desktop / Android / API / Automation
+                  ↓
+            Goal Contract
+                  ↓
+      Intelligence + Task Planning
+                  ↓
+       Specialist Agent Routing
+                  ↓
+   Permission / Risk / Approval Layer
+                  ↓
+ Tools / Models / Research / Connectors
+                  ↓
+ Execution + Checkpoints + Recovery
+                  ↓
+ Evidence + Reviewer Verification
+                  ↓
+ Result / Artifact / Audit / Memory
 ```
 
-## Agent Runtime
+## Intelligence Core
 
-DPN AI supports bounded specialist orchestration with planner, coder, researcher, creator, automation, critic, and verifier roles. Agentic work remains subject to tool permissions, runtime budgets, approval boundaries, cancellation, checkpoints, and evidence requirements.
+The v9 intelligence runtime introduces deterministic planner/executor/reviewer orchestration with explicit task dependencies and mission state. Work can be decomposed into ordered steps, retried within bounded policies, blocked when required evidence is missing, and summarized with explicit progress state.
 
-## Autonomous Coding
+The goal is not unbounded autonomy. The goal is **controlled autonomy with observable state and verifiable outcomes**.
 
-The coding path is designed around repository-aware work rather than isolated snippets:
-- map repository structure and dependencies
-- plan minimal multi-file change sets
-- identify high-risk or destructive operations
-- edit implementation files
-- compile and run targeted tests
-- run regression/security checks
-- inspect failures and repair safely
-- review the final diff
-- require changed-file and passing-check evidence before claiming completion
+## Coding Agent + GitHub Engineering
 
-Tests and security gates must not be weakened merely to make a change pass.
+DPN AI includes repository-engineering foundations designed for real multi-file software work:
 
-## Creator Engine
+- inspect repository structure and relevant implementation context
+- plan focused changes instead of blindly rewriting projects
+- classify diff risk and escalate high-severity findings
+- detect dependency and architecture concerns
+- select or recommend validation paths
+- diagnose GitHub Actions failures
+- separate demonstrated causes from speculation
+- retain evidence about changed files and validation results
+- self-review before completion
 
-The creator layer coordinates documents, PDFs, spreadsheets, presentations, images, charts, audio, video, code, and bundles. It applies dependency ordering, native-format generation, source grounding, branding consistency, cross-artifact checks, explicit overwrite policy, and post-generation inspection.
+Security checks and tests are not supposed to be weakened merely to force a green result.
 
-## Automation & Scheduling
+## Agents and Orchestration
 
-DPN AI includes scheduled and persistent automation foundations with:
-- schedule/condition validation
-- approval gates before side effects
-- overlap policy
-- bounded retries and backoff
-- runtime limits
-- persistent run history
-- checkpoint-before-side-effect policy
-- restart recovery
-- idempotency expectations
-- cancellation
-- explicit success/failure evidence
+The v9 architecture supports specialized agent roles including general assistance, coding, research, security, automation, artifact/document work, and review. A supervisor-oriented architecture coordinates tasks while preserving permissions, runtime boundaries, evidence requirements, cancellation, and failure states.
 
-## Projects, Memory & Knowledge
+## Tool, Permission, and Sandbox Architecture
 
-Persistent project intelligence can combine:
-- conversation history
-- long-term memory
-- project context
-- indexed documents
-- semantic retrieval
-- provenance-aware knowledge graph records
-- source and confidence metadata
+Tools are governed by policy rather than treated as unrestricted functions. The v9 stack includes:
 
-Retrieved evidence should remain distinguishable from model assumptions.
+- tool risk classification
+- permission-aware execution
+- approval requirements for sensitive operations
+- sandbox and host-fallback boundaries
+- timeouts and bounded execution
+- workspace containment
+- audit trails
+- fail-closed handling when capability requirements are not met
 
-## Documents & Office Artifacts
+Permission concepts include Ask Every Time, session-scoped permission, persistent permission, and deny-style behavior where supported by the calling surface.
 
-Built-in Python tooling supports controlled workspace creation/manipulation of common business formats including:
-- Word documents
-- PDF documents
-- Excel spreadsheets
-- PowerPoint presentations
-- charts and data outputs
+## Memory, RAG, and Knowledge
 
-Generated outputs should be opened or parsed after creation when practical so structural failures are not reported as success.
+DPN AI v9 can combine project context, long-term memory, semantic retrieval, indexed sources, and conversation state. The retrieval architecture is designed to keep sourced evidence distinguishable from model assumptions.
 
-## Images, Vision & Media
+Core concepts include:
 
-DPN AI supports image/vision and media adapter workflows, including optional local image-generation backends such as ComfyUI. Audio/video processing can use FFmpeg where installed. Multimodal capability remains dependent on the configured models and local services.
+- project-scoped memory
+- semantic indexing
+- retrieval and reranking foundations
+- source-aware context assembly
+- context budgeting
+- knowledge-base isolation
+- persistent agent context seams
 
-## Voice
+## Research + Web Intelligence
 
-Local voice support includes microphone transcription and Piper-based speech output. Existing Sentinel HD voice capability remains available as part of the stable application line.
+The research runtime provides a governed path for multi-source investigation. It supports structured research operations, evidence collection, source comparison, and claim-conflict detection foundations.
 
-## Tool & Extension System
+External content is treated as data, not trusted instructions. Network access remains subject to policy and permission boundaries.
 
-Capability can be extended through:
-1. existing built-in tools
-2. skill packs
-3. deterministic workflows
-4. approval-controlled HTTP connectors
-5. reviewed MCP servers
-6. staged local plugins through Capability Forge
-7. core-code modification only when required
+## Artifact Studio
 
-Tools must declare risk and remain subject to policy.
+DPN AI can create and coordinate common business artifacts through controlled workspace tooling:
 
-## MCP & Connectors
+- Microsoft Word / DOCX
+- PDF
+- Excel / XLSX
+- PowerPoint / PPTX
+- CSV and structured data outputs
+- charts and analytical outputs
+- Markdown and text deliverables
 
-Optional MCP and connector systems allow reviewed external integrations. Controls can include tool allowlists, encrypted credentials, endpoint restrictions, approval gates, and audit records.
+Artifact creation includes validation and integrity metadata so generation is not automatically treated as successful merely because a file was written.
 
-## Browser & Desktop Control
+## Images, Vision, and Media
 
-Optional browser and desktop adapters can enable controlled external interaction. These operations are considered higher risk because they can affect systems outside the DPN workspace and therefore remain approval/policy governed.
+### Image generation
 
-## Code Sandbox
+DPN AI includes a real ComfyUI-backed image-generation provider when a compatible ComfyUI endpoint and workflow are configured.
 
-DPN AI includes bounded code-execution concepts with resource and network restrictions. Stronger isolation such as Docker is recommended where available.
+### Image editing and vision
 
-## Persistence
+v9 includes provider routing, validation, workspace containment, capability discovery, and fail-closed execution for image editing and vision analysis. **Editing and vision require a configured provider implementation.** DPN AI does not report those operations as live when a capable provider is absent.
 
-Operational state can include conversations, messages, memories, indexed knowledge, projects, tasks, runs, approvals, automations, workflows, missions, steps, goal contracts, checkpoints, evaluations, background jobs, MCP servers, connector records, and graph data.
+This distinction is intentional and is part of the platform's evidence-first design.
 
-Secrets belong in the encrypted vault rather than repository files or persistent plaintext state.
+## Voice and Multimodal Sessions
 
-## Security
+The local voice stack includes offline-oriented speech capabilities with:
 
-Never commit:
-- `.env` files
-- private keys
-- vault keys
-- passwords
-- API tokens
-- production databases
-- private runtime state
-- generated secrets or authentication recovery data
+- faster-whisper STT support when installed
+- Piper neural voice support
+- system voice fallback
+- DPN Sentinel and DPN Aurora voice profiles
+- synthesis/transcription diagnostics
+- session state
+- multimodal attachments
+- barge-in/interruption state
+- hands-free session foundations
 
-Security, repository-health, runtime/recovery, release integrity, and CI gates are part of the expected engineering workflow.
+Mobile voice capture remains constrained by the Android foreground/session security model.
 
-## Recovery & Failure Model
+## Automation and Workflow Runtime
 
-DPN AI should preserve failures rather than claiming failed work succeeded. Recovery concepts include bounded retries, checkpoints, workspace snapshots, SHA-256 manifests, resumable jobs, explicit cancellation, repair loops, and rollback-capable extension promotion.
+Automation in v9 is more than a simple timer. The architecture includes:
+
+- one-time, recurring, and condition-oriented definitions
+- persisted automation state
+- step dependencies
+- overlap policies such as skip/queue/replace
+- bounded retry policies
+- capped exponential backoff
+- approval-aware destructive steps
+- evidence requirements
+- run history
+- stale-run recovery foundations
+- restart-safe execution state
+
+Condition-based execution requires a compatible condition provider and fails closed when one is not configured.
+
+## Desktop Control Center
+
+The v9 desktop experience extends the DPN black/purple interface with:
+
+- command palette
+- keyboard shortcuts
+- agent/task/approval routing
+- live activity surfaces
+- status-count mirroring
+- responsive behavior
+- accessibility-oriented live regions
+- evidence-first action wording
+- mobile-safe layout handling
+
+The interface does not fabricate a successful cancel/pause/resume state when the runtime has not confirmed it.
+
+## Android v2
+
+Android v2 adds stronger device trust and remote-session controls:
+
+- secure pairing foundations
+- paired/revoked device states
+- Android Keystore-backed session handling
+- credential expiration and revocation enforcement
+- authenticated desktop gateway checks
+- shorter remote sessions
+- user-presence requirements for remote writes
+- explicit approval requirements for destructive actions
+- chat, tasks, missions, approvals, files, diagnostics, notifications, voice, and vision-facing surfaces
+
+Revoked devices fail closed and require re-pairing before remote functionality resumes.
+
+## Model Gateway + Local AI
+
+DPN AI is designed around a **local-first/private-first** model policy. The model gateway supports:
+
+- Ollama as the default local provider
+- OpenAI-compatible local or explicitly approved remote endpoints
+- capability-aware routing
+- health-aware routing
+- vision-aware model scoring
+- model warming and lifecycle state
+- bounded fallback
+- external-endpoint denial unless explicitly enabled
+- streaming/tool/embedding compatibility foundations
+
+Remote models do not bypass configured policy merely because a local model fails.
+
+## Connectors, MCP, and SDK Governance
+
+External integrations are treated as governed operations. v9 adds connector/MCP classification for inspect/read/write/delete/sync/execute operations, including requirements for:
+
+- discovered actions
+- allowlists
+- approval for write-like actions
+- idempotency keys for sensitive write/sync/execute requests
+- operation caps
+- write verification
+- partial-failure reconciliation
+- secret-reference use instead of plaintext secrets
+
+The SDK/integration runtime builds on those same safety boundaries.
+
+## Security Architecture
+
+Security is a first-class subsystem, not a release checklist added at the end.
+
+v9 includes foundations for:
+
+- encrypted local secrets vault
+- redacted persisted approval arguments
+- exact deferred-argument recovery through the vault
+- approval expiration and single-use semantics
+- policy revalidation at execution time
+- prompt-injection assessment
+- plaintext-secret rejection
+- network authorization and endpoint allowlists
+- private/external network distinctions
+- tamper-evident chained audit envelopes
+- SHA-256 / HMAC-backed audit verification
+- workspace/path containment
+- destructive-action escalation
+
+Never commit `.env` files, private keys, passwords, API tokens, vault master keys, production databases, runtime backups, authentication recovery data, or generated operational secrets.
+
+## Recovery, Health, and Updating
+
+DPN AI v9 includes recovery and operational-readiness foundations around:
+
+- workspace snapshots
+- integrity metadata
+- recovery verification
+- rollback readiness
+- health reporting
+- privacy-conscious diagnostics
+- resource management
+- updater verification concepts
+- migration/recovery evidence
+
+The system is designed to preserve failure state instead of silently converting failed operations into success.
+
+## Evaluation + Production Readiness
+
+The v9 evaluation suite provides weighted production-readiness decisions. Critical failures, skipped critical evaluations, and missing critical evidence fail closed.
+
+Evaluation coverage includes security, permission boundaries, prompt injection, network policy, secret handling, integration safety, release readiness, and regression cases across the v9 architecture.
+
+## Release Engineering
+
+Stable release promotion requires version coherence and exact-head evidence. The release engineering layer validates:
+
+- semantic version/channel rules
+- exact Git commit identity
+- version-source consistency
+- required release artifacts
+- SBOM/checksum/manifest evidence
+- installer/package verification evidence
+- rollback/recovery evidence
+- v9 evaluation status
+- CI status
+- Security status
+- Runtime/Recovery status
+
+The GitHub release workflow independently compiles sources, runs tests, checks tracked sensitive state, generates the SBOM and source manifests, creates the source archive, computes checksums, and publishes the release.
 
 ## System Architecture
 
 ```mermaid
-flowchart LR
-  USER[Chat / Voice / API / Scheduler] --> RUNTIME[Agent Runtime]
-  RUNTIME --> CONTRACT[Goal Contract]
-  CONTRACT --> ROUTER[Specialist + Model Routing]
-  ROUTER --> ORCH[Orchestrator]
-  ORCH --> TOOLS[Built-in Tools]
-  ORCH --> MISSIONS[Persistent Missions]
-  ORCH --> AUTO[Workflows + Automations + Jobs]
-  ORCH --> EXT[Plugins / HTTP / MCP]
-  ORCH --> KNOW[Memory + Indexed Knowledge + Graph]
+flowchart TB
+  UX[Desktop / Android / API / Automation] --> CORE[Intelligence Runtime]
+  CORE --> PLAN[Planner + Mission State]
+  PLAN --> AGENTS[Specialist Agents]
+  AGENTS --> PERM[Permission + Approval + Risk]
+  PERM --> TOOLS[Tools / Sandbox / Artifacts]
+  PERM --> MODELS[Model Gateway]
+  PERM --> WEB[Research / Web]
+  PERM --> EXT[Connectors / MCP / SDK]
+  CORE --> MEMORY[Memory / RAG / Knowledge]
+  TOOLS --> RECOVERY[Snapshots / Recovery / Diagnostics]
   TOOLS --> VAULT[Encrypted Vault]
-  ORCH --> VERIFY[Evidence + Checkpoints + Verification]
+  AGENTS --> VERIFY[Reviewer / Evidence / Evaluation]
+  VERIFY --> AUDIT[Persistent Results + Audit Chain]
 ```
 
-## Installation & Startup
+## Installation and Startup
 
 ### Windows
-Common scripts include:
+
+Common setup and maintenance scripts include:
+
 - `INSTALL_DPN_AI.ps1`
 - `install_windows.bat`
 - `repair_windows.bat`
@@ -261,18 +366,22 @@ Common scripts include:
 - `install_mcp_windows.bat`
 - `install_optional_capabilities_windows.bat`
 
-Run:
+Start DPN AI with:
+
 ```bat
 run_dpn_ai.bat
 ```
 
 ### Linux
+
 Install:
+
 ```bash
 ./install_linux.sh
 ```
 
 Run:
+
 ```bash
 ./run_dpn_ai.sh
 ```
@@ -280,45 +389,68 @@ Run:
 ## Repository Layout
 
 ```text
-app/       application, API, orchestration, persistence, adapters and tools
-desktop/   v8 desktop runtime, supervisor, service facade, updater, integration and recovery
-plugins/   trusted extension modules
-skills/    reusable skill registrations
-scripts/   operational/development helpers where present
-docs/      architecture, security, release and capability documentation
-tests/     regression, security, runtime and capability coverage
-workspace/ restricted working area
-data/      local runtime state; not for Git
+app/        API, orchestration, persistence, intelligence, adapters and tools
+desktop/    desktop runtime, supervisor, updater, integration and recovery components
+android/    Android client and mobile integration surfaces where present
+plugins/    trusted extension modules and capability registrations
+skills/     reusable skill registrations
+scripts/    operational and development helpers
+docs/       architecture, security, release and capability documentation
+tests/      regression, evaluation, security and runtime coverage
+workspace/  restricted local working area
+data/       local runtime state; not intended for source control
 ```
 
 ## Validation Expectations
 
-A significant change should normally pass:
-- portable repository/version guard
+Significant changes should normally pass the applicable combination of:
+
+- repository/version guard
 - Python compilation
-- full automated test suite
-- DPN Security Gate
+- automated test suite
+- DPN Security Gate v2
 - Runtime & Recovery Assurance
-- Repository Health
-- DPN AI v8 Desktop Validation for v8 desktop changes
-- relevant release/supply-chain gates before stable publication
+- platform/mobile validation where relevant
+- release/supply-chain checks before publication
+- exact-head verification before merge or promotion
+
+A green check from an older commit is not valid evidence for a newer head.
+
+## Capability Honesty
+
+DPN AI intentionally distinguishes between four states:
+
+- **Available** — implementation and provider/runtime are present
+- **Configurable** — architecture exists but requires an external/local provider or setup
+- **Degraded** — capability exists but a preferred dependency is unavailable
+- **Unavailable** — required capability is not configured and execution must fail closed
+
+This is especially important for image editing, vision, condition providers, external integrations, signing, and remote capabilities.
 
 ## Current Status
 
-| Item | Current State |
+| Item | Current state |
 | --- | --- |
-| Published stable release | **v6.0.0 · Advanced Core** |
-| Release candidate | **v8.0.0 · Windows Desktop Platform** |
-| Remaining blockers | **Coordinated version promotion + production Windows signing + final exact-head release gates** |
-| PR status | **Draft until final release blockers and exact-head gates are cleared** |
-| Repository visibility | **Private** |
+| Published stable release | **v9.0.0** |
+| Release status | **Stable / published** |
+| Development direction | **v9.1 hardening and capability expansion** |
+| Repository visibility | **Public** |
 | Publisher | **DPN Technology** |
-| Primary stack | Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal |
-| Roadmap | [ROADMAP.md](ROADMAP.md) |
+| Architecture | **Local-first, evidence-driven, permission-aware** |
+| Primary stack | **Python · Local AI · Agents · Tools · Voice · Desktop · Android · Automation · RAG** |
+| Roadmap | [`ROADMAP.md`](ROADMAP.md) |
+| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
+
+## v9.1 Direction
+
+Post-v9 development is focused on improving the stable architecture rather than replacing it. Priorities include stronger agent reliability, coding intelligence, permission consistency, memory/RAG quality, research verification, artifact quality, real configurable image-editing/vision providers, condition automation providers, voice robustness, desktop/mobile UX, model benchmarking/routing, vault/audit hardening, performance, recovery, SDK/integrations, evaluations, installer/release engineering, capability-state reporting, and production-readiness automation.
+
+See [`ROADMAP.md`](ROADMAP.md) for the active engineering direction.
 
 ## Documentation
 
 Key documentation includes:
+
 - [`ROADMAP.md`](ROADMAP.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 - [`SECURITY.md`](SECURITY.md)
@@ -329,17 +461,21 @@ Key documentation includes:
 - [`docs/COGNITIVE_KERNEL.md`](docs/COGNITIVE_KERNEL.md)
 - [`docs/MODEL_GATEWAY.md`](docs/MODEL_GATEWAY.md)
 - [`docs/MCP.md`](docs/MCP.md)
+- [`docs/V9_RELEASE_CANDIDATE.md`](docs/V9_RELEASE_CANDIDATE.md) — historical RC promotion policy retained for release-engineering reference
 
 ## Development Standards
 
-- Keep credentials, keys, databases, backups, and private operational data out of Git.
-- Update release/version metadata and documentation together.
-- Add or update regression tests for production defects and new capability packages.
+- Keep credentials, private keys, databases, backups, generated secrets, and private runtime data out of Git.
+- Use feature branches and reviewed pull requests for meaningful changes.
+- Update version and release metadata together.
+- Add regression coverage for production defects.
 - Preserve compatibility until replacement behavior is verified.
-- Separate demo/default behavior from production requirements.
-- Do not bypass security or weaken tests to force CI green.
+- Keep production requirements separate from demo/default configuration.
+- Do not bypass security controls or weaken tests to force CI green.
 - Require explicit evidence before autonomous systems report completion.
+- Revalidate after every head-changing commit.
+- Prefer additive, reversible changes over destructive rewrites.
 
 ---
 
-<p align="center"><strong>DPN Technology</strong><br>We Develop what doesn't exist. We Pioneer what comes next. We Navigate the future.</p>
+<p align="center"><strong>DPN Technology</strong><br><em>We Develop what doesn't exist. We Pioneer what comes next. We Navigate the future.</em></p>
