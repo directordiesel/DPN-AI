@@ -13,12 +13,12 @@ val hasCompleteSigningConfig = listOf(signingStoreFile, signingStorePassword, si
 
 android {
     namespace = "com.dpntechnology.dpnai"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.dpntechnology.dpnai"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = releaseVersionCode
         versionName = releaseVersionName
     }
