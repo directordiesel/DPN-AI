@@ -2,8 +2,12 @@ import pytest
 
 from app.automation_runtime_v9 import (
     AutomationDefinition,
+    AutomationLifecycle,
     AutomationMode,
     AutomationWorkflowRuntime,
+    ConditionEvaluation,
+    ConditionProviderRegistry,
+    ConditionProviderSpec,
     OverlapPolicy,
     RetryPolicy,
     WorkflowStep,
@@ -110,3 +114,82 @@ def test_completion_requires_every_step_to_succeed():
     result = runtime.completion_summary(steps)
     assert result["complete"] is False
     assert result["failed"] == ["two"]
+
+
+def test_condition_provider_registry_is_explicit_and_fail_closed():
+    registry = ConditionProviderRegistry()
+    registry.register(
+        ConditionProviderSpec(
+            key="github-ci",
+            operators=("failed", "changed"),
+            max_payload_bytes=2048,
+            requires_network=True,
+        )
+    )
+
+    request = registry.validate_request("github-ci", "failed", 1024)
+    assert request["ok"] is True
+    assert request["requires_network"] is True
+
+    with pytest.raises(ValueError, match="Unknown condition provider"):
+        registry.validate_request("unregistered", "failed", 1)
+    with pytest.raises(ValueError, match="Unsupported condition operator"):
+        registry.validate_request("github-ci", "deleted", 1)
+    with pytest.raises(ValueError, match="exceeds provider limit"):
+        registry.validate_request("github-ci", "failed", 4096)
+
+
+def test_matched_condition_requires_evidence():
+    registry = ConditionProviderRegistry()
+    registry.register(ConditionProviderSpec(key="health", operators=("degraded",)))
+
+    with pytest.raises(ValueError, match="require evidence"):
+        registry.accept_evaluation(
+            ConditionEvaluation(provider="health", operator="degraded", matched=True)
+        )
+
+    result = registry.accept_evaluation(
+        ConditionEvaluation(
+            provider="health",
+            operator="degraded",
+            matched=True,
+            evidence=("probe=failed",),
+            observed_value="offline",
+        )
+    )
+    assert result["matched"] is True
+    assert result["evidence"] == ["probe=failed"]
+
+
+def test_automation_lifecycle_pause_resume_cancel_and_terminal_guards():
+    runtime = AutomationWorkflowRuntime()
+
+    paused = runtime.transition_lifecycle(AutomationLifecycle.ACTIVE, AutomationLifecycle.PAUSED)
+    assert paused["dispatch_allowed"] is False
+    assert runtime.dispatch_allowed(AutomationLifecycle.PAUSED) is False
+
+    resumed = runtime.transition_lifecycle(AutomationLifecycle.PAUSED, AutomationLifecycle.ACTIVE)
+    assert resumed["dispatch_allowed"] is True
+    assert runtime.dispatch_allowed(AutomationLifecycle.ACTIVE, condition_matched=True) is True
+    assert runtime.dispatch_allowed(AutomationLifecycle.ACTIVE, condition_matched=False) is False
+
+    cancelled = runtime.transition_lifecycle(
+        AutomationLifecycle.ACTIVE,
+        AutomationLifecycle.CANCELLED,
+        active_step_ids=["download", "verify", "download"],
+    )
+    assert cancelled["cancel_running_steps"] is True
+    assert cancelled["active_step_ids"] == ["download", "verify"]
+
+    with pytest.raises(ValueError, match="Invalid automation lifecycle transition"):
+        runtime.transition_lifecycle(AutomationLifecycle.CANCELLED, AutomationLifecycle.ACTIVE)
+
+
+def test_automation_cannot_complete_with_active_steps():
+    runtime = AutomationWorkflowRuntime()
+    with pytest.raises(ValueError, match="cannot complete while workflow steps are active"):
+        runtime.transition_lifecycle(
+            AutomationLifecycle.ACTIVE,
+            AutomationLifecycle.COMPLETED,
+            active_step_ids=["still-running"],
+        )
