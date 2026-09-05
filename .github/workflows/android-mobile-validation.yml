@@ -48,7 +48,28 @@ jobs:
             exit 1
           fi
 
-  mobile-contract-tests:
+  mobile-contract-tests-trusted:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
+    name: mobile-contract-tests
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
+
+      - name: Run mobile regression guards
+        shell: cmd
+        run: python -m unittest discover -s tests -p "test_mobile_*.py"
+
+  mobile-contract-tests-hosted:
+    if: github.event_name != 'pull_request' || !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
+    name: mobile-contract-tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
