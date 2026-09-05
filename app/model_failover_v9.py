@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable, Iterable
 
 from app.model_routing_runtime_v9 import ModelRouteContext, ModelRoutingRuntime
+from app.model_routing_v9 import ModelRoutingError
 
 
 class ModelFailoverError(RuntimeError):
@@ -69,7 +70,15 @@ class ModelFailoverExecutor:
         active_context = context
 
         for _ in range(self.max_attempts):
-            decision = self.runtime.decide(inventory, active_context, compatible_is_local=compatible_is_local)
+            try:
+                decision = self.runtime.decide(inventory, active_context, compatible_is_local=compatible_is_local)
+            except ModelRoutingError as exc:
+                summary = "; ".join(f"{item.model}: {item.error or 'failed'}" for item in attempts)
+                detail = f"; routing stopped: {exc}"
+                raise ModelFailoverError(
+                    f"No policy-allowed model completed the request{': ' + summary if summary else ''}{detail}"
+                ) from exc
+
             selected = decision.selected
             if selected is None:
                 break
