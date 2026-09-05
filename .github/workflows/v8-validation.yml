@@ -69,20 +69,14 @@ jobs:
         run: python -m pytest -q tests -k "v8"
 
       - name: Parse Windows packaging PowerShell
-        shell: powershell
+        shell: python
         run: |
-          $targets = @(
-            '.\packaging\windows\build.ps1',
-            '.\packaging\windows\build-installer.ps1'
+          import subprocess
+          script = r'''$targets = @('.\packaging\windows\build.ps1', '.\packaging\windows\build-installer.ps1'); foreach ($target in $targets) { $tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $target), [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $target, $_.Message) }; exit 1 } }'''
+          subprocess.run(
+              ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+              check=True,
           )
-          foreach ($target in $targets) {
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $target), [ref]$null, [ref]$errors) | Out-Null
-            if ($errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error "${target}: $($_.Message)" }
-              exit 1
-            }
-          }
 
       - name: Validate packaging contracts without publishing
         shell: python
@@ -107,13 +101,10 @@ jobs:
 
       - name: v8 validation summary
         if: always()
-        shell: powershell
+        shell: cmd
         run: |
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## DPN AI v8 Desktop Validation'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ''
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Repository/version guard: executed'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Source security gate: executed'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- v8 regression suite: executed'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Windows packaging scripts: parsed'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Packaging contracts: validated without publishing'
+          echo ## DPN AI v8 Desktop Validation>>"%GITHUB_STEP_SUMMARY%"
+          echo.>>"%GITHUB_STEP_SUMMARY%"
+          echo - Runner: %RUNNER_NAME%>>"%GITHUB_STEP_SUMMARY%"
+          echo - Validation remains fail-closed; inspect individual step conclusions above.>>"%GITHUB_STEP_SUMMARY%"
+          echo - No release is published by this workflow.>>"%GITHUB_STEP_SUMMARY%"
