@@ -2,7 +2,13 @@ import pytest
 
 from app.evaluation_gate_v9 import EvaluationResult, EvaluationStatus, V9EvaluationGate, default_v9_cases
 from app.security_hardening_v9 import SecurityHardeningError, SecurityHardeningRuntime
-from app.sdk_integrations_v9 import SDKOperation, SDKRequest
+from app.sdk_integrations_v9 import (
+    CapabilityDescriptor,
+    IntegrationOperation,
+    SDKContractError,
+    SDKIntegrationRuntime,
+    SDKRequest,
+)
 
 
 @pytest.mark.parametrize(
@@ -46,9 +52,18 @@ def test_network_boundary_denies_unsafe_defaults(url):
 
 
 def test_sdk_write_contract_cannot_bypass_idempotency():
-    request = SDKRequest(capability="connector.test", operation=SDKOperation.WRITE, payload={"value": 1})
-    with pytest.raises(ValueError, match="idempotency"):
-        request.validate(supported_operations={SDKOperation.WRITE}, requires_approval=False)
+    capability = CapabilityDescriptor(
+        name="connector.test",
+        version="1",
+        operations=frozenset({IntegrationOperation.WRITE}),
+    )
+    request = SDKRequest(
+        capability="connector.test",
+        operation=IntegrationOperation.WRITE,
+        payload={"value": 1},
+    )
+    with pytest.raises(SDKContractError, match="idempotency"):
+        SDKIntegrationRuntime.validate_request(request, [capability])
 
 
 def test_release_gate_blocks_when_security_evidence_is_missing():
