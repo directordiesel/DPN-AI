@@ -4,9 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#080808" />
-  <title>DPN AI v8 Desktop â€” Control Center</title>
+  <title>DPN AI v9 RC — Control Center</title>
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/styles.css?v=8.0.0" />
+  <link rel="stylesheet" href="/styles.css?v=9.0.0-rc.1" />
   <link rel="stylesheet" href="/v8-desktop.css" />
   <link rel="stylesheet" href="/v9-desktop.css" />
 </head>
@@ -17,45 +17,45 @@
         <div class="brand-mark"><span>DPN</span><b>AI</b></div>
         <div><h1>DPN AI</h1><p>WINDOWS DESKTOP PLATFORM v8</p><div class="desktop-platform-badge">LOCAL INTELLIGENCE HUB</div></div>
       </div>
-      <button class="primary wide" id="newChatBtn">ï¼‹ New Operation</button>
-      <div class="sidebar-heading"><span>OPERATIONS</span><button id="refreshChatsBtn" title="Refresh">â†»</button></div>
+      <button class="primary wide" id="newChatBtn">＋ New Operation</button>
+      <div class="sidebar-heading"><span>OPERATIONS</span><button id="refreshChatsBtn" title="Refresh">↻</button></div>
       <div class="conversation-list" id="conversationList"></div>
       <div class="sidebar-spacer"></div>
       <div class="sidebar-heading"><span>CONTROL CENTER</span></div>
-      <button class="side-action voice-side-action" id="voiceBtn">â—‰ Voice Command Center</button>
-      <button class="side-action" id="missionsBtn">â—‰ Universal Missions</button>
-      <button class="side-action" id="jobsBtn">â–° Autonomous Job Queue</button>
-      <button class="side-action" id="graphBtn">â¬¢ Knowledge Graph</button>
-      <button class="side-action" id="sandboxBtn">â–§ Sandbox Lab</button>
-      <button class="side-action" id="capabilityForgeBtn">âœ§ Capability Forge</button>
-      <button class="side-action" id="mcpBtn">â‡Œ MCP Tool Bridge</button>
-      <button class="side-action" id="approvalsBtn">âš  Approval Inbox</button>
-      <button class="side-action" id="projectsBtn">â—† Projects & Task Board</button>
-      <button class="side-action" id="automationsBtn">â—· Local Automations</button>
-      <button class="side-action" id="runsBtn">âŒ Runs & Audit Trail</button>
-      <button class="side-action" id="snapshotsBtn">â¬¡ Workspace Snapshots</button>
-      <button class="side-action" id="filesBtn">â–£ Workspace Files</button>
-      <button class="side-action" id="memoryBtn">â—ˆ Local Memory</button>
-      <button class="side-action" id="skillsBtn">âœ¦ Skills & Workflows</button>
-      <button class="side-action" id="connectorsBtn">â‡„ Connectors & Secrets</button>
-      <button class="side-action" id="diagnosticsBtn">âŒ˜ System Diagnostics</button>
-      <button class="side-action" id="settingsBtn">âš™ System Settings</button>
+      <button class="side-action voice-side-action" id="voiceBtn">◉ Voice Command Center</button>
+      <button class="side-action" id="missionsBtn">◉ Universal Missions</button>
+      <button class="side-action" id="jobsBtn">▰ Autonomous Job Queue</button>
+      <button class="side-action" id="graphBtn">⬢ Knowledge Graph</button>
+      <button class="side-action" id="sandboxBtn">▧ Sandbox Lab</button>
+      <button class="side-action" id="capabilityForgeBtn">✧ Capability Forge</button>
+      <button class="side-action" id="mcpBtn">⇌ MCP Tool Bridge</button>
+      <button class="side-action" id="approvalsBtn">⚠ Approval Inbox</button>
+      <button class="side-action" id="projectsBtn">◆ Projects & Task Board</button>
+      <button class="side-action" id="automationsBtn">◷ Local Automations</button>
+      <button class="side-action" id="runsBtn">⌁ Runs & Audit Trail</button>
+      <button class="side-action" id="snapshotsBtn">⬡ Workspace Snapshots</button>
+      <button class="side-action" id="filesBtn">▣ Workspace Files</button>
+      <button class="side-action" id="memoryBtn">◈ Local Memory</button>
+      <button class="side-action" id="skillsBtn">✦ Skills & Workflows</button>
+      <button class="side-action" id="connectorsBtn">⇄ Connectors & Secrets</button>
+      <button class="side-action" id="diagnosticsBtn">⌘ System Diagnostics</button>
+      <button class="side-action" id="settingsBtn">⚙ System Settings</button>
       <div class="status-card">
         <span class="status-dot" id="statusDot"></span>
-        <div><strong id="statusText">Checking coreâ€¦</strong><small id="statusDetail">Local runtime status</small></div>
+        <div><strong id="statusText">Checking core…</strong><small id="statusDetail">Local runtime status</small></div>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <button class="mobile-menu" id="menuBtn">â˜°</button>
+        <button class="mobile-menu" id="menuBtn">☰</button>
         <div class="operation-title"><span>ACTIVE OPERATION</span><strong id="activeTitle">New conversation</strong></div>
         <div class="top-controls">
           <label class="control-picker"><span>MODE</span><select id="modeSelect"><option value="auto" selected>Smart Auto</option><option value="direct">Direct</option><option value="mission">Mission</option></select></label>
           <label class="control-picker"><span>PROJECT</span><select id="projectSelect"><option value="">No project</option></select></label>
           <label class="control-picker"><span>PROFILE</span><select id="profileSelect"><option value="auto">Auto Router</option></select></label>
-          <label class="control-picker model-picker"><span>MODEL</span><select id="modelSelect"><option>Loadingâ€¦</option></select></label>
-          <button class="icon-button" id="indexBtn" title="Reindex workspace">âŒ</button>
+          <label class="control-picker model-picker"><span>MODEL</span><select id="modelSelect"><option>Loading…</option></select></label>
+          <button class="icon-button" id="indexBtn" title="Reindex workspace">⌁</button>
         </div>
       </header>
 
@@ -71,7 +71,7 @@
             </div>
           </div>
           <div class="desktop-status-grid">
-            <article class="desktop-status-card" id="desktopCoreCard" data-state="unknown"><span class="label">Runtime</span><strong>Checkingâ€¦</strong><small>Local runtime health probe</small></article>
+            <article class="desktop-status-card" id="desktopCoreCard" data-state="unknown"><span class="label">Runtime</span><strong>Checking…</strong><small>Local runtime health probe</small></article>
             <article class="desktop-status-card" id="desktopMissionCard" data-state="unknown"><span class="label">Mission</span><strong>No live feed</strong><small>Waiting for mission summary API</small></article>
             <article class="desktop-status-card" id="desktopApprovalCard" data-state="unknown"><span class="label">Approvals</span><strong>No live feed</strong><small>Waiting for approval summary API</small></article>
             <article class="desktop-status-card" id="desktopModelCard" data-state="unknown"><span class="label">Model</span><strong>No live feed</strong><small>Waiting for model runtime summary API</small></article>
@@ -93,9 +93,9 @@
 
         <div class="welcome" id="welcome">
           <div class="core-ring"><div class="core-inner">DPN<br><b>AI</b></div></div>
-          <div class="version-pill">STABLE CORE v8.0.0 â€¢ WINDOWS DESKTOP PLATFORM</div>
+          <div class="version-pill">STABLE CORE v9.0.0-rc.1 • WINDOWS DESKTOP PLATFORM</div>
           <h2>Your adaptive AI desktop operations command center</h2>
-          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved MCP serversâ€”while retaining local voice, multimodal media, documents, code, browser, project, automation, and desktop capabilities.</p>
+          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved MCP servers—while retaining local voice, multimodal media, documents, code, browser, project, automation, and desktop capabilities.</p>
           <div class="capability-strip">
             <span>Windows Desktop Runtime</span><span>Cognitive Goal Contracts</span><span>Resumable Job Queue</span><span>Evidence Verification</span><span>Persistent Project Intelligence</span>
           </div>
@@ -113,29 +113,29 @@
         <div class="drop-hint" id="dropHint">Drop files to upload, index, and attach</div>
         <div class="pending-files" id="pendingFiles"></div>
         <div class="voice-console" id="voiceConsole">
-          <button class="voice-mic" id="micBtn" title="Start or stop local voice input" aria-label="Voice input"><span class="mic-icon">â—</span></button>
+          <button class="voice-mic" id="micBtn" title="Start or stop local voice input" aria-label="Voice input"><span class="mic-icon">●</span></button>
           <div class="voice-readout"><strong id="voiceState">VOICE READY</strong><span id="voiceTranscript">Click the microphone or press Ctrl+Space</span><div class="voice-level"><i id="voiceLevel"></i></div></div>
           <label class="voice-picker"><span>VOICE</span><select id="voiceSelect"><option value="sentinel">DPN Sentinel</option><option value="aurora">DPN Aurora</option><option value="system">System Voice</option></select></label>
           <label class="voice-toggle"><input id="autoSpeakToggle" type="checkbox"><span>Read replies</span></label>
           <label class="voice-toggle"><input id="handsFreeToggle" type="checkbox"><span>Hands-free</span></label>
           <label class="voice-toggle"><input id="voiceReviewToggle" type="checkbox"><span>Edit voice first</span></label>
-          <button class="voice-stop" id="stopVoiceBtn" title="Stop voice playback">â– </button>
-          <button class="voice-settings" id="voiceSettingsBtn" title="Voice command center">âš™</button>
+          <button class="voice-stop" id="stopVoiceBtn" title="Stop voice playback">■</button>
+          <button class="voice-settings" id="voiceSettingsBtn" title="Voice command center">⚙</button>
         </div>
         <div class="edit-banner hidden" id="editBanner"><span>Editing an earlier message. Sending will regenerate everything after it.</span><button id="cancelEditBtn">Cancel</button></div>
         <div class="composer">
-          <label class="attach" title="Upload files">ï¼‹<input id="fileInput" type="file" multiple hidden /></label>
-          <textarea id="promptInput" rows="1" placeholder="Type a command or speak to DPN AIâ€¦"></textarea>
-          <button class="send" id="sendBtn" title="Send">âž¤</button>
+          <label class="attach" title="Upload files">＋<input id="fileInput" type="file" multiple hidden /></label>
+          <textarea id="promptInput" rows="1" placeholder="Type a command or speak to DPN AI…"></textarea>
+          <button class="send" id="sendBtn" title="Send">➤</button>
         </div>
-        <div class="composer-meta"><span id="coreMeta">Local voice â€¢ Agent missions â€¢ Creator studio â€¢ Project intelligence â€¢ Evidence verification â€¢ Recovery control</span><span id="permissionText">Web ON â€¢ Voice OFF â€¢ Commands OFF</span></div>
+        <div class="composer-meta"><span id="coreMeta">Local voice • Agent missions • Creator studio • Project intelligence • Evidence verification • Recovery control</span><span id="permissionText">Web ON • Voice OFF • Commands OFF</span></div>
       </footer>
     </main>
   </div>
 
   <div class="modal-backdrop hidden" id="modalBackdrop">
     <section class="modal" id="modal">
-      <header><div><span class="eyebrow" id="modalEyebrow">DPN AI</span><h3 id="modalTitle">Control Center</h3></div><button class="icon-button" id="closeModalBtn">âœ•</button></header>
+      <header><div><span class="eyebrow" id="modalEyebrow">DPN AI</span><h3 id="modalTitle">Control Center</h3></div><button class="icon-button" id="closeModalBtn">✕</button></header>
       <div class="modal-body" id="modalBody" tabindex="-1"></div>
     </section>
   </div>
@@ -154,7 +154,7 @@
     </article>
   </template>
 
-  <script src="/app.js?v=8.0.0"></script>
+  <script src="/app.js?v=9.0.0-rc.1"></script>
   <script src="/v8-desktop.js"></script>
   <script src="/v9-desktop.js"></script>
 </body>

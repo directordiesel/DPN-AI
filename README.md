@@ -4,14 +4,14 @@
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/Stable-v6.0.0-2563eb?style=for-the-badge">
-  <img alt="Release Candidate" src="https://img.shields.io/badge/v8.0.0-Release%20Candidate-7c3aed?style=for-the-badge">
+  <img alt="Release Candidate" src="https://img.shields.io/badge/9.0.0--rc.1-Release%20Candidate-7c3aed?style=for-the-badge">
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
   <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
   <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-REQUIRED-16a34a?style=for-the-badge"></a>
 </p>
 
 > **Published stable release:** v6.0.0 · Advanced Core  
-> **Release candidate:** v8.0.0 · Windows Desktop Platform  
+> **Release candidate:** 9.0.0-rc.1 · DPN AI v9  
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal
 
 ## v8.0.0 Release Candidate Status
