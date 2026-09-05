@@ -121,6 +121,8 @@ class SecurityHardeningRuntime:
         allowed_hosts: Iterable[str] = (),
     ) -> NetworkAuthorization:
         raw = str(url or "").strip()
+        if len(raw) > 4096 or any(ord(ch) < 32 or ord(ch) == 127 for ch in raw):
+            return NetworkAuthorization(False, "network URL contains invalid control data", "", "")
         try:
             parsed = urlparse(raw)
         except Exception as exc:  # noqa: BLE001
@@ -129,17 +131,29 @@ class SecurityHardeningRuntime:
         host = (parsed.hostname or "").lower().strip(".")
         if scheme not in {"https", "http"} or not host:
             return NetworkAuthorization(False, "only explicit HTTP(S) URLs are supported", host, scheme)
+        if parsed.username is not None or parsed.password is not None:
+            return NetworkAuthorization(False, "URL userinfo credentials are denied", host, scheme)
+        try:
+            parsed.port
+        except ValueError:
+            return NetworkAuthorization(False, "network URL contains an invalid port", host, scheme)
+
         allowlist = {str(item).lower().strip(".") for item in allowed_hosts if str(item).strip()}
-        if host in allowlist:
-            return NetworkAuthorization(True, "host explicitly allowed", host, scheme)
+        if any(not item or len(item) > 253 or "/" in item or "@" in item for item in allowlist):
+            return NetworkAuthorization(False, "network host allowlist is malformed", host, scheme)
+
         if host in {"localhost", "host.docker.internal"}:
             return NetworkAuthorization(allow_private, "local/private host requires explicit private-network permission", host, scheme)
         try:
             ip = ipaddress.ip_address(host)
         except ValueError:
             ip = None
-        if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast):
+        if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
             return NetworkAuthorization(allow_private, "private or special-use address requires explicit private-network permission", host, scheme)
+        if host in allowlist:
+            if scheme != "https":
+                return NetworkAuthorization(False, "allowlisted external hosts still require HTTPS", host, scheme)
+            return NetworkAuthorization(True, "host explicitly allowed", host, scheme)
         if scheme != "https":
             return NetworkAuthorization(False, "external cleartext HTTP is denied", host, scheme)
         return NetworkAuthorization(bool(allow_external), "external network access requires explicit permission", host, scheme)
@@ -157,6 +171,11 @@ class SecurityHardeningRuntime:
     ) -> AuditEnvelope:
         if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
             raise SecurityHardeningError("audit sequence must be a non-negative integer")
+        if integrity_key is not None and (not isinstance(integrity_key, bytes) or len(integrity_key) < 16):
+            raise SecurityHardeningError("audit integrity key must contain at least 16 bytes")
+        previous = str(previous_hash or "")
+        if previous and not re.fullmatch(r"[0-9a-f]{64}", previous):
+            raise SecurityHardeningError("audit previous hash must be an empty value or lowercase SHA-256 digest")
         safe_metadata = sanitize_for_persistence(metadata or {})
         if not isinstance(safe_metadata, dict):
             safe_metadata = {"value": safe_metadata}
@@ -166,7 +185,7 @@ class SecurityHardeningRuntime:
             "actor": str(actor or "system")[:200],
             "summary": str(sanitize_for_persistence(str(summary or "")))[:4000],
             "metadata": safe_metadata,
-            "previous_hash": str(previous_hash or "")[:128],
+            "previous_hash": previous,
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str).encode("utf-8")
         digest = hmac.new(integrity_key, encoded, hashlib.sha256).hexdigest() if integrity_key else hashlib.sha256(encoded).hexdigest()
@@ -174,26 +193,35 @@ class SecurityHardeningRuntime:
 
     @staticmethod
     def verify_audit_chain(envelopes: Iterable[AuditEnvelope], *, integrity_key: bytes | None = None) -> bool:
+        if integrity_key is not None and (not isinstance(integrity_key, bytes) or len(integrity_key) < 16):
+            return False
         previous = ""
         expected_sequence: int | None = None
-        for envelope in envelopes:
-            if expected_sequence is None:
-                expected_sequence = envelope.sequence
-            if envelope.sequence != expected_sequence or envelope.previous_hash != previous:
-                return False
-            rebuilt = SecurityHardeningRuntime.build_audit_envelope(
-                sequence=envelope.sequence,
-                event_type=envelope.event_type,
-                actor=envelope.actor,
-                summary=envelope.summary,
-                metadata=envelope.metadata,
-                previous_hash=envelope.previous_hash,
-                integrity_key=integrity_key,
-            )
-            if not hmac.compare_digest(rebuilt.event_hash, envelope.event_hash):
-                return False
-            previous = envelope.event_hash
-            expected_sequence += 1
+        try:
+            for envelope in envelopes:
+                if not isinstance(envelope, AuditEnvelope):
+                    return False
+                if expected_sequence is None:
+                    expected_sequence = envelope.sequence
+                if envelope.sequence != expected_sequence or envelope.previous_hash != previous:
+                    return False
+                if not re.fullmatch(r"[0-9a-f]{64}", str(envelope.event_hash or "")):
+                    return False
+                rebuilt = SecurityHardeningRuntime.build_audit_envelope(
+                    sequence=envelope.sequence,
+                    event_type=envelope.event_type,
+                    actor=envelope.actor,
+                    summary=envelope.summary,
+                    metadata=envelope.metadata,
+                    previous_hash=envelope.previous_hash,
+                    integrity_key=integrity_key,
+                )
+                if not hmac.compare_digest(rebuilt.event_hash, envelope.event_hash):
+                    return False
+                previous = envelope.event_hash
+                expected_sequence += 1
+        except (SecurityHardeningError, TypeError, ValueError):
+            return False
         return True
 
 
