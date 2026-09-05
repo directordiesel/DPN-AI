@@ -73,6 +73,33 @@ if ($ActualPackageHash -ne $PackageManifest.sha256) {
     throw "Packaged executable SHA-256 does not match build-manifest.json."
 }
 
+$VerifiedPackageSignerThumbprint = $null
+$VerifiedPackageSignerSubject = $null
+if ($PackageManifest.signing -eq "signed-production-artifact") {
+    $ManifestSignerThumbprint = (($PackageManifest.signer_thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ManifestSignerThumbprint -notmatch '^[A-F0-9]{40,64}$') {
+        throw "Signed package manifest contains an invalid signer thumbprint."
+    }
+
+    $PackageSignature = Get-AuthenticodeSignature -FilePath $PackageExe
+    if ($PackageSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Packaged executable Authenticode verification failed with status '$($PackageSignature.Status)'."
+    }
+    if (-not $PackageSignature.SignerCertificate) {
+        throw "Packaged executable Authenticode verification returned no signer certificate."
+    }
+
+    $ActualSignerThumbprint = (($PackageSignature.SignerCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ActualSignerThumbprint -ne $ManifestSignerThumbprint) {
+        throw "Packaged executable signer thumbprint does not match build-manifest.json."
+    }
+
+    $VerifiedPackageSignerThumbprint = $ActualSignerThumbprint
+    $VerifiedPackageSignerSubject = $PackageSignature.SignerCertificate.Subject
+} elseif ($PackageManifest.signer_thumbprint -or $PackageManifest.signer_subject) {
+    throw "Unsigned package manifest must not contain signer identity metadata."
+}
+
 if (-not $SkipTests) {
     Invoke-Checked $Python -m pytest -q tests/test_v8_windows_packaging.py tests/test_v8_windows_installer.py
 }
@@ -120,6 +147,8 @@ $InstallerManifest = [ordered]@{
     sha256 = $InstallerHash
     source_executable_sha256 = $ActualPackageHash
     source_executable_signing = $PackageManifest.signing
+    source_executable_signer_thumbprint = $VerifiedPackageSignerThumbprint
+    source_executable_signer_subject = $VerifiedPackageSignerSubject
     architecture = "x64-compatible"
     scope = "per-user-default"
     upgrade_behavior = "same-app-id-in-place-upgrade-repair"
