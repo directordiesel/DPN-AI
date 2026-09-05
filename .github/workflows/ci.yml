@@ -34,21 +34,44 @@ jobs:
           - os_name: Windows
             os: windows-latest
             python: "3.12"
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
+
       - name: Install development dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
+
       - name: Run portable repository and version guard
         run: python .github/scripts/ci_repository_guard.py
+
       - name: Compile Python sources
         run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/ci_repository_guard.py
+
       - name: Run test suite
         run: python -m pytest -q
+
+      - name: Hosted runner summary
+        if: always()
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary.open("a", encoding="utf-8") as handle:
+              handle.write("## DPN AI GitHub-hosted CI lane\n\n")
+              handle.write(f"- operating system: {os.environ.get('RUNNER_OS', 'unknown')}\n")
+              handle.write(f"- Python: {os.environ.get('MATRIX_PYTHON', 'unknown')}\n")
+              handle.write("- repository guard: executed\n")
+              handle.write("- compile validation: executed\n")
+              handle.write("- automated tests: executed\n")
+        env:
+          MATRIX_PYTHON: ${{ matrix.python }}

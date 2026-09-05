@@ -46,6 +46,7 @@ jobs:
           missing = [p for p in required if not Path(p).is_file()]
           if missing:
               raise SystemExit("Missing required standards: " + ", ".join(missing))
+          print(f"Validated {len(required)} required repository standards")
       - name: Enforce immutable GitHub Action references and checkout credential isolation
         shell: python
         run: |
@@ -76,6 +77,7 @@ jobs:
                           failures.append(f"{workflow}:{index + 1}: actions/checkout must set persist-credentials: false")
           if failures:
               raise SystemExit("GitHub Actions policy violations:\n- " + "\n- ".join(failures))
+          print(f"Validated immutable action references across {len(workflows)} workflows")
       - name: Enforce controlled release ref
         shell: python
         run: |
@@ -91,6 +93,7 @@ jobs:
               failures.append("release job must be restricted to refs/heads/main")
           if failures:
               raise SystemExit("Release control policy violations: " + "; ".join(failures))
+          print("Validated main-only manual release policy")
       - name: Reject tracked runtime secrets and private state
         shell: python
         run: |

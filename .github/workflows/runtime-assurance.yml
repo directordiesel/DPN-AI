@@ -58,7 +58,11 @@ jobs:
         run: |
           import re
           import subprocess
-          status = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=all"], text=True, errors="replace").splitlines()
+          status = subprocess.check_output(
+              ["git", "status", "--porcelain", "--untracked-files=all"],
+              text=True,
+              errors="replace",
+          ).splitlines()
           pattern = re.compile(r"(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/", re.I)
           leaked = [line for line in status if pattern.search(line)]
           if leaked:

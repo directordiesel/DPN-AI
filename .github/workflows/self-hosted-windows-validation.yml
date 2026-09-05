@@ -61,3 +61,13 @@ jobs:
           import subprocess
           script = r'''$tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\INSTALL_DPN_AI.ps1'), [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }; Write-Host 'INSTALL_DPN_AI.ps1 parsed successfully' '''
           subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], check=True)
+      - name: Runner validation summary
+        if: always()
+        shell: cmd
+        run: |
+          echo ## DPN GitHub-Hosted Windows Validation>>"%GITHUB_STEP_SUMMARY%"
+          echo.>>"%GITHUB_STEP_SUMMARY%"
+          echo - Runner: %RUNNER_NAME%>>"%GITHUB_STEP_SUMMARY%"
+          echo - OS: %RUNNER_OS%>>"%GITHUB_STEP_SUMMARY%"
+          echo - Architecture: %RUNNER_ARCH%>>"%GITHUB_STEP_SUMMARY%"
+          echo - Python: actions/setup-python 3.12>>"%GITHUB_STEP_SUMMARY%"
