@@ -119,3 +119,58 @@ def test_unknown_legacy_gate_fails_closed():
 
     assert result.allowed is False
     assert result.approval_required is False
+
+
+def test_host_sandbox_fallback_requires_explicit_approval_even_when_tool_is_allowed():
+    engine = PermissionEngine(PermissionMode.ASK_EVERY_TIME)
+    engine.set_tool_rule("run_python_sandbox", PermissionMode.ALWAYS_ALLOW, RiskLevel.EXECUTE)
+    runtime = ToolPermissionRuntime(engine)
+
+    result = runtime.authorize(
+        tool_name="run_python_sandbox",
+        declared_risk="execute",
+        gate="commands",
+        permissions=base_permissions(),
+        use_v9_policy=True,
+        arguments={"code": "print('ok')", "use_host_fallback": True},
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is True
+    assert result.decision.source == "sandbox_boundary"
+    assert "not a security sandbox" in result.reason
+
+
+def test_docker_sandbox_path_preserves_existing_permission_decision():
+    engine = PermissionEngine(PermissionMode.ASK_EVERY_TIME)
+    engine.set_tool_rule("run_python_sandbox", PermissionMode.ALWAYS_ALLOW, RiskLevel.EXECUTE)
+    runtime = ToolPermissionRuntime(engine)
+
+    result = runtime.authorize(
+        tool_name="run_python_sandbox",
+        declared_risk="execute",
+        gate="commands",
+        permissions=base_permissions(),
+        use_v9_policy=True,
+        arguments={"code": "print('ok')", "use_host_fallback": False},
+    )
+
+    assert result.allowed is True
+    assert result.approval_required is False
+    assert result.decision.source == "tool"
+
+
+def test_host_fallback_cannot_bypass_safe_mode_denial():
+    runtime = ToolPermissionRuntime()
+
+    result = runtime.authorize(
+        tool_name="run_python_sandbox",
+        declared_risk="execute",
+        gate="commands",
+        permissions=base_permissions(approval_mode="safe"),
+        arguments={"code": "print('ok')", "use_host_fallback": True},
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is False
+    assert result.decision.source == "legacy"

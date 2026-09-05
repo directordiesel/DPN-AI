@@ -165,6 +165,7 @@ class ApprovalSecurity:
             gate=getattr(registered, "gate", None),
             permissions=permissions,
             use_v9_policy=bool(permissions.get("use_v9_permissions", False)),
+            arguments=arguments,
         )
         if not authorization.allowed and not authorization.approval_required:
             return {"ok": False, "error": authorization.reason, "risk": authorization.profile.risk.value}

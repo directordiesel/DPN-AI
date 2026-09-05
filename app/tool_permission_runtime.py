@@ -45,6 +45,11 @@ class ToolPermissionRuntime:
     be re-enabled by a v9 permission rule. Legacy behavior is used until v9 policy
     is explicitly enabled. Once enabled, an unspecified tool defaults to Ask Every
     Time so the new policy system cannot silently broaden authority.
+
+    Tool arguments may further narrow authority. In particular, opting out of the
+    Docker security boundary for ``run_python_sandbox`` is always approval-gated,
+    even when the base sandbox tool is otherwise allowed for the session or by an
+    Always Allow rule. A host subprocess is bounded but is not a sandbox.
     """
 
     def __init__(self, engine: PermissionEngine | None = None):
@@ -71,6 +76,28 @@ class ToolPermissionRuntime:
             return PermissionDecision(False, True, PermissionMode.ASK_EVERY_TIME, "legacy Standard mode requires approval", "legacy", risk)
         return PermissionDecision(True, False, PermissionMode.ALWAYS_ALLOW, "legacy mode permits execution", "legacy", risk)
 
+    @staticmethod
+    def _argument_sensitive_decision(
+        tool_name: str,
+        arguments: dict[str, Any] | None,
+        decision: PermissionDecision,
+        profile: ToolRiskProfile,
+    ) -> PermissionDecision:
+        if tool_name != "run_python_sandbox" or not isinstance(arguments, dict):
+            return decision
+        if arguments.get("use_host_fallback") is not True:
+            return decision
+        if not decision.allowed:
+            return decision
+        return PermissionDecision(
+            False,
+            True,
+            PermissionMode.ASK_EVERY_TIME,
+            "Host Python fallback is not a security sandbox and requires explicit human approval",
+            "sandbox_boundary",
+            profile.risk,
+        )
+
     def authorize(
         self,
         *,
@@ -79,6 +106,7 @@ class ToolPermissionRuntime:
         gate: str | None,
         permissions: dict[str, Any],
         use_v9_policy: bool = False,
+        arguments: dict[str, Any] | None = None,
     ) -> ToolAuthorization:
         profile = ToolRiskClassifier.classify(tool_name, declared_risk)
         gate_allowed, gate_reason = self._legacy_gate_allowed(gate, permissions)
@@ -91,6 +119,7 @@ class ToolPermissionRuntime:
         else:
             decision = self._legacy_mode_decision(profile, permissions)
 
+        decision = self._argument_sensitive_decision(tool_name, arguments, decision, profile)
         return ToolAuthorization(
             allowed=decision.allowed,
             approval_required=decision.approval_required,
