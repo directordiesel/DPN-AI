@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.tools.research import install_research_tools
 from app.voice_security import install_voice_security
 
 
@@ -40,15 +41,17 @@ def _load_plugin(path: Path, expected_parent: Path, registry: Any) -> None:
 
 
 def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
-    """Install core runtime guards, then load optional trusted local plugins.
+    """Install core runtime capabilities, then load optional trusted local plugins.
 
-    Voice hardening is installed here as a core initialization hook after the
-    ToolRegistry has registered its voice callbacks. It does not depend on any
-    file in DPN_PLUGINS_DIR and therefore cannot be disabled by changing the
-    configurable plugin directory. Optional plugins remain restricted to regular
-    files directly inside that directory and cannot be symlinks.
+    Voice hardening and v9 research intelligence are installed here as core
+    initialization hooks after the ToolRegistry has registered its built-in
+    callbacks. They do not depend on any file in DPN_PLUGINS_DIR and therefore
+    cannot be disabled by changing the configurable plugin directory. Optional
+    plugins remain restricted to regular files directly inside that directory and
+    cannot be symlinks.
     """
     install_voice_security(registry)
+    install_research_tools(registry)
 
     errors: list[dict[str, str]] = []
     plugin_dir.mkdir(parents=True, exist_ok=True)
