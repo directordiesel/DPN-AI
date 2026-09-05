@@ -19,6 +19,7 @@ def test_artifact_plan_defaults_to_docx_and_validation():
     assert plan["formats"] == ["docx"]
     assert "create_word_document" in plan["preferred_tools"]
     assert plan["policy"]["validate_before_completion_claim"] is True
+    assert plan["policy"]["report_integrity_hash"] is True
 
 
 def test_artifact_plan_handles_aliases_and_edit_mode():
@@ -39,12 +40,14 @@ def _write_ooxml(path: Path, required: set[str]):
             archive.writestr(member, "<xml />")
 
 
-def test_validates_minimal_docx_package(tmp_path):
+def test_validates_minimal_docx_package_with_hash(tmp_path):
     target = tmp_path / "sample.docx"
     _write_ooxml(target, {"[Content_Types].xml", "word/document.xml"})
     result = artifact_studio.validate_artifact(tmp_path, "sample.docx", "docx")
     assert result["ok"] is True
     assert result["format"] == "docx"
+    assert len(result["sha256"]) == 64
+    assert any(check["name"] == "sha256_present" and check["ok"] for check in result["checks"])
 
 
 def test_rejects_corrupt_office_package(tmp_path):
@@ -55,11 +58,12 @@ def test_rejects_corrupt_office_package(tmp_path):
     assert any("valid Office Open XML" in error for error in result["errors"])
 
 
-def test_validates_pdf_signature_and_eof(tmp_path):
+def test_validates_pdf_signature_eof_and_hash(tmp_path):
     target = tmp_path / "sample.pdf"
     target.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n")
     result = artifact_studio.validate_artifact(tmp_path, "sample.pdf", "pdf")
     assert result["ok"] is True
+    assert len(result["sha256"]) == 64
 
 
 def test_rejects_workspace_escape(tmp_path):
