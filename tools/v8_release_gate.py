@@ -17,6 +17,7 @@ REQUIRED_FILES = (
     "desktop/resources.py",
     "packaging/windows/DPN-AI.spec",
     "packaging/windows/DPN-AI.iss",
+    "packaging/windows/sign.ps1",
     ".github/workflows/v8-validation.yml",
     ".github/workflows/windows-desktop-package.yml",
     "tests/test_v8_desktop_platform.py",
@@ -48,7 +49,7 @@ def evaluate() -> list[str]:
 
     readme = text("README.md")
     if EXPECTED_VERSION not in readme:
-        blockers.append("README.md does not identify stable v8.0.0")
+        blockers.append("README.md does not identify v8.0.0 release readiness")
 
     changelog = text("CHANGELOG.md")
     if EXPECTED_VERSION not in changelog:
@@ -69,21 +70,20 @@ def evaluate() -> list[str]:
     if "refs/heads/main" not in release_workflow:
         blockers.append("stable release workflow is not restricted to main")
 
-    unsigned_markers = (
-        "unsigned-development-artifact",
-        "unsigned-development-installer",
+    sign_script = text("packaging/windows/sign.ps1")
+    package_build = text("packaging/windows/build.ps1")
+    installer_build = text("packaging/windows/build-installer.ps1")
+    signing_contract = (
+        "signtool.exe" in sign_script
+        and "Get-AuthenticodeSignature" in sign_script
+        and "SignerCertificate.Thumbprint" in sign_script
+        and "[switch]$RequireSigned" in package_build
+        and "signed-production-artifact" in package_build
+        and "[switch]$RequireSigned" in installer_build
+        and "signed-production-installer" in installer_build
     )
-    packaging_text = "\n".join(
-        text(path)
-        for path in (
-            ".github/workflows/windows-desktop-package.yml",
-            "packaging/windows/build.ps1",
-            "packaging/windows/build-installer.ps1",
-        )
-    )
-    for marker in unsigned_markers:
-        if marker in packaging_text:
-            blockers.append(f"development-only signing marker remains: {marker}")
+    if not signing_contract:
+        blockers.append("production Authenticode signing integration is incomplete")
 
     return blockers
 
@@ -100,7 +100,7 @@ def main() -> int:
             print(f"- {blocker}")
         return 0 if args.report else 1
 
-    print("DPN AI v8 strict release gate passed.")
+    print("DPN AI v8 source release gate passed. Signed release artifacts must still be produced and verified by the trusted release workflow before publication.")
     return 0
 
 

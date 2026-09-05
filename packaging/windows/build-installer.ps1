@@ -2,7 +2,10 @@
 param(
     [string]$Python = "python",
     [string]$Iscc,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [string]$CertificateThumbprint,
+    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [switch]$RequireSigned
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,7 +18,7 @@ function Invoke-Checked {
     param([Parameter(Mandatory=$true)][string]$FilePath, [Parameter(ValueFromRemainingArguments=$true)][string[]]$Arguments)
     & $FilePath @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code $LASTEXITCODE: $FilePath $($Arguments -join ' ')"
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
     }
 }
 
@@ -40,6 +43,10 @@ function Resolve-Iscc {
     return (Resolve-Path $candidates[0]).Path
 }
 
+if ($RequireSigned -and -not $CertificateThumbprint) {
+    throw "Production signing is required but no CertificateThumbprint was supplied."
+}
+
 $VersionPath = Join-Path $RepoRoot "VERSION"
 if (-not (Test-Path $VersionPath)) { throw "VERSION file is missing." }
 $Version = (Get-Content $VersionPath -Raw).Trim()
@@ -55,8 +62,11 @@ $PackageManifest = Get-Content $PackageManifestPath -Raw | ConvertFrom-Json
 if ($PackageManifest.version -ne $Version) {
     throw "Package version '$($PackageManifest.version)' does not match VERSION '$Version'."
 }
-if ($PackageManifest.signing -ne "unsigned-development-artifact") {
-    throw "Unexpected package signing state '$($PackageManifest.signing)'. Release signing is handled by a later gated stage."
+if ($PackageManifest.signing -notin @("unsigned-development-artifact", "signed-production-artifact")) {
+    throw "Unexpected package signing state '$($PackageManifest.signing)'."
+}
+if ($RequireSigned -and $PackageManifest.signing -ne "signed-production-artifact") {
+    throw "Production installer build requires the packaged executable to be signed first."
 }
 $ActualPackageHash = (Get-FileHash -Algorithm SHA256 $PackageExe).Hash.ToLowerInvariant()
 if ($ActualPackageHash -ne $PackageManifest.sha256) {
@@ -82,6 +92,25 @@ if (-not (Test-Path $InstallerExe)) {
     throw "Inno Setup completed without producing $InstallerName"
 }
 
+$SigningState = "unsigned-development-installer"
+$SignerThumbprint = $null
+$SignerSubject = $null
+if ($CertificateThumbprint) {
+    $signScript = Join-Path $PSScriptRoot "sign.ps1"
+    $signingJson = & $signScript -FilePath $InstallerExe -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    if ($LASTEXITCODE -ne 0) { throw "Installer signing helper failed." }
+    $signing = $signingJson | ConvertFrom-Json
+    if ($signing.status -ne "signed-production-artifact") {
+        throw "Unexpected installer signing helper state '$($signing.status)'."
+    }
+    $SigningState = "signed-production-installer"
+    $SignerThumbprint = $signing.thumbprint
+    $SignerSubject = $signing.subject
+}
+if ($RequireSigned -and $SigningState -ne "signed-production-installer") {
+    throw "Production signing was required but the installer is not verified as signed."
+}
+
 $InstallerHash = (Get-FileHash -Algorithm SHA256 $InstallerExe).Hash.ToLowerInvariant()
 $InstallerManifest = [ordered]@{
     product = "DPN AI"
@@ -90,17 +119,23 @@ $InstallerManifest = [ordered]@{
     installer = $InstallerName
     sha256 = $InstallerHash
     source_executable_sha256 = $ActualPackageHash
+    source_executable_signing = $PackageManifest.signing
     architecture = "x64-compatible"
     scope = "per-user-default"
     upgrade_behavior = "same-app-id-in-place-upgrade-repair"
     uninstall_data_policy = "preserve-user-data-outside-install-directory"
     built_utc = [DateTime]::UtcNow.ToString("o")
-    signing = "unsigned-development-installer"
+    signing = $SigningState
+    signer_thumbprint = $SignerThumbprint
+    signer_subject = $SignerSubject
 }
 $InstallerManifestPath = Join-Path $InstallerOutput "installer-manifest.json"
 $InstallerManifest | ConvertTo-Json -Depth 4 | Set-Content -Path $InstallerManifestPath -Encoding UTF8
 
 Write-Host "DPN AI Windows installer created: $InstallerExe"
 Write-Host "SHA-256: $InstallerHash"
+Write-Host "Signing: $SigningState"
 Write-Host "Manifest: $InstallerManifestPath"
-Write-Host "NOTE: installer is a development artifact and remains unsigned until the release signing stage."
+if ($SigningState -eq "unsigned-development-installer") {
+    Write-Host "NOTE: development installer remains unsigned. Use -RequireSigned with a trusted certificate for release builds."
+}

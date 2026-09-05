@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ISS = (ROOT / "packaging" / "windows" / "DPN-AI.iss").read_text(encoding="utf-8")
 BUILD = (ROOT / "packaging" / "windows" / "build-installer.ps1").read_text(encoding="utf-8")
+SIGN = (ROOT / "packaging" / "windows" / "sign.ps1").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "windows-desktop-package.yml").read_text(encoding="utf-8")
 
 
@@ -59,16 +60,26 @@ def test_installer_manifest_records_upgrade_data_and_signing_policy():
     for required in (
         'upgrade_behavior = "same-app-id-in-place-upgrade-repair"',
         'uninstall_data_policy = "preserve-user-data-outside-install-directory"',
-        'signing = "unsigned-development-installer"',
+        '$SigningState = "unsigned-development-installer"',
         "source_executable_sha256 = $ActualPackageHash",
+        "source_executable_signing = $PackageManifest.signing",
     ):
         assert required in BUILD
+
+
+def test_release_installer_requires_signed_source_and_verified_signature():
+    assert "[switch]$RequireSigned" in BUILD
+    assert "Production installer build requires the packaged executable to be signed first" in BUILD
+    assert 'signed-production-installer' in BUILD
+    assert "sign.ps1" in BUILD
+    assert "Get-AuthenticodeSignature" in SIGN
+    assert "SignerCertificate.Thumbprint" in SIGN
 
 
 def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
     assert "if: github.event_name != 'pull_request'" in WORKFLOW
     assert "runs-on: windows-latest" in WORKFLOW
     assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97" in WORKFLOW
-    assert r".\packaging\windows\build-installer.ps1" in WORKFLOW
-    assert "-Python python" in WORKFLOW
+    assert 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\\packaging\\windows\\build-installer.ps1" -Python python' in WORKFLOW
+    assert "shell: cmd" in WORKFLOW
     assert "preserve-user-data-outside-install-directory" in WORKFLOW
