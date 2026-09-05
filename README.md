@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/branding/dpn-ai-logo.jpg" alt="DPN AI — Intelligent. Adaptive. Innovative." width="520">
+</p>
+
 <h1 align="center">DPN AI</h1>
 
 <p align="center"><strong>Local-first autonomous AI operations platform by DPN Technology</strong></p>
