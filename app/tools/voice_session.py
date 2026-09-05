@@ -16,7 +16,7 @@ def install_voice_session_tools(registry: Any) -> VoiceSessionRuntime | None:
 
     register(
         "voice_session_status",
-        "Report v9 hands-free voice session state and interruption capability.",
+        "Report v9 hands-free voice session state, interruption capability, and provider availability.",
         {"type": "object", "properties": {}, "additionalProperties": False},
         runtime.status,
         risk="read",
@@ -71,7 +71,11 @@ def install_voice_session_tools(registry: Any) -> VoiceSessionRuntime | None:
                     },
                     "default": [],
                 },
-                "source": {"type": "string", "default": "voice"},
+                "source": {
+                    "type": "string",
+                    "enum": ["voice", "microphone", "text", "remote"],
+                    "default": "voice",
+                },
             },
             "required": ["user_text"],
             "additionalProperties": False,
@@ -91,14 +95,28 @@ def install_voice_session_tools(registry: Any) -> VoiceSessionRuntime | None:
     register(
         "interrupt_voice",
         "Interrupt active speech for barge-in behavior without deleting the turn record.",
-        {"type": "object", "properties": {}, "additionalProperties": False},
+        {
+            "type": "object",
+            "properties": {
+                "reason": {"type": "string", "maxLength": 200, "default": "barge_in"},
+            },
+            "additionalProperties": False,
+        },
         runtime.interrupt,
         gate="voice",
         risk="execute",
     )
     register(
+        "abandon_interrupted_voice_turn",
+        "Abandon an interrupted turn and return the session to its safe next state.",
+        {"type": "object", "properties": {}, "additionalProperties": False},
+        runtime.abandon_interrupted_turn,
+        gate="voice",
+        risk="execute",
+    )
+    register(
         "complete_voice_turn",
-        "Complete the current voice turn and return to listening in hands-free mode or idle otherwise.",
+        "Complete the current non-interrupted voice turn and return to listening in hands-free mode or idle otherwise.",
         {"type": "object", "properties": {}, "additionalProperties": False},
         runtime.complete_turn,
         gate="voice",
