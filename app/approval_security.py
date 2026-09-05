@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.persistence_security import sanitize_for_persistence
+from app.tool_permission_runtime import ToolPermissionRuntime
 
 
 _PREFIX = "approval_payload."
@@ -41,6 +42,7 @@ class ApprovalSecurity:
         self.registry = registry
         self.db = registry.db
         self.vault = registry.vault
+        self.permission_runtime = getattr(registry, "permission_runtime", ToolPermissionRuntime())
         self._original_resolve = self.db.resolve_approval
         self._scrub_legacy_rows()
         # Keep direct database approval decisions safe. The API and other callers
@@ -64,6 +66,7 @@ class ApprovalSecurity:
             "allow_mcp": bool(stored.get("allow_mcp", settings.allow_mcp_default)),
             "allow_self_improvement": bool(stored.get("allow_self_improvement", settings.allow_self_improvement_default)),
             "approval_mode": str(stored.get("approval_mode", "standard") or "standard"),
+            "use_v9_permissions": bool(stored.get("use_v9_permissions", False)),
         }
 
     def _scrub_legacy_rows(self) -> dict[str, int]:
@@ -158,19 +161,25 @@ class ApprovalSecurity:
         registered = self.registry.tools.get(name)
         if not registered:
             return {"ok": False, "error": f"Unknown tool: {name}"}
-        gate_error = self.registry._gate_error(registered, permissions)
-        if gate_error:
-            return {"ok": False, "error": gate_error}
-        mode = permissions.get("approval_mode", "standard")
-        if mode == "safe" and registered.risk in {"execute", "destructive", "external", "desktop"}:
-            return {"ok": False, "error": f"{name} is blocked by Safe approval mode."}
-        if mode == "standard" and registered.risk in {"destructive", "external", "desktop"}:
+
+        authorization = self.permission_runtime.authorize(
+            tool_name=name,
+            declared_risk=registered.risk,
+            gate=registered.gate,
+            permissions=permissions,
+            use_v9_policy=bool(permissions.get("use_v9_permissions", False)),
+        )
+        if not authorization.allowed and not authorization.approval_required:
+            return {"ok": False, "error": authorization.reason, "risk": authorization.profile.risk.value}
+
+        if authorization.approval_required:
             preview = sanitize_for_persistence(arguments)
+            effective_risk = authorization.profile.risk.value
             approval = self.db.create_approval(
                 name,
                 preview if isinstance(preview, dict) else {"preview": preview},
-                registered.risk,
-                f"{name} has {registered.risk} side effects and requires a human decision in Standard mode.",
+                effective_risk,
+                authorization.reason,
                 permissions.get("run_id"),
             )
             try:
@@ -192,7 +201,8 @@ class ApprovalSecurity:
                 "ok": False,
                 "approval_required": True,
                 "approval_id": approval["id"],
-                "risk": registered.risk,
+                "risk": effective_risk,
+                "permission_source": authorization.decision.source,
                 "error": f"Approval required for {name}. Open the Approval Inbox.",
             }
 
@@ -205,6 +215,8 @@ class ApprovalSecurity:
             {
                 "tool": name,
                 "arguments": sanitize_for_persistence(arguments),
+                "risk": authorization.profile.risk.value,
+                "permission_source": authorization.decision.source,
                 "ok": bool(result.get("ok")),
                 "elapsed_ms": result.get("elapsed_ms", 0),
             },
@@ -224,23 +236,42 @@ class ApprovalSecurity:
             self.db.resolve_approval(approval_id, "denied", {"error": "Approval expired before execution"})
             return {"ok": False, "error": "Approval expired before execution"}
 
-        registered = self.registry.tools.get(approval.get("tool_name"))
+        tool_name = str(approval.get("tool_name") or "")
+        registered = self.registry.tools.get(tool_name)
         if not registered:
             self.db.resolve_approval(approval_id, "denied", {"error": "Approved tool is no longer registered"})
             return {"ok": False, "error": "Approved tool is no longer registered"}
-        if str(approval.get("risk")) != str(getattr(registered, "risk", "read")):
-            self.db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
-            return {"ok": False, "error": "Tool risk classification changed after approval"}
 
         live = self._live_permissions()
         if live is not None:
-            gate_error = self.registry._gate_error(registered, live)
-            if gate_error:
-                self.db.resolve_approval(approval_id, "denied", {"error": gate_error})
-                return {"ok": False, "error": gate_error}
-            if live.get("approval_mode") == "safe" and registered.risk in {"execute", "destructive", "external", "desktop"}:
-                self.db.resolve_approval(approval_id, "denied", {"error": "Current Safe approval mode blocks this tool"})
-                return {"ok": False, "error": "Current Safe approval mode blocks this tool"}
+            authorization = self.permission_runtime.authorize(
+                tool_name=tool_name,
+                declared_risk=registered.risk,
+                gate=registered.gate,
+                permissions=live,
+                use_v9_policy=bool(live.get("use_v9_permissions", False)),
+            )
+            current_risk = authorization.profile.risk.value
+            if str(approval.get("risk")) != current_risk:
+                self.db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
+                return {"ok": False, "error": "Tool risk classification changed after approval"}
+            # A previously approved one-time action may still report approval_required
+            # during revalidation. Only hard denial blocks execution here.
+            if not authorization.allowed and not authorization.approval_required:
+                self.db.resolve_approval(approval_id, "denied", {"error": authorization.reason})
+                return {"ok": False, "error": authorization.reason}
+        else:
+            # Without live settings, still reject a classifier change.
+            current = self.permission_runtime.authorize(
+                tool_name=tool_name,
+                declared_risk=registered.risk,
+                gate=None,
+                permissions={},
+                use_v9_policy=False,
+            )
+            if str(approval.get("risk")) != current.profile.risk.value:
+                self.db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
+                return {"ok": False, "error": "Tool risk classification changed after approval"}
 
         with self.db.connect() as connection:
             claimed = connection.execute(
@@ -260,7 +291,7 @@ class ApprovalSecurity:
             return {"ok": False, "error": f"Approval payload unavailable: {type(exc).__name__}"}
 
         try:
-            result = await self.registry._invoke(approval["tool_name"], arguments)
+            result = await self.registry._invoke(tool_name, arguments)
             if not isinstance(result, dict):
                 result = {"ok": False, "error": "Tool returned an invalid result type"}
             self.db.resolve_approval(
@@ -270,7 +301,7 @@ class ApprovalSecurity:
             )
             self.db.audit(
                 "tool.approved_execution",
-                f"Executed approved tool {approval['tool_name']}",
+                f"Executed approved tool {tool_name}",
                 {"approval_id": approval_id, "ok": bool(result.get("ok"))},
                 actor="user",
             )
@@ -287,7 +318,7 @@ class ApprovalSecurity:
             self.db.resolve_approval(approval_id, "failed", {"error": safe_error})
             self.db.audit(
                 "tool.approved_execution_failed",
-                f"Approved tool {approval['tool_name']} raised an exception",
+                f"Approved tool {tool_name} raised an exception",
                 {"approval_id": approval_id, "error": safe_error},
                 actor="user",
             )
