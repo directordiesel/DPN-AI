@@ -6,6 +6,8 @@ APP_GRADLE = ROOT / "mobile/android/app/build.gradle.kts"
 PROPS = ROOT / "mobile/android/gradle.properties"
 WORKFLOW = ROOT / ".github/workflows/android-mobile-validation.yml"
 MANIFEST = ROOT / "mobile/android/app/src/main/AndroidManifest.xml"
+DATA_EXTRACTION_RULES = ROOT / "mobile/android/app/src/main/res/xml/data_extraction_rules.xml"
+BACKUP_RULES = ROOT / "mobile/android/app/src/main/res/xml/backup_rules.xml"
 
 
 class MobileReleaseHardeningTests(unittest.TestCase):
@@ -15,6 +17,8 @@ class MobileReleaseHardeningTests(unittest.TestCase):
         cls.props = PROPS.read_text(encoding="utf-8")
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
         cls.manifest = MANIFEST.read_text(encoding="utf-8")
+        cls.data_extraction_rules = DATA_EXTRACTION_RULES.read_text(encoding="utf-8")
+        cls.backup_rules = BACKUP_RULES.read_text(encoding="utf-8")
 
     def test_release_is_not_debuggable_and_is_shrunk(self):
         self.assertIn("isDebuggable = false", self.gradle)
@@ -42,7 +46,13 @@ class MobileReleaseHardeningTests(unittest.TestCase):
     def test_manifest_keeps_network_and_backup_boundaries(self):
         self.assertIn('android:usesCleartextTraffic="false"', self.manifest)
         self.assertIn('android:allowBackup="false"', self.manifest)
-        self.assertIn('android:fullBackupContent="false"', self.manifest)
+        self.assertIn('android:dataExtractionRules="@xml/data_extraction_rules"', self.manifest)
+        self.assertIn('android:fullBackupContent="@xml/backup_rules"', self.manifest)
+        for domain in ("root", "file", "database", "sharedpref", "external"):
+            self.assertIn(f'<exclude domain="{domain}" path="." />', self.data_extraction_rules)
+            self.assertIn(f'<exclude domain="{domain}" path="." />', self.backup_rules)
+        self.assertIn("<cloud-backup", self.data_extraction_rules)
+        self.assertIn("<device-transfer>", self.data_extraction_rules)
 
     def test_ci_builds_debug_and_lints_without_release_secrets(self):
         self.assertIn(":app:assembleDebug", self.workflow)
