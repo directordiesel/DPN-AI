@@ -11,7 +11,6 @@ on:
       - "packaging/windows/**"
       - "requirements*.txt"
       - "tests/test_v8_*.py"
-      - ".github/scripts/resolve_windows_python.cmd"
       - ".github/workflows/windows-desktop-package.yml"
   pull_request:
     paths:
@@ -20,7 +19,6 @@ on:
       - "packaging/windows/**"
       - "requirements*.txt"
       - "tests/test_v8_*.py"
-      - ".github/scripts/resolve_windows_python.cmd"
       - ".github/workflows/windows-desktop-package.yml"
 
 permissions:
@@ -33,29 +31,32 @@ concurrency:
 jobs:
   package:
     if: github.event_name != 'pull_request'
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 45
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
-      - name: Resolve existing Python 3.12
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify configured Python
         shell: cmd
-        run: .github\scripts\resolve_windows_python.cmd
-
+        run: |
+          where python
+          python --version
+          python -m pip --version
       - name: Build tested Windows package
         shell: cmd
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build.ps1" -Python "%PYTHON_EXE%"
-
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build.ps1" -Python python
       - name: Validate package manifest
         shell: python
         run: |
           import hashlib
           import json
           from pathlib import Path
-
           manifest_path = Path("dist/DPN-AI/build-manifest.json")
           exe = Path("dist/DPN-AI/DPN-AI.exe")
           if not manifest_path.is_file():
@@ -68,18 +69,15 @@ jobs:
               raise SystemExit("Executable SHA-256 does not match build manifest")
           if manifest.get("signing") != "unsigned-development-artifact":
               raise SystemExit("Unexpected signing state")
-
       - name: Build validated Windows installer
         shell: cmd
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build-installer.ps1" -Python "%PYTHON_EXE%"
-
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build-installer.ps1" -Python python
       - name: Validate installer manifest
         shell: python
         run: |
           import hashlib
           import json
           from pathlib import Path
-
           version = Path("VERSION").read_text(encoding="utf-8").strip()
           manifest_path = Path("dist/installer/installer-manifest.json")
           if not manifest_path.is_file():
@@ -97,7 +95,6 @@ jobs:
               raise SystemExit("Unexpected installer signing state")
           if manifest.get("uninstall_data_policy") != "preserve-user-data-outside-install-directory":
               raise SystemExit("Unsafe uninstall data policy")
-
       - name: Upload development package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -105,7 +102,6 @@ jobs:
           path: dist/DPN-AI/
           if-no-files-found: error
           retention-days: 7
-
       - name: Upload development installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
