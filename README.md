@@ -3,21 +3,40 @@
 <p align="center"><strong>Developed by DPN Technology</strong></p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/Version-v6.0.0-7c3aed?style=for-the-badge">
-  <img alt="Status" src="https://img.shields.io/badge/Status-v7%20Active%20Development-16a34a?style=for-the-badge">
+  <img alt="Version" src="https://img.shields.io/badge/Stable-v6.0.0-2563eb?style=for-the-badge">
+  <img alt="Release Candidate" src="https://img.shields.io/badge/v8.0.0-Release%20Candidate-7c3aed?style=for-the-badge">
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Private-111827?style=for-the-badge">
   <img alt="Publisher" src="https://img.shields.io/badge/Publisher-DPN%20Technology-6d28d9?style=for-the-badge">
   <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-REQUIRED-16a34a?style=for-the-badge"></a>
-  <a href="https://github.com/directordiesel/DPN-AI/releases/tag/v6.0.0"><img alt="Latest Release v6.0.0" src="https://img.shields.io/badge/Latest%20Release-v6.0.0-2563eb?style=for-the-badge"></a>
 </p>
 
-> **Stable release:** v6.0.0 · Advanced Core  
-> **Development line:** v7 Agentic Intelligence  
+> **Published stable release:** v6.0.0 · Advanced Core  
+> **Release candidate:** v8.0.0 · Windows Desktop Platform  
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal
 
-## Download Current Release
+## v8.0.0 Release Candidate Status
 
-The current verified stable release is **v6.0.0**.
+DPN AI v8.0.0 is implementation-complete on the dedicated desktop development branch and is being held behind strict release-readiness gates. It is not yet published as the stable GitHub release.
+
+The v8 desktop line adds:
+- native Windows desktop launcher/supervisor and safe-mode recovery
+- black/purple Desktop Control Center with live runtime status
+- versioned desktop API and protected SSE status stream
+- Windows executable packaging and installer foundations
+- updater/rollback integrity contracts
+- per-user Windows startup/context-menu/tray integration
+- persistent crash journaling, integrity-tagged backups, and diagnostics hardening
+- CPU/RAM pressure controls and model lifecycle management
+- dedicated v8 security, QA, packaging, and release-readiness workflows
+
+Final stable publication remains blocked only by:
+- coordinated version promotion across `VERSION`, runtime `APP_VERSION`, UI stable-core/version markers, and related release metadata
+- genuine production Windows code-signing integration and verification
+- final exact-head release gates and explicit stable merge/release authorization
+
+## Download Current Published Release
+
+The current verified published stable release is **v6.0.0**.
 
 | Release Resource | Link |
 | --- | --- |
@@ -38,7 +57,7 @@ The platform is intentionally more than a chat interface. It can plan work, exec
 
 ## Stable v6 Advanced Core
 
-v6.0.0 established the production foundation used by the v7 development line, including:
+v6.0.0 established the production foundation used by later development lines, including:
 - Universal Creator foundation
 - Coding Agent
 - Document and artifact workflows
@@ -55,23 +74,23 @@ v6.0.0 established the production foundation used by the v7 development line, in
 - Native vision reasoning foundations
 - Release readiness and security gates
 
-## v7 Agentic Intelligence Roadmap
+## v8 Desktop Platform Roadmap
 
-The active v7 integration branch advances these packages in order:
-1. Agent Runtime
-2. Autonomous Coding Engine
-3. Creator Engine
-4. Automation/Scheduler
-5. Multimodal/Vision
-6. Browser & Research
-7. Connector/MCP system
-8. Persistent project intelligence
-9. Self-verification
-10. Desktop UI/control center
-11. Comprehensive security/QA
-12. v7 release gates
+The v8 integration branch contains all planned implementation batches:
+1. Desktop platform foundation and security contracts
+2. Native launcher/supervisor and safe mode
+3. Desktop Control Center shell/navigation
+4. Unified desktop API and SSE status stream
+5. Windows executable packaging foundation
+6. Installer/repair/upgrade/uninstall foundation
+7. Signed updater/rollback verification contract
+8. Windows startup/context-menu/tray integration
+9. Crash recovery/backups/diagnostics hardening
+10. Performance/resource/model lifecycle controls
+11. Comprehensive security/QA/package validation
+12. Strict v8 release gates
 
-The v7 integration branch remains separate from stable `main` until validation is complete and an explicit release merge is authorized.
+The v8 branch remains separate from stable `main` until final release blockers are resolved and an explicit merge/release is authorized.
 
 ## Core Execution Model
 
@@ -118,7 +137,7 @@ The creator layer coordinates documents, PDFs, spreadsheets, presentations, imag
 
 ## Automation & Scheduling
 
-DPN AI includes scheduled and persistent automation foundations. v7 expands this into bounded one-time, recurring, and condition-driven operations with:
+DPN AI includes scheduled and persistent automation foundations with:
 - schedule/condition validation
 - approval gates before side effects
 - overlap policy
@@ -262,7 +281,8 @@ Run:
 
 ```text
 app/       application, API, orchestration, persistence, adapters and tools
-plugins/   trusted extension modules, including v7 capability packages
+desktop/   v8 desktop runtime, supervisor, service facade, updater, integration and recovery
+plugins/   trusted extension modules
 skills/    reusable skill registrations
 scripts/   operational/development helpers where present
 docs/      architecture, security, release and capability documentation
@@ -279,14 +299,18 @@ A significant change should normally pass:
 - full automated test suite
 - DPN Security Gate
 - Runtime & Recovery Assurance
+- Repository Health
+- DPN AI v8 Desktop Validation for v8 desktop changes
 - relevant release/supply-chain gates before stable publication
 
 ## Current Status
 
 | Item | Current State |
 | --- | --- |
-| Stable release | **v6.0.0 · Advanced Core** |
-| Development | **v7 Agentic Intelligence** |
+| Published stable release | **v6.0.0 · Advanced Core** |
+| Release candidate | **v8.0.0 · Windows Desktop Platform** |
+| Remaining blockers | **Coordinated version promotion + production Windows signing + final exact-head release gates** |
+| PR status | **Draft until final release blockers and exact-head gates are cleared** |
 | Repository visibility | **Private** |
 | Publisher | **DPN Technology** |
 | Primary stack | Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal |

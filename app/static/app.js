@@ -1,4 +1,4 @@
-const initialToken = new URLSearchParams(location.search).get('token') || sessionStorage.getItem('dpnApiToken') || '';
+﻿const initialToken = new URLSearchParams(location.search).get('token') || sessionStorage.getItem('dpnApiToken') || '';
 if (initialToken) { sessionStorage.setItem('dpnApiToken', initialToken); if (location.search.includes('token=')) history.replaceState({}, '', location.pathname); }
 
 const VOICE_PACE_VERSION = 3;
@@ -276,14 +276,14 @@ async function loadVoiceProfiles() {
     state.voiceProfiles = data.profiles || [];
     const ids = state.voiceProfiles.map(item => item.id);
     if (!ids.includes(state.voice.selected)) state.voice.selected = data.default_voice || ids[0] || 'sentinel';
-    els.voiceSelect.innerHTML = state.voiceProfiles.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}${item.installed ? '' : ' • install'}</option>`).join('');
+    els.voiceSelect.innerHTML = state.voiceProfiles.map(item => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}${item.installed ? '' : ' â€¢ install'}</option>`).join('');
     els.voiceSelect.value = state.voice.selected;
     els.autoSpeakToggle.checked = state.voice.autoSpeak;
     els.handsFreeToggle.checked = state.voice.handsFree;
     if (els.voiceReviewToggle) els.voiceReviewToggle.checked = state.voice.reviewBeforeSend;
     const status = await api('/api/voice/status');
     state.voice.voiceAvailable = Boolean(status.stt || status.tts);
-    setVoiceUi(state.settings?.allow_voice ? 'ready' : 'unavailable', state.settings?.allow_voice ? `${selectedVoiceProfile().name} • local speech` : 'Enable voice capabilities in Settings');
+    setVoiceUi(state.settings?.allow_voice ? 'ready' : 'unavailable', state.settings?.allow_voice ? `${selectedVoiceProfile().name} â€¢ local speech` : 'Enable voice capabilities in Settings');
   } catch (error) {
     state.voice.voiceAvailable = false;
     setVoiceUi('error', error.message);
@@ -308,7 +308,7 @@ async function speakText(text, voiceId = state.voice.selected) {
   stopVoicePlayback(false);
   const profile = voiceProfile(voiceId);
   const speed = voiceSpeedFor(voiceId);
-  setVoiceUi('processing', `Preparing ${profile.name} at ${speed.toFixed(2)}× narration pace…`);
+  setVoiceUi('processing', `Preparing ${profile.name} at ${speed.toFixed(2)}Ã— narration paceâ€¦`);
   const result = await api('/api/voice/synthesize', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({text, voice_id:voiceId, speed, filename:`dpn-voice-${Date.now()}.wav`, tone:voiceToneFor(voiceId)}),
@@ -344,7 +344,7 @@ function cleanupRecorder() {
 
 async function processVoiceRecording(blob) {
   if (!blob || blob.size < 200) { setVoiceUi('ready', 'No usable audio was captured'); if (state.voice.handsFree) setTimeout(() => startVoiceRecording(true), 800); return; }
-  setVoiceUi('processing', 'Local faster-whisper is transcribing…');
+  setVoiceUi('processing', 'Local faster-whisper is transcribingâ€¦');
   const form = new FormData();
   const extension = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('wav') ? 'wav' : 'webm';
   form.append('file', blob, `microphone-${Date.now()}.${extension}`);
@@ -383,7 +383,7 @@ function monitorVoiceActivity() {
   if (rms > 0.032) {
     state.voice.speechDetected = true;
     state.voice.silenceStarted = 0;
-    els.voiceTranscript.textContent = 'Speech detected…';
+    els.voiceTranscript.textContent = 'Speech detectedâ€¦';
   } else if (state.voice.speechDetected && rms < 0.018) {
     if (!state.voice.silenceStarted) state.voice.silenceStarted = now;
     if (state.voice.handsFree && now - state.voice.silenceStarted > 1050) stopVoiceRecording();
@@ -453,15 +453,15 @@ async function showVoiceCenter() {
   openModal('Voice Command Center', 'LOCAL CONVERSATIONAL AUDIO', `
     <div class="metric-grid"><div><strong>${status.stt ? 'READY' : 'OFF'}</strong><span>Speech recognition</span></div><div><strong>${status.piper ? 'READY' : 'OFF'}</strong><span>Neural TTS engine</span></div><div><strong>${status.installed_profiles?.length || 0}</strong><span>Installed voices</span></div><div><strong>${escapeHtml(state.voice.sttModel)}</strong><span>STT model</span></div></div>
     <p class="help-text">The v5.0.7 clarity engine uses a higher-quality Sentinel model when installed, natural sentence pacing, low-noise gain control and selectable delivery tones. Aurora remains softer and gentler. Neither voice imitates a real person.</p>
-    <div class="voice-profile-grid">${profiles.map(profile => `<article class="voice-profile-card ${profile.id === state.voice.selected ? 'selected' : ''}"><header><div><span class="status-badge ${profile.installed ? 'completed' : 'failed'}">${profile.installed ? 'INSTALLED' : 'NOT INSTALLED'}</span><h4>${escapeHtml(profile.name)}</h4></div><strong>${escapeHtml(profile.gender)}</strong></header><p>${escapeHtml(profile.style)}</p><small>${escapeHtml(profile.description)}</small><div class="voice-tone"><b>Delivery tone</b><span>${escapeHtml(profile.tone || profile.style)}</span></div><label class="voice-pace"><span>Reading pace <output data-voice-speed-output="${profile.id}">${voiceSpeedFor(profile.id).toFixed(2)}×</output></span><input type="range" min="0.65" max="1.12" step="0.01" value="${voiceSpeedFor(profile.id)}" data-voice-speed="${profile.id}"><small>Natural preset: ${Number(profile.default_speed || 0.90).toFixed(2)}×</small></label><label class="voice-tone-select"><span>Delivery tone</span><select data-voice-tone="${profile.id}">${(profile.tone_options || ['natural']).map(tone => `<option value="${tone}" ${voiceToneFor(profile.id) === tone ? 'selected' : ''}>${tone.charAt(0).toUpperCase()+tone.slice(1)}</option>`).join('')}</select><small>${profile.using_fallback_model ? `Legacy model active: ${profile.active_model}. Install the HD voice for the cleanest result.` : `Active model: ${profile.active_model || 'system voice'}`}</small></label><div class="modal-actions"><button class="secondary" data-voice-select="${profile.id}">Use Voice</button><button class="secondary" data-voice-reset="${profile.id}">Natural Pace</button>${profile.installed ? `<button class="secondary" data-voice-sample="${profile.id}">Play Sample</button>` : ''}${profile.update_available ? `<button class="primary compact" data-voice-install="${profile.id}">Upgrade to HD</button>` : (!profile.installed ? `<button class="primary compact" data-voice-install="${profile.id}">Install Locally</button>` : '')}</div></article>`).join('')}</div>
-    <div class="form-grid voice-advanced"><div class="field"><label>Speech recognition model</label><select id="voiceSttModel"><option value="tiny">Tiny — fastest</option><option value="base">Base — recommended</option><option value="small">Small — more accurate</option><option value="medium">Medium — high accuracy</option><option value="large-v3-turbo">Large v3 Turbo — strongest</option></select><small>The model downloads locally the first time it is used.</small></div></div>
+    <div class="voice-profile-grid">${profiles.map(profile => `<article class="voice-profile-card ${profile.id === state.voice.selected ? 'selected' : ''}"><header><div><span class="status-badge ${profile.installed ? 'completed' : 'failed'}">${profile.installed ? 'INSTALLED' : 'NOT INSTALLED'}</span><h4>${escapeHtml(profile.name)}</h4></div><strong>${escapeHtml(profile.gender)}</strong></header><p>${escapeHtml(profile.style)}</p><small>${escapeHtml(profile.description)}</small><div class="voice-tone"><b>Delivery tone</b><span>${escapeHtml(profile.tone || profile.style)}</span></div><label class="voice-pace"><span>Reading pace <output data-voice-speed-output="${profile.id}">${voiceSpeedFor(profile.id).toFixed(2)}Ã—</output></span><input type="range" min="0.65" max="1.12" step="0.01" value="${voiceSpeedFor(profile.id)}" data-voice-speed="${profile.id}"><small>Natural preset: ${Number(profile.default_speed || 0.90).toFixed(2)}Ã—</small></label><label class="voice-tone-select"><span>Delivery tone</span><select data-voice-tone="${profile.id}">${(profile.tone_options || ['natural']).map(tone => `<option value="${tone}" ${voiceToneFor(profile.id) === tone ? 'selected' : ''}>${tone.charAt(0).toUpperCase()+tone.slice(1)}</option>`).join('')}</select><small>${profile.using_fallback_model ? `Legacy model active: ${profile.active_model}. Install the HD voice for the cleanest result.` : `Active model: ${profile.active_model || 'system voice'}`}</small></label><div class="modal-actions"><button class="secondary" data-voice-select="${profile.id}">Use Voice</button><button class="secondary" data-voice-reset="${profile.id}">Natural Pace</button>${profile.installed ? `<button class="secondary" data-voice-sample="${profile.id}">Play Sample</button>` : ''}${profile.update_available ? `<button class="primary compact" data-voice-install="${profile.id}">Upgrade to HD</button>` : (!profile.installed ? `<button class="primary compact" data-voice-install="${profile.id}">Install Locally</button>` : '')}</div></article>`).join('')}</div>
+    <div class="form-grid voice-advanced"><div class="field"><label>Speech recognition model</label><select id="voiceSttModel"><option value="tiny">Tiny â€” fastest</option><option value="base">Base â€” recommended</option><option value="small">Small â€” more accurate</option><option value="medium">Medium â€” high accuracy</option><option value="large-v3-turbo">Large v3 Turbo â€” strongest</option></select><small>The model downloads locally the first time it is used.</small></div></div>
     <div class="modal-actions"><button class="secondary" id="clearVoiceCacheBtn">Release Voice Models From Memory</button></div>`, true);
   $('voiceSttModel').value = state.voice.sttModel;
   $('voiceSttModel').onchange = event => { state.voice.sttModel = event.target.value; localStorage.setItem('dpnSttModel',state.voice.sttModel); };
-  document.querySelectorAll('[data-voice-select]').forEach(button => button.onclick = () => { state.voice.selected=button.dataset.voiceSelect; localStorage.setItem('dpnVoiceProfile',state.voice.selected); els.voiceSelect.value=state.voice.selected; closeModal(); setVoiceUi('ready',`${selectedVoiceProfile().name} selected at ${voiceSpeedFor().toFixed(2)}×`); });
-  document.querySelectorAll('[data-voice-speed]').forEach(input => input.oninput = () => { const voiceId=input.dataset.voiceSpeed; const value=setVoiceSpeed(voiceId,input.value); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (output) output.textContent=`${value.toFixed(2)}×`; });
+  document.querySelectorAll('[data-voice-select]').forEach(button => button.onclick = () => { state.voice.selected=button.dataset.voiceSelect; localStorage.setItem('dpnVoiceProfile',state.voice.selected); els.voiceSelect.value=state.voice.selected; closeModal(); setVoiceUi('ready',`${selectedVoiceProfile().name} selected at ${voiceSpeedFor().toFixed(2)}Ã—`); });
+  document.querySelectorAll('[data-voice-speed]').forEach(input => input.oninput = () => { const voiceId=input.dataset.voiceSpeed; const value=setVoiceSpeed(voiceId,input.value); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (output) output.textContent=`${value.toFixed(2)}Ã—`; });
   document.querySelectorAll('[data-voice-tone]').forEach(select => select.onchange = () => { const voiceId=select.dataset.voiceTone; const value=setVoiceTone(voiceId,select.value); toast(`${voiceProfile(voiceId).name} tone set to ${value}.`); });
-  document.querySelectorAll('[data-voice-reset]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceReset; const value=resetVoiceSpeed(voiceId); const input=document.querySelector(`[data-voice-speed="${voiceId}"]`); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (input) input.value=String(value); if (output) output.textContent=`${value.toFixed(2)}×`; toast(`${voiceProfile(voiceId).name} restored to its natural narration pace.`); });
+  document.querySelectorAll('[data-voice-reset]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceReset; const value=resetVoiceSpeed(voiceId); const input=document.querySelector(`[data-voice-speed="${voiceId}"]`); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (input) input.value=String(value); if (output) output.textContent=`${value.toFixed(2)}Ã—`; toast(`${voiceProfile(voiceId).name} restored to its natural narration pace.`); });
   document.querySelectorAll('[data-voice-install]').forEach(button => button.onclick = async () => { try { await installVoiceProfile(button.dataset.voiceInstall); await showVoiceCenter(); } catch(error) { toast(error.message,true); } });
   document.querySelectorAll('[data-voice-sample]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceSample; const sample=voiceId === 'aurora' ? 'Take a comfortable breath. I can read this slowly, gently, and clearly, with space between each thought.' : 'DPN AI voice systems are online. I will deliver each operation clearly, calmly, and at a measured pace.'; speakText(sample,voiceId).catch(error=>toast(error.message,true)); });
   $('clearVoiceCacheBtn').onclick = async () => { const result=await api('/api/voice/cache/clear',{method:'POST'}); toast(`Released ${result.piper_models_released + result.whisper_models_released} cached voice model(s).`); };
@@ -511,11 +511,11 @@ function attachUserMessageActions(node, messageId, content) {
   if (!actions) return;
   actions.innerHTML = '';
   const editButton = document.createElement('button');
-  editButton.innerHTML = '✎ Edit & resend';
+  editButton.innerHTML = 'âœŽ Edit & resend';
   editButton.title = 'Edit this message and regenerate the conversation from here';
   editButton.onclick = () => startMessageEdit(messageId, content, node);
   const copyButton = document.createElement('button');
-  copyButton.innerHTML = '▣ Copy';
+  copyButton.innerHTML = 'â–£ Copy';
   copyButton.onclick = async () => { await navigator.clipboard.writeText(content); toast('Message copied.'); };
   actions.append(editButton, copyButton);
 }
@@ -543,11 +543,11 @@ function addMessage(role, content, metadata = {}) {
   const actions = ensureMessagePart(node, 'message-actions');
   if (actions && role === 'assistant' && content) {
     const readButton = document.createElement('button');
-    readButton.innerHTML = '◉ Read aloud';
+    readButton.innerHTML = 'â—‰ Read aloud';
     readButton.title = 'Read this response using the selected local voice';
     readButton.onclick = () => speakText(content).catch(error => toast(error.message, true));
     const copyButton = document.createElement('button');
-    copyButton.innerHTML = '▣ Copy';
+    copyButton.innerHTML = 'â–£ Copy';
     copyButton.onclick = async () => { await navigator.clipboard.writeText(content); toast('Response copied.'); };
     actions.append(readButton, copyButton);
   } else if (role === 'user' && metadata.message_id) {
@@ -559,7 +559,7 @@ function addMessage(role, content, metadata = {}) {
   const shownFiles = [...(metadata.attachments || []), ...(metadata.generated_files || [])];
   for (const path of [...new Set(shownFiles)]) {
     const a = document.createElement('a');
-    a.className = 'file-chip'; a.href = `/api/files/download/${encodeURI(path)}`; a.textContent = `▣ ${path}`; a.setAttribute('download', '');
+    a.className = 'file-chip'; a.href = `/api/files/download/${encodeURI(path)}`; a.textContent = `â–£ ${path}`; a.setAttribute('download', '');
     if (attachments) attachments.appendChild(a);
   }
   if (attachments && !attachments.children.length) attachments.remove();
@@ -567,7 +567,7 @@ function addMessage(role, content, metadata = {}) {
   for (const entry of metadata.traces || []) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.innerHTML = `<span class="${entry.ok ? 'ok' : 'bad'}">${entry.ok ? '✓' : '✕'}</span> ${escapeHtml(entry.name)} <small>${entry.elapsed_ms || 0} ms</small>`;
+    summary.innerHTML = `<span class="${entry.ok ? 'ok' : 'bad'}">${entry.ok ? 'âœ“' : 'âœ•'}</span> ${escapeHtml(entry.name)} <small>${entry.elapsed_ms || 0} ms</small>`;
     const pre = document.createElement('pre');
     pre.textContent = JSON.stringify({arguments: entry.arguments, result: entry.result}, null, 2);
     details.append(summary, pre); if (trace) trace.appendChild(details);
@@ -582,7 +582,7 @@ function addTyping() {
   const node = addMessage('assistant', '');
   node.classList.add('pending');
   const contentNode = ensureMessagePart(node, 'message-content');
-  if (contentNode) contentNode.innerHTML = '<span class="typing"><i></i><i></i><i></i></span><small class="operation-pulse">DPN AI is executing the operation…</small>';
+  if (contentNode) contentNode.innerHTML = '<span class="typing"><i></i><i></i><i></i></span><small class="operation-pulse">DPN AI is executing the operationâ€¦</small>';
   return node;
 }
 
@@ -591,7 +591,7 @@ function renderPendingAttachments() {
   for (const path of state.pendingAttachments) {
     const chip = document.createElement('span');
     chip.className = 'pending-chip';
-    chip.innerHTML = `<span>${escapeHtml(path)}</span><button title="Remove attachment">✕</button>`;
+    chip.innerHTML = `<span>${escapeHtml(path)}</span><button title="Remove attachment">âœ•</button>`;
     chip.querySelector('button').onclick = () => {
       state.pendingAttachments = state.pendingAttachments.filter(item => item !== path);
       renderPendingAttachments();
@@ -629,7 +629,7 @@ async function loadHealth() {
     els.statusDot.className = `status-dot ${ok ? 'ok' : 'bad'}`;
     els.statusText.textContent = ok ? `DPN Core v${data.version}` : 'Model Gateway Offline';
     const activeModel = data.intelligence?.active_model && data.intelligence.active_model !== 'warming' ? data.intelligence.active_model : 'warming strongest model';
-    els.statusDetail.textContent = ok ? `${provider} • MAX intelligence • ${activeModel} • ${data.plugins.loaded_tools} tools` : 'Start Ollama or configure a compatible model server';
+    els.statusDetail.textContent = ok ? `${provider} â€¢ MAX intelligence â€¢ ${activeModel} â€¢ ${data.plugins.loaded_tools} tools` : 'Start Ollama or configure a compatible model server';
     state.settings = data.settings; updatePermissions();
   } catch (error) {
     els.statusDot.className = 'status-dot bad'; els.statusText.textContent = 'Core Error'; els.statusDetail.textContent = error.message;
@@ -638,7 +638,7 @@ async function loadHealth() {
 
 function updatePermissions() {
   if (!state.settings) return;
-  els.permissionText.textContent = `Web ${state.settings.allow_web ? 'ON' : 'OFF'} • Voice ${state.settings.allow_voice ? 'ON' : 'OFF'} • MCP ${state.settings.allow_mcp ? 'ON' : 'OFF'} • Forge ${state.settings.allow_self_improvement ? 'ON' : 'OFF'} • Commands ${state.settings.allow_commands ? 'ON' : 'OFF'} • ${String(state.settings.approval_mode || 'standard').toUpperCase()}`;
+  els.permissionText.textContent = `Web ${state.settings.allow_web ? 'ON' : 'OFF'} â€¢ Voice ${state.settings.allow_voice ? 'ON' : 'OFF'} â€¢ MCP ${state.settings.allow_mcp ? 'ON' : 'OFF'} â€¢ Forge ${state.settings.allow_self_improvement ? 'ON' : 'OFF'} â€¢ Commands ${state.settings.allow_commands ? 'ON' : 'OFF'} â€¢ ${String(state.settings.approval_mode || 'standard').toUpperCase()}`;
   if (els.micBtn) els.micBtn.disabled = !state.settings.allow_voice;
 }
 
@@ -648,7 +648,7 @@ async function loadModels() {
     const selected = state.settings?.model || els.modelSelect.value;
     const names = [...new Set(state.models.map(item => item.name || item.model).filter(Boolean))];
     if (selected && !names.includes(selected) && selected !== '__maximum__') names.unshift(selected);
-    const autoOption = '<option value="__maximum__">AUTO — Strongest Installed Model</option>';
+    const autoOption = '<option value="__maximum__">AUTO â€” Strongest Installed Model</option>';
     els.modelSelect.innerHTML = autoOption + (names.length ? names.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('') : '');
     els.modelSelect.value = state.settings?.intelligence_mode === 'manual' && selected ? selected : '__maximum__';
   } catch (error) {
@@ -679,7 +679,7 @@ async function loadConversations() {
   els.conversationList.innerHTML = '';
   for (const conversation of state.conversations) {
     const row = document.createElement('div'); row.className = `conversation${conversation.id === state.conversationId ? ' active' : ''}`;
-    row.innerHTML = `<button class="conversation-open"><span class="name">${escapeHtml(conversation.title)}</span></button><button class="export" title="Export">⇩</button><button class="delete" title="Delete">✕</button>`;
+    row.innerHTML = `<button class="conversation-open"><span class="name">${escapeHtml(conversation.title)}</span></button><button class="export" title="Export">â‡©</button><button class="delete" title="Delete">âœ•</button>`;
     row.querySelector('.conversation-open').onclick = () => openConversation(conversation.id, conversation.title);
     row.querySelector('.conversation-open').ondblclick = async () => {
       const title = prompt('Rename operation', conversation.title);
@@ -692,7 +692,7 @@ async function loadConversations() {
       toast(`Exported to ${result.path}`);
     };
     row.querySelector('.delete').onclick = async (event) => {
-      event.stopPropagation(); if (!confirm(`Delete “${conversation.title}”?`)) return;
+      event.stopPropagation(); if (!confirm(`Delete â€œ${conversation.title}â€?`)) return;
       await api(`/api/conversations/${conversation.id}`, {method:'DELETE'});
       if (state.conversationId === conversation.id) newConversation();
       await loadConversations();
@@ -741,7 +741,7 @@ async function sendMessage(forcedPrompt = null, options = {}) {
         if (streamNode) streamNode.innerHTML = renderMarkdown(streamedText);
         els.chat.scrollTop = els.chat.scrollHeight;
       } else if (event.type === 'status') {
-        if (!streamedText) { const streamNode = ensureMessagePart(pending, 'message-content'); if (streamNode) streamNode.innerHTML = `<span class="typing"><i></i><i></i><i></i></span><small class="operation-pulse">${escapeHtml(event.message || 'DPN AI is working…')}</small>`; }
+        if (!streamedText) { const streamNode = ensureMessagePart(pending, 'message-content'); if (streamNode) streamNode.innerHTML = `<span class="typing"><i></i><i></i><i></i></span><small class="operation-pulse">${escapeHtml(event.message || 'DPN AI is workingâ€¦')}</small>`; }
       } else if (event.type === 'error') {
         throw new Error(event.message || 'DPN AI streaming operation failed.');
       } else if (event.type === 'final') {
@@ -784,7 +784,7 @@ async function uploadFiles(fileList) {
   if (!fileList?.length) return;
   const form = new FormData(); [...fileList].forEach(file => form.append('files', file));
   try {
-    toast(`Uploading ${fileList.length} file(s)…`);
+    toast(`Uploading ${fileList.length} file(s)â€¦`);
     const result = await api('/api/files/upload', {method:'POST', body:form});
     state.pendingAttachments = [...new Set([...state.pendingAttachments, ...result.uploaded])]; renderPendingAttachments();
     toast(`Uploaded and indexed ${result.uploaded.length} file(s).`);
@@ -872,7 +872,7 @@ async function showAutomations() {
     if (!payload.name || !payload.prompt) return toast('Enter a name and complete prompt.', true);
     await api('/api/automations', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); toast('Automation created.'); await showAutomations();
   };
-  document.querySelectorAll('[data-auto-run]').forEach(button => button.onclick = async () => { toast('Running automation…'); const result = await api(`/api/automations/${button.dataset.autoRun}/run`, {method:'POST'}); toast(`Automation completed in conversation ${result.conversation_id.slice(0,8)}.`); await showAutomations(); });
+  document.querySelectorAll('[data-auto-run]').forEach(button => button.onclick = async () => { toast('Running automationâ€¦'); const result = await api(`/api/automations/${button.dataset.autoRun}/run`, {method:'POST'}); toast(`Automation completed in conversation ${result.conversation_id.slice(0,8)}.`); await showAutomations(); });
   document.querySelectorAll('[data-auto-toggle]').forEach(button => button.onclick = async () => { await api(`/api/automations/${button.dataset.autoToggle}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:button.dataset.enabled !== 'true'})}); await showAutomations(); });
   document.querySelectorAll('[data-auto-delete]').forEach(button => button.onclick = async () => { if (!confirm('Delete this automation?')) return; await api(`/api/automations/${button.dataset.autoDelete}`, {method:'DELETE'}); await showAutomations(); });
 }
@@ -892,8 +892,8 @@ async function showSnapshots() {
   openModal('Workspace Snapshots', 'VERIFIED LOCAL RECOVERY POINTS', `
     <div class="form-inline"><input id="snapshotName" value="manual backup" placeholder="Snapshot name"><input id="snapshotPath" value="." placeholder="Workspace path"><button class="primary compact" id="createSnapshotBtn">Create Snapshot</button></div>
     <p class="help-text">Snapshots are ZIP archives with a SHA-256 manifest. Restore skips existing files unless overwrite is explicitly selected.</p>
-    <div>${snapshots.map(item => `<div class="list-card snapshot-card"><header><div><strong>${escapeHtml(item.name)}</strong><span>${formatBytes(item.size_bytes)}</span></div><div><a href="/api/snapshots/${item.id}/download">Download</a><button data-snapshot-restore="${item.id}">Restore Missing</button><button data-snapshot-overwrite="${item.id}">Overwrite Restore</button></div></header><p>${escapeHtml(item.source_path)} • ${item.manifest?.file_count || 0} files</p><small>${formatDate(item.created_at)} • Archive ${item.archive_exists ? 'available' : 'missing'}</small></div>`).join('') || '<div class="empty-state">No snapshots yet.</div>'}</div>`, true);
-  $('createSnapshotBtn').onclick = async () => { toast('Creating verified snapshot…'); const result = await api('/api/snapshots', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('snapshotName').value.trim(), path:$('snapshotPath').value.trim() || '.'})}); toast(`Snapshot created with ${result.manifest.file_count} files.`); await showSnapshots(); };
+    <div>${snapshots.map(item => `<div class="list-card snapshot-card"><header><div><strong>${escapeHtml(item.name)}</strong><span>${formatBytes(item.size_bytes)}</span></div><div><a href="/api/snapshots/${item.id}/download">Download</a><button data-snapshot-restore="${item.id}">Restore Missing</button><button data-snapshot-overwrite="${item.id}">Overwrite Restore</button></div></header><p>${escapeHtml(item.source_path)} â€¢ ${item.manifest?.file_count || 0} files</p><small>${formatDate(item.created_at)} â€¢ Archive ${item.archive_exists ? 'available' : 'missing'}</small></div>`).join('') || '<div class="empty-state">No snapshots yet.</div>'}</div>`, true);
+  $('createSnapshotBtn').onclick = async () => { toast('Creating verified snapshotâ€¦'); const result = await api('/api/snapshots', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('snapshotName').value.trim(), path:$('snapshotPath').value.trim() || '.'})}); toast(`Snapshot created with ${result.manifest.file_count} files.`); await showSnapshots(); };
   document.querySelectorAll('[data-snapshot-restore]').forEach(button => button.onclick = async () => { if (!confirm('Restore files that are currently missing?')) return; const result = await api(`/api/snapshots/${button.dataset.snapshotRestore}/restore?overwrite=false`, {method:'POST'}); toast(`Restored ${result.restored}; skipped ${result.skipped}.`); });
   document.querySelectorAll('[data-snapshot-overwrite]').forEach(button => button.onclick = async () => { if (!confirm('Overwrite current workspace files from this snapshot? This can replace newer work.')) return; const result = await api(`/api/snapshots/${button.dataset.snapshotOverwrite}/restore?overwrite=true`, {method:'POST'}); toast(`Restored ${result.restored} files.`); });
 }
@@ -904,10 +904,10 @@ async function showDiagnostics() {
   openModal('System Diagnostics', 'LOCAL CORE HEALTH', `
     <div class="metric-grid"><div><strong>${data.ollama?.ok ? 'ONLINE' : 'OFFLINE'}</strong><span>Ollama</span></div><div><strong>${data.models?.length || 0}</strong><span>Models</span></div><div><strong>${data.plugins?.tool_count || 0}</strong><span>Tools</span></div><div><strong>${formatBytes(data.disk?.free_bytes || 0)}</strong><span>Disk free</span></div></div>
     <div class="diagnostic-grid">
-      <section><h4>System</h4><p>${escapeHtml(data.system.platform)}</p><p>Python ${escapeHtml(data.system.python)} • ${escapeHtml(data.system.architecture)}</p><p>${data.cpu.logical_cores || '?'} logical CPU cores${data.cpu.percent !== undefined ? ` • ${data.cpu.percent}% active` : ''}</p><p>${data.memory.total_bytes ? `${formatBytes(data.memory.available_bytes)} available of ${formatBytes(data.memory.total_bytes)}` : escapeHtml(data.memory.status || '')}</p></section>
-      <section><h4>Workspace</h4><p>${data.workspace.files} files • ${data.workspace.directories} directories</p><p>${formatBytes(data.workspace.bytes)} total indexed workspace storage</p><p>${escapeHtml(data.workspace.root)}</p></section>
+      <section><h4>System</h4><p>${escapeHtml(data.system.platform)}</p><p>Python ${escapeHtml(data.system.python)} â€¢ ${escapeHtml(data.system.architecture)}</p><p>${data.cpu.logical_cores || '?'} logical CPU cores${data.cpu.percent !== undefined ? ` â€¢ ${data.cpu.percent}% active` : ''}</p><p>${data.memory.total_bytes ? `${formatBytes(data.memory.available_bytes)} available of ${formatBytes(data.memory.total_bytes)}` : escapeHtml(data.memory.status || '')}</p></section>
+      <section><h4>Workspace</h4><p>${data.workspace.files} files â€¢ ${data.workspace.directories} directories</p><p>${formatBytes(data.workspace.bytes)} total indexed workspace storage</p><p>${escapeHtml(data.workspace.root)}</p></section>
       <section><h4>Database</h4>${Object.entries(counts).map(([key,value]) => `<p>${escapeHtml(key)}: <strong>${value}</strong></p>`).join('')}</section>
-      <section><h4>Installed Models</h4>${(data.models || []).map(model => `<p>${escapeHtml(model.name || model.model)} • ${formatBytes(model.size || 0)}</p>`).join('') || '<p>No models detected.</p>'}</section>
+      <section><h4>Installed Models</h4>${(data.models || []).map(model => `<p>${escapeHtml(model.name || model.model)} â€¢ ${formatBytes(model.size || 0)}</p>`).join('') || '<p>No models detected.</p>'}</section>
     </div>
     ${data.plugins?.errors?.length ? `<h4>Plugin Errors</h4><pre>${escapeHtml(JSON.stringify(data.plugins.errors,null,2))}</pre>` : ''}`, true);
 }
@@ -917,10 +917,10 @@ async function showMissions() {
   const data = await api('/api/missions?limit=200');
   openModal('Universal Missions', 'MULTI-AGENT ORCHESTRATION', `
     <div class="metric-grid"><div><strong>${data.missions.length}</strong><span>Total missions</span></div><div><strong>${data.missions.filter(x=>x.status==='completed').length}</strong><span>Completed</span></div><div><strong>${data.missions.filter(x=>x.status==='running').length}</strong><span>Running</span></div><div><strong>${data.missions.filter(x=>x.status==='failed').length}</strong><span>Failed</span></div></div>
-    <div>${data.missions.map(m => `<div class="list-card"><header><strong>${escapeHtml(m.objective.slice(0,160))}</strong><span class="badge">${escapeHtml(m.status)}</span></header><p>Planner: ${escapeHtml(m.planner_model || 'default')} • Worker: ${escapeHtml(m.worker_model || 'default')} • Reviewer: ${escapeHtml(m.reviewer_model || 'default')}</p><small>${formatDate(m.created_at)} • ${escapeHtml(m.id)}</small><div class="modal-actions"><button class="secondary" data-mission-open="${m.id}">View Mission</button></div></div>`).join('') || '<div class="empty-state">No missions yet. Select Mission mode and send a complex request.</div>'}</div>`, true);
+    <div>${data.missions.map(m => `<div class="list-card"><header><strong>${escapeHtml(m.objective.slice(0,160))}</strong><span class="badge">${escapeHtml(m.status)}</span></header><p>Planner: ${escapeHtml(m.planner_model || 'default')} â€¢ Worker: ${escapeHtml(m.worker_model || 'default')} â€¢ Reviewer: ${escapeHtml(m.reviewer_model || 'default')}</p><small>${formatDate(m.created_at)} â€¢ ${escapeHtml(m.id)}</small><div class="modal-actions"><button class="secondary" data-mission-open="${m.id}">View Mission</button></div></div>`).join('') || '<div class="empty-state">No missions yet. Select Mission mode and send a complex request.</div>'}</div>`, true);
   document.querySelectorAll('[data-mission-open]').forEach(button => button.onclick = async () => {
     const result = await api(`/api/missions/${button.dataset.missionOpen}`); const m=result.mission;
-    openModal('Mission Detail','CONTRACT • CHECKPOINTS • WORKERS • REVIEW QUORUM', `<div class="list-card"><h4>${escapeHtml(m.objective)}</h4><p>Status: <strong>${escapeHtml(m.status)}</strong></p><details open><summary>Goal contract</summary><pre>${escapeHtml(JSON.stringify(m.goal_contract?.contract||m.result?.contract||{},null,2))}</pre></details></div>${(m.steps||[]).map(step=>`<div class="list-card"><header><strong>${step.ordinal+1}. ${escapeHtml(step.title)}</strong><span class="badge">${escapeHtml(step.status)}</span></header><p>${escapeHtml(step.instructions)}</p><small>Attempts: ${step.attempts||0} • Dependencies: ${(step.dependencies||[]).length}</small><pre>${escapeHtml(JSON.stringify(step.result||{},null,2))}</pre></div>`).join('')}<h4>Mission Checkpoints</h4><pre>${escapeHtml(JSON.stringify(m.checkpoints||[],null,2))}</pre><h4>Independent Evaluations</h4><pre>${escapeHtml(JSON.stringify(m.evaluations||[],null,2))}</pre><h4>Consensus Review</h4><pre>${escapeHtml(JSON.stringify(m.result?.review||{},null,2))}</pre>`, true);
+    openModal('Mission Detail','CONTRACT â€¢ CHECKPOINTS â€¢ WORKERS â€¢ REVIEW QUORUM', `<div class="list-card"><h4>${escapeHtml(m.objective)}</h4><p>Status: <strong>${escapeHtml(m.status)}</strong></p><details open><summary>Goal contract</summary><pre>${escapeHtml(JSON.stringify(m.goal_contract?.contract||m.result?.contract||{},null,2))}</pre></details></div>${(m.steps||[]).map(step=>`<div class="list-card"><header><strong>${step.ordinal+1}. ${escapeHtml(step.title)}</strong><span class="badge">${escapeHtml(step.status)}</span></header><p>${escapeHtml(step.instructions)}</p><small>Attempts: ${step.attempts||0} â€¢ Dependencies: ${(step.dependencies||[]).length}</small><pre>${escapeHtml(JSON.stringify(step.result||{},null,2))}</pre></div>`).join('')}<h4>Mission Checkpoints</h4><pre>${escapeHtml(JSON.stringify(m.checkpoints||[],null,2))}</pre><h4>Independent Evaluations</h4><pre>${escapeHtml(JSON.stringify(m.evaluations||[],null,2))}</pre><h4>Consensus Review</h4><pre>${escapeHtml(JSON.stringify(m.result?.review||{},null,2))}</pre>`, true);
   });
 }
 
@@ -928,7 +928,7 @@ async function showMissions() {
 async function showJobs() {
   const data = await api('/api/jobs?limit=200'); const jobs=data.jobs||[];
   const projectOptions='<option value="">No project</option>'+state.projects.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-  openModal('Autonomous Job Queue','PERSISTENT • RESUMABLE • RESTART-SAFE', `
+  openModal('Autonomous Job Queue','PERSISTENT â€¢ RESUMABLE â€¢ RESTART-SAFE', `
     <div class="metric-grid"><div><strong>${jobs.length}</strong><span>Total jobs</span></div><div><strong>${jobs.filter(x=>x.status==='queued').length}</strong><span>Queued</span></div><div><strong>${jobs.filter(x=>x.status==='running').length}</strong><span>Running</span></div><div><strong>${jobs.filter(x=>x.status==='completed').length}</strong><span>Completed</span></div></div>
     <div class="list-card"><h4>Queue a new autonomous operation</h4><div class="form-inline"><select id="jobKind"><option value="mission">Verified mission</option><option value="direct">Direct operation</option></select><select id="jobProject">${projectOptions}</select></div><textarea id="jobPrompt" rows="5" placeholder="Describe the complete goal, deliverables, constraints, and success criteria."></textarea><div class="modal-actions"><button class="primary compact" id="queueJobBtn">Queue Operation</button><button class="secondary" id="refreshJobsBtn">Refresh</button></div></div>
     <div>${jobs.map(j=>`<div class="list-card"><header><div><strong>${escapeHtml(j.kind.toUpperCase())}</strong><span class="badge">${escapeHtml(j.status)}</span></div><div>${['queued','running'].includes(j.status)?`<button data-job-cancel="${j.id}">Cancel</button>`:''}${['failed','cancelled','completed'].includes(j.status)?`<button data-job-retry="${j.id}">Retry</button>`:''}</div></header><p>${escapeHtml(String(j.payload?.objective||j.payload?.message||j.payload?.workflow_id||'').slice(0,500))}</p><div class="data-line"><span>${formatDate(j.created_at)}</span><span>${escapeHtml(j.progress?.stage||'queued')}</span></div>${j.error_text?`<pre>${escapeHtml(j.error_text)}</pre>`:''}<details><summary>Result and payload</summary><pre>${escapeHtml(JSON.stringify({progress:j.progress,result:j.result,payload:j.payload},null,2))}</pre></details></div>`).join('')||'<div class="empty-state">No background jobs yet.</div>'}</div>`, true);
@@ -942,9 +942,9 @@ async function showGraph(query='') {
   const [stats,result]=await Promise.all([api('/api/graph/stats'),query?api(`/api/graph/search?q=${encodeURIComponent(query)}&limit=100`):Promise.resolve({nodes:[]})]);
   openModal('Knowledge Graph','PROVENANCE-BACKED LONG-TERM UNDERSTANDING', `
     <div class="metric-grid"><div><strong>${stats.nodes||0}</strong><span>Nodes</span></div><div><strong>${stats.edges||0}</strong><span>Relationships</span></div><div><strong>${(stats.types||[]).length}</strong><span>Entity types</span></div><div><strong>${(result.nodes||[]).length}</strong><span>Search matches</span></div></div>
-    <div class="form-inline"><input id="graphQuery" value="${escapeHtml(query)}" placeholder="Search entities, systems, people, decisions…"><button class="secondary" id="graphSearchBtn">Search</button></div>
+    <div class="form-inline"><input id="graphQuery" value="${escapeHtml(query)}" placeholder="Search entities, systems, people, decisionsâ€¦"><button class="secondary" id="graphSearchBtn">Search</button></div>
     <div class="list-card"><h4>Remember a provenance-backed fact</h4><div class="form-inline"><input id="factSubject" placeholder="Subject"><input id="factRelation" placeholder="Relation, e.g. uses"><input id="factObject" placeholder="Object"></div><div class="form-inline"><input id="factSource" value="operator" placeholder="Source"><input id="factConfidence" type="number" min="0" max="1" step="0.05" value="0.9"><button class="primary compact" id="saveFactBtn">Save Fact</button></div></div>
-    <div>${(result.nodes||[]).map(n=>`<div class="list-card"><header><strong>${escapeHtml(n.label)}</strong><span class="badge">${escapeHtml(n.node_type)}</span></header><p>Confidence ${Number(n.confidence||0).toFixed(2)} • Source: ${escapeHtml(n.source||'unknown')}</p><small>${escapeHtml(n.id)}</small><div class="modal-actions"><button class="secondary" data-graph-neighborhood="${n.id}">View Relationships</button></div></div>`).join('')||'<div class="empty-state">Search the graph or add a fact. Relevant nodes are automatically recalled into operations.</div>'}</div>`, true);
+    <div>${(result.nodes||[]).map(n=>`<div class="list-card"><header><strong>${escapeHtml(n.label)}</strong><span class="badge">${escapeHtml(n.node_type)}</span></header><p>Confidence ${Number(n.confidence||0).toFixed(2)} â€¢ Source: ${escapeHtml(n.source||'unknown')}</p><small>${escapeHtml(n.id)}</small><div class="modal-actions"><button class="secondary" data-graph-neighborhood="${n.id}">View Relationships</button></div></div>`).join('')||'<div class="empty-state">Search the graph or add a fact. Relevant nodes are automatically recalled into operations.</div>'}</div>`, true);
   $('graphSearchBtn').onclick=()=>showGraph($('graphQuery').value.trim());
   $('saveFactBtn').onclick=async()=>{const payload={subject:$('factSubject').value.trim(),relation:$('factRelation').value.trim(),object_value:$('factObject').value.trim(),source:$('factSource').value.trim()||'operator',confidence:Number($('factConfidence').value),project_id:els.projectSelect.value||null};if(!payload.subject||!payload.relation||!payload.object_value)return toast('Enter a subject, relation, and object.',true);await api('/api/graph/facts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});toast('Fact added to the local graph.');await showGraph(payload.subject);};
   document.querySelectorAll('[data-graph-neighborhood]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/graph/nodes/${b.dataset.graphNeighborhood}/neighborhood?depth=2&limit=200`);openModal('Graph Neighborhood','TRACEABLE RELATIONSHIPS',`<pre>${escapeHtml(JSON.stringify(r.graph,null,2))}</pre>`,true);});
@@ -957,15 +957,15 @@ async function showSandbox() {
     <p class="help-text">Docker mode uses a read-only root, dropped capabilities, PID/CPU/memory limits, and no network by default. Host fallback is not a security boundary.</p>
     <textarea id="sandboxCode" rows="14" spellcheck="false">print("DPN AI v5 sandbox ready")</textarea>
     <div class="form-inline"><input id="sandboxTimeout" type="number" min="1" max="300" value="30"><input id="sandboxMemory" type="number" min="64" max="4096" value="512"><label class="voice-toggle"><input id="sandboxHost" type="checkbox"><span>Host fallback</span></label><button class="primary compact" id="runSandboxBtn">Run Python</button></div><pre id="sandboxOutput">No execution yet.</pre>`, true);
-  $('runSandboxBtn').onclick=async()=>{const output=$('sandboxOutput');output.textContent='Executing…';try{const r=await api('/api/sandbox/python',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('sandboxCode').value,timeout_seconds:Number($('sandboxTimeout').value),memory_mb:Number($('sandboxMemory').value),network:false,use_host_fallback:$('sandboxHost').checked})});output.textContent=JSON.stringify(r,null,2);}catch(error){output.textContent=error.message;}};
+  $('runSandboxBtn').onclick=async()=>{const output=$('sandboxOutput');output.textContent='Executingâ€¦';try{const r=await api('/api/sandbox/python',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:$('sandboxCode').value,timeout_seconds:Number($('sandboxTimeout').value),memory_mb:Number($('sandboxMemory').value),network:false,use_host_fallback:$('sandboxHost').checked})});output.textContent=JSON.stringify(r,null,2);}catch(error){output.textContent=error.message;}};
 }
 
 async function showCapabilityForge() {
   const data=await api('/api/capability-forge');
-  openModal('Capability Forge','STAGE • INSPECT • VALIDATE • PROMOTE • ROLLBACK', `
+  openModal('Capability Forge','STAGE â€¢ INSPECT â€¢ VALIDATE â€¢ PROMOTE â€¢ ROLLBACK', `
     <div class="metric-grid"><div><strong>${(data.active||[]).length}</strong><span>Active plugins</span></div><div><strong>${(data.staged||[]).length}</strong><span>Staged</span></div><div><strong>AST + COMPILE</strong><span>Validation</span></div><div><strong>APPROVAL</strong><span>Promotion boundary</span></div></div>
     <div class="list-card"><h4>Stage a local capability</h4><input id="forgeId" placeholder="capability-id"><input id="forgeDescription" placeholder="Purpose and trust assumptions"><textarea id="forgeCode" rows="13" spellcheck="false">def register(registry):\n    registry.register(\n        "my_capability",\n        "Describe exactly what this tool does.",\n        {"type": "object", "properties": {}},\n        lambda: {"ok": True, "message": "Capability ready"},\n    )</textarea><div class="modal-actions"><button class="primary compact" id="stageCapabilityBtn">Stage Only</button></div></div>
-    <h4>Staged capabilities</h4>${(data.staged||[]).map(c=>`<div class="list-card"><header><strong>${escapeHtml(c.id)}</strong><span class="badge">${c.validation?.valid?'VALID':c.validation?'REJECTED':'UNVALIDATED'}</span></header><p>${escapeHtml(c.description||'')}</p><small>SHA-256 ${escapeHtml(c.sha256||'')}</small>${c.validation?`<pre>${escapeHtml(JSON.stringify(c.validation,null,2))}</pre>`:''}<div class="modal-actions"><button class="secondary" data-forge-validate="${c.id}">Validate</button><button class="primary compact" data-forge-promote="${c.id}">Promote</button></div></div>`).join('')||'<div class="empty-state">No staged capabilities.</div>'}<h4>Active plugins</h4><div class="capability-strip">${(data.active||[]).map(name=>`<span>${escapeHtml(name)}</span>`).join('')||'<span>No custom plugins active</span>'}</div><h4>Rollback backups</h4>${(data.backups||[]).map(item=>`<div class="list-card"><header><strong>${escapeHtml(item.name)}</strong><button data-forge-rollback="${escapeHtml(item.name.split('-')[0])}" data-backup-name="${escapeHtml(item.name)}">Restore Backup</button></header><small>${formatBytes(item.size_bytes)} • ${formatDate(new Date(item.modified_at*1000).toISOString())}</small></div>`).join('')||'<div class="empty-state">No plugin rollback backups exist yet.</div>'}`, true);
+    <h4>Staged capabilities</h4>${(data.staged||[]).map(c=>`<div class="list-card"><header><strong>${escapeHtml(c.id)}</strong><span class="badge">${c.validation?.valid?'VALID':c.validation?'REJECTED':'UNVALIDATED'}</span></header><p>${escapeHtml(c.description||'')}</p><small>SHA-256 ${escapeHtml(c.sha256||'')}</small>${c.validation?`<pre>${escapeHtml(JSON.stringify(c.validation,null,2))}</pre>`:''}<div class="modal-actions"><button class="secondary" data-forge-validate="${c.id}">Validate</button><button class="primary compact" data-forge-promote="${c.id}">Promote</button></div></div>`).join('')||'<div class="empty-state">No staged capabilities.</div>'}<h4>Active plugins</h4><div class="capability-strip">${(data.active||[]).map(name=>`<span>${escapeHtml(name)}</span>`).join('')||'<span>No custom plugins active</span>'}</div><h4>Rollback backups</h4>${(data.backups||[]).map(item=>`<div class="list-card"><header><strong>${escapeHtml(item.name)}</strong><button data-forge-rollback="${escapeHtml(item.name.split('-')[0])}" data-backup-name="${escapeHtml(item.name)}">Restore Backup</button></header><small>${formatBytes(item.size_bytes)} â€¢ ${formatDate(new Date(item.modified_at*1000).toISOString())}</small></div>`).join('')||'<div class="empty-state">No plugin rollback backups exist yet.</div>'}`, true);
   $('stageCapabilityBtn').onclick=async()=>{const payload={capability_id:$('forgeId').value.trim(),description:$('forgeDescription').value.trim(),code:$('forgeCode').value,overwrite:false};if(!payload.capability_id)return toast('Enter a capability id.',true);await api('/api/capability-forge/stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});toast('Capability staged but not activated.');await showCapabilityForge();};
   document.querySelectorAll('[data-forge-validate]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/capability-forge/${b.dataset.forgeValidate}/validate`,{method:'POST'});toast(r.valid?'Capability validation passed.':'Capability validation rejected.',!r.valid);await showCapabilityForge();});
   document.querySelectorAll('[data-forge-promote]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/capability-forge/${b.dataset.forgePromote}/promote`,{method:'POST'});if(r.approval_required)toast('Promotion is waiting in the Approval Inbox.');else toast(r.ok?'Capability promoted; restart DPN AI to load it.':r.error,!r.ok);});
@@ -978,7 +978,7 @@ async function showMCP() {
     <div class="metric-grid"><div><strong>${status.available?'READY':'NOT INSTALLED'}</strong><span>Python MCP SDK</span></div><div><strong>${servers.length}</strong><span>Configured servers</span></div><div><strong>ALLOWLIST</strong><span>Tool policy</span></div><div><strong>APPROVAL</strong><span>External calls</span></div></div>
     <p class="help-text">New servers start with no callable tools. Discover tools, select only trusted names, then save the allowlist. Sensitive environment values must reference encrypted secrets.</p>
     <div class="list-card"><h4>Add MCP server</h4><div class="form-inline"><input id="mcpName" placeholder="Server name"><select id="mcpTransport"><option value="stdio">Local stdio</option><option value="http">Streamable HTTP</option></select></div><input id="mcpCommand" placeholder="stdio executable, e.g. python"><input id="mcpArgs" placeholder='stdio arguments JSON, e.g. ["server.py"]'><input id="mcpUrl" placeholder="HTTP URL"><textarea id="mcpEnv" rows="3" placeholder='Environment JSON. Secrets: {"API_TOKEN":"{{secret:MCP_TOKEN}}"}'></textarea><button class="primary compact" id="createMcpBtn">Add Disabled-by-Allowlist Server</button></div>
-    ${servers.map(server=>`<div class="list-card"><header><div><strong>${escapeHtml(server.name)}</strong><span class="badge">${server.enabled?'ENABLED':'DISABLED'}</span></div><div><button data-mcp-discover="${server.id}">Discover</button><button data-mcp-save="${server.id}">Save Allowlist</button><button data-mcp-delete="${server.id}">Delete</button></div></header><p>${escapeHtml(server.transport)} • ${escapeHtml(server.config?.command||server.config?.url||'')}</p><div class="file-table">${(server.tools||[]).map(tool=>`<label class="toggle-row"><div><strong>${escapeHtml(tool.name||'unnamed')}</strong><small>${escapeHtml(tool.description||'')}</small></div><input type="checkbox" data-mcp-tool="${server.id}" value="${escapeHtml(tool.name||'')}" ${(server.allowed_tools||[]).includes(tool.name)?'checked':''}></label>`).join('')||'<small>No tools cached. Use Discover.</small>'}</div></div>`).join('')||'<div class="empty-state">No MCP servers configured.</div>'}`, true);
+    ${servers.map(server=>`<div class="list-card"><header><div><strong>${escapeHtml(server.name)}</strong><span class="badge">${server.enabled?'ENABLED':'DISABLED'}</span></div><div><button data-mcp-discover="${server.id}">Discover</button><button data-mcp-save="${server.id}">Save Allowlist</button><button data-mcp-delete="${server.id}">Delete</button></div></header><p>${escapeHtml(server.transport)} â€¢ ${escapeHtml(server.config?.command||server.config?.url||'')}</p><div class="file-table">${(server.tools||[]).map(tool=>`<label class="toggle-row"><div><strong>${escapeHtml(tool.name||'unnamed')}</strong><small>${escapeHtml(tool.description||'')}</small></div><input type="checkbox" data-mcp-tool="${server.id}" value="${escapeHtml(tool.name||'')}" ${(server.allowed_tools||[]).includes(tool.name)?'checked':''}></label>`).join('')||'<small>No tools cached. Use Discover.</small>'}</div></div>`).join('')||'<div class="empty-state">No MCP servers configured.</div>'}`, true);
   $('createMcpBtn').onclick=async()=>{let args=[],env={};try{args=JSON.parse($('mcpArgs').value||'[]');env=JSON.parse($('mcpEnv').value||'{}');}catch(error){return toast('Arguments and environment must be valid JSON.',true);}const payload={name:$('mcpName').value.trim(),transport:$('mcpTransport').value,command:$('mcpCommand').value.trim()||null,args,url:$('mcpUrl').value.trim()||null,env,allowed_tools:[],enabled:true};await api('/api/mcp/servers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});toast('MCP server configured with an empty allowlist.');await showMCP();};
   document.querySelectorAll('[data-mcp-discover]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/mcp/servers/${b.dataset.mcpDiscover}/discover`,{method:'POST'});if(r.approval_required)toast('Discovery is waiting in the Approval Inbox.');else toast(r.ok?`Discovered ${r.tool_count} tools.`:r.error,!r.ok);if(r.ok)await showMCP();});
   document.querySelectorAll('[data-mcp-save]').forEach(b=>b.onclick=async()=>{const allowed=[...document.querySelectorAll(`[data-mcp-tool="${b.dataset.mcpSave}"]:checked`)].map(x=>x.value);await api(`/api/mcp/servers/${b.dataset.mcpSave}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({allowed_tools:allowed})});toast(`Saved ${allowed.length} allow-listed tools.`);await showMCP();});
@@ -1009,10 +1009,10 @@ async function showSettings() {
   const modelOptions = [...new Set([current.model, ...state.models.map(item => item.name || item.model)])].filter(Boolean).map(name => `<option value="${escapeHtml(name)}" ${name === current.model ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
   openModal('System Settings', 'DPN AI CONTROL POLICY', `
     <div class="form-grid">
-      <div class="field"><label>Intelligence policy</label><select id="settingIntelligence"><option value="maximum">Maximum — automatically use strongest installed model</option><option value="balanced">Balanced — strong model with adaptive reasoning</option><option value="manual">Manual — use selected model exactly</option></select><small>Maximum is the default. DPN AI still disables long reasoning for greetings and uses adaptive verification to keep responses faster.</small></div>
+      <div class="field"><label>Intelligence policy</label><select id="settingIntelligence"><option value="maximum">Maximum â€” automatically use strongest installed model</option><option value="balanced">Balanced â€” strong model with adaptive reasoning</option><option value="manual">Manual â€” use selected model exactly</option></select><small>Maximum is the default. DPN AI still disables long reasoning for greetings and uses adaptive verification to keep responses faster.</small></div>
       <div class="toggle-row"><div><strong>Keep strongest model loaded</strong><small>Warms the selected intelligence model in the background and keeps it resident in Ollama for faster first responses. This uses RAM or VRAM while DPN AI is open.</small></div><input class="toggle" id="settingKeepLoaded" type="checkbox" ${current.keep_model_loaded !== false ? 'checked' : ''}></div>
       <div class="field"><label>Default/fallback model</label><select id="settingModel">${modelOptions}</select><small>Used as a fallback if automatic model discovery is unavailable. Prefix a model with compatible: to force the compatible provider.</small></div>
-      <div class="field"><label>Default model provider</label><select id="settingProvider"><option value="ollama">Ollama — local private models</option><option value="compatible">OpenAI-compatible endpoint</option></select></div>
+      <div class="field"><label>Default model provider</label><select id="settingProvider"><option value="ollama">Ollama â€” local private models</option><option value="compatible">OpenAI-compatible endpoint</option></select></div>
       <div class="field"><label>OpenAI-compatible API base URL</label><input id="settingCompatibleUrl" value="${escapeHtml(current.compatible_api_url || '')}" placeholder="Example: http://127.0.0.1:1234"><small>Supports local servers such as LM Studio, vLLM, llama.cpp, and LocalAI. DPN AI appends /v1 endpoints.</small></div>
       <div class="field"><label>Encrypted API key secret name</label><input id="settingCompatibleSecret" value="${escapeHtml(current.compatible_api_secret || 'MODEL_PROVIDER_KEY')}" placeholder="MODEL_PROVIDER_KEY"><small>Store the matching value in Connectors & Secrets. The key itself is never displayed here.</small></div>
       <div class="toggle-row"><div><strong>External model endpoints</strong><small>Allow a compatible endpoint outside the local/private network. Keep disabled for a fully local system.</small></div><input class="toggle" id="settingExternalModels" type="checkbox" ${current.allow_external_models ? 'checked' : ''}></div>
@@ -1022,7 +1022,7 @@ async function showSettings() {
       <div class="field"><label>Embedding model</label><input id="settingEmbeddingModel" value="${escapeHtml(current.embedding_model || 'nomic-embed-text')}"></div>
       <div class="field"><label>Profile-specific model routes (JSON)</label><textarea id="settingModelRoutes" rows="4" placeholder='{"software":"model-name","research":"model-name"}'>${escapeHtml(JSON.stringify(current.model_routes || {}, null, 2))}</textarea></div>
       <div class="field"><label>Reasoning level</label><select id="settingThink"><option value="false">Off / fastest</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
-      <div class="field"><label>Approval mode</label><select id="settingApproval"><option value="safe">Safe — blocks execution and deletion</option><option value="standard">Standard — execution allowed, destructive tools blocked</option><option value="autonomous">Autonomous — all enabled tools available</option></select><small>File operations always remain confined to the workspace.</small></div>
+      <div class="field"><label>Approval mode</label><select id="settingApproval"><option value="safe">Safe â€” blocks execution and deletion</option><option value="standard">Standard â€” execution allowed, destructive tools blocked</option><option value="autonomous">Autonomous â€” all enabled tools available</option></select><small>File operations always remain confined to the workspace.</small></div>
       <div class="toggle-row"><div><strong>Internet research</strong><small>Public web search and page reading.</small></div><input class="toggle" id="settingWeb" type="checkbox" ${current.allow_web ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Local image generation</strong><small>Submit the configured workflow to local ComfyUI.</small></div><input class="toggle" id="settingImages" type="checkbox" ${current.allow_images ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Command execution</strong><small>Restricted development commands inside the workspace.</small></div><input class="toggle" id="settingCommands" type="checkbox" ${current.allow_commands ? 'checked' : ''}></div>
@@ -1086,7 +1086,7 @@ if (els.handsFreeToggle) els.handsFreeToggle.onchange = event => {
   if (state.voice.handsFree) { state.voice.autoSpeak=true; els.autoSpeakToggle.checked=true; localStorage.setItem('dpnAutoSpeak','true'); startVoiceRecording(true).catch(error=>{ state.voice.handsFree=false; els.handsFreeToggle.checked=false; localStorage.setItem('dpnHandsFree','false'); setVoiceUi('error',error.message); toast(error.message,true); }); }
   else { stopVoiceRecording(); stopVoicePlayback(); }
 };
-if (els.indexBtn) els.indexBtn.onclick = async () => { try { toast('Reindexing workspace…'); const result = await api('/api/knowledge/index?force=true',{method:'POST'}); toast(`Indexed ${result.indexed} files into ${result.chunks} chunks.`); } catch(error) { toast(error.message,true); } };
+if (els.indexBtn) els.indexBtn.onclick = async () => { try { toast('Reindexing workspaceâ€¦'); const result = await api('/api/knowledge/index?force=true',{method:'POST'}); toast(`Indexed ${result.indexed} files into ${result.chunks} chunks.`); } catch(error) { toast(error.message,true); } };
 if (els.sendBtn) els.sendBtn.onclick = () => sendMessage();
 if (els.cancelEditBtn) els.cancelEditBtn.onclick = () => cancelMessageEdit(true);
 if (els.promptInput) els.promptInput.oninput = autoresize;
@@ -1132,5 +1132,5 @@ async function boot() {
   await Promise.all([loadModels(), loadProfiles(), loadSkills(), loadProjects(), loadConversations(), loadVoiceProfiles()]);
   newConversation();
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=6.0.0').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=8.0.0').catch(() => {});
 boot().catch(error => toast(error.message, true));

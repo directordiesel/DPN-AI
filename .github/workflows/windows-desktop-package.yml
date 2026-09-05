@@ -1,0 +1,111 @@
+name: Windows Desktop Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/dpn-ai-desktop-v8
+    paths:
+      - "app/**"
+      - "desktop/**"
+      - "packaging/windows/**"
+      - "requirements*.txt"
+      - "tests/test_v8_*.py"
+      - ".github/workflows/windows-desktop-package.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "desktop/**"
+      - "packaging/windows/**"
+      - "requirements*.txt"
+      - "tests/test_v8_*.py"
+      - ".github/workflows/windows-desktop-package.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-desktop-package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    if: github.event_name != 'pull_request'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify configured Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+          python -m pip --version
+      - name: Build tested Windows package
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build.ps1" -Python python
+      - name: Validate package manifest
+        shell: python
+        run: |
+          import hashlib
+          import json
+          from pathlib import Path
+          manifest_path = Path("dist/DPN-AI/build-manifest.json")
+          exe = Path("dist/DPN-AI/DPN-AI.exe")
+          if not manifest_path.is_file():
+              raise SystemExit("Missing build manifest")
+          if not exe.is_file():
+              raise SystemExit("Missing DPN-AI.exe")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+          actual = hashlib.sha256(exe.read_bytes()).hexdigest()
+          if actual != manifest.get("sha256"):
+              raise SystemExit("Executable SHA-256 does not match build manifest")
+          if manifest.get("signing") != "unsigned-development-artifact":
+              raise SystemExit("Unexpected signing state")
+      - name: Build validated Windows installer
+        shell: cmd
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\packaging\windows\build-installer.ps1" -Python python
+      - name: Validate installer manifest
+        shell: python
+        run: |
+          import hashlib
+          import json
+          from pathlib import Path
+          version = Path("VERSION").read_text(encoding="utf-8").strip()
+          manifest_path = Path("dist/installer/installer-manifest.json")
+          if not manifest_path.is_file():
+              raise SystemExit("Missing installer manifest")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+          if manifest.get("version") != version:
+              raise SystemExit("Installer manifest version mismatch")
+          installer = Path("dist/installer") / str(manifest.get("installer", ""))
+          if not installer.is_file():
+              raise SystemExit("Missing installer executable")
+          actual = hashlib.sha256(installer.read_bytes()).hexdigest()
+          if actual != manifest.get("sha256"):
+              raise SystemExit("Installer SHA-256 does not match installer manifest")
+          if manifest.get("signing") != "unsigned-development-installer":
+              raise SystemExit("Unexpected installer signing state")
+          if manifest.get("uninstall_data_policy") != "preserve-user-data-outside-install-directory":
+              raise SystemExit("Unsafe uninstall data policy")
+      - name: Upload development package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DPN-AI-Windows-development-${{ github.sha }}
+          path: dist/DPN-AI/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload development installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DPN-AI-Windows-installer-development-${{ github.sha }}
+          path: dist/installer/
+          if-no-files-found: error
+          retention-days: 7
