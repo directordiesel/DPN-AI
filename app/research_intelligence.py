@@ -68,10 +68,18 @@ class ResearchIntelligence:
 
     @staticmethod
     def normalize_url(url: str) -> str:
-        parsed = urlparse((url or "").strip())
+        raw = (url or "").strip()
+        parsed = urlparse(raw)
         scheme = parsed.scheme.lower() or "https"
-        hostname = (parsed.hostname or "").lower()
-        port = parsed.port
+        if scheme not in {"http", "https"}:
+            return ""
+        hostname = (parsed.hostname or "").lower().strip(".")
+        if not hostname:
+            return ""
+        try:
+            port = parsed.port
+        except ValueError:
+            return ""
         netloc = hostname
         if port and not ((scheme == "https" and port == 443) or (scheme == "http" and port == 80)):
             netloc = f"{hostname}:{port}"
@@ -95,7 +103,13 @@ class ResearchIntelligence:
         return hashlib.sha256(url.encode("utf-8")).hexdigest()[:20]
 
     @staticmethod
-    def authority_for_domain(domain: str) -> float:
+    def _is_domain_or_subdomain(domain: str, trusted_domain: str) -> bool:
+        domain = (domain or "").lower().strip(".")
+        trusted_domain = (trusted_domain or "").lower().strip(".")
+        return bool(domain and trusted_domain and (domain == trusted_domain or domain.endswith(f".{trusted_domain}")))
+
+    @classmethod
+    def authority_for_domain(cls, domain: str) -> float:
         domain = (domain or "").lower().strip(".")
         if not domain:
             return 0.2
@@ -105,11 +119,11 @@ class ResearchIntelligence:
             return 0.90
         if domain.endswith(".int"):
             return 0.90
-        if any(token in domain for token in ("who.int", "un.org", "oecd.org", "worldbank.org")):
+        if any(cls._is_domain_or_subdomain(domain, trusted) for trusted in ("who.int", "un.org", "oecd.org", "worldbank.org")):
             return 0.93
-        if any(token in domain for token in ("reuters.com", "apnews.com")):
+        if any(cls._is_domain_or_subdomain(domain, trusted) for trusted in ("reuters.com", "apnews.com")):
             return 0.88
-        if any(token in domain for token in ("github.com", "docs.python.org", "developer.mozilla.org")):
+        if any(cls._is_domain_or_subdomain(domain, trusted) for trusted in ("github.com", "docs.python.org", "developer.mozilla.org")):
             return 0.84
         return 0.58
 
