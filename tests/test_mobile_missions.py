@@ -36,8 +36,9 @@ def test_mission_launch_handles_orchestrator_mission_id_contract():
 def test_missions_console_is_pairing_gated_and_internal():
     main = MAIN.read_text(encoding="utf-8")
     manifest = MANIFEST.read_text(encoding="utf-8")
-    assert "Open Missions" in main
-    assert "missionsButton.isEnabled = enabled" in main
+    assert 'addCapability(root, "Missions", MissionsActivity::class.java)' in main
+    assert 'setCapabilityButtons(active)' in main
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in main
     assert 'android:name=".MissionsActivity" android:exported="false"' in manifest
 
 
