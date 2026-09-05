@@ -45,9 +45,6 @@ class ApprovalSecurity:
         self.permission_runtime = getattr(registry, "permission_runtime", ToolPermissionRuntime())
         self._original_resolve = self.db.resolve_approval
         self._scrub_legacy_rows()
-        # Keep direct database approval decisions safe. The API and other callers
-        # already resolve approvals through db.resolve_approval; wrapping it here
-        # guarantees terminal decisions also destroy encrypted payloads.
         self.db.resolve_approval = self.resolve_approval
 
     def _live_permissions(self) -> dict[str, Any] | None:
@@ -164,8 +161,8 @@ class ApprovalSecurity:
 
         authorization = self.permission_runtime.authorize(
             tool_name=name,
-            declared_risk=registered.risk,
-            gate=registered.gate,
+            declared_risk=getattr(registered, "risk", "read"),
+            gate=getattr(registered, "gate", None),
             permissions=permissions,
             use_v9_policy=bool(permissions.get("use_v9_permissions", False)),
         )
@@ -246,8 +243,8 @@ class ApprovalSecurity:
         if live is not None:
             authorization = self.permission_runtime.authorize(
                 tool_name=tool_name,
-                declared_risk=registered.risk,
-                gate=registered.gate,
+                declared_risk=getattr(registered, "risk", "read"),
+                gate=getattr(registered, "gate", None),
                 permissions=live,
                 use_v9_policy=bool(live.get("use_v9_permissions", False)),
             )
@@ -255,16 +252,13 @@ class ApprovalSecurity:
             if str(approval.get("risk")) != current_risk:
                 self.db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
                 return {"ok": False, "error": "Tool risk classification changed after approval"}
-            # A previously approved one-time action may still report approval_required
-            # during revalidation. Only hard denial blocks execution here.
             if not authorization.allowed and not authorization.approval_required:
                 self.db.resolve_approval(approval_id, "denied", {"error": authorization.reason})
                 return {"ok": False, "error": authorization.reason}
         else:
-            # Without live settings, still reject a classifier change.
             current = self.permission_runtime.authorize(
                 tool_name=tool_name,
-                declared_risk=registered.risk,
+                declared_risk=getattr(registered, "risk", "read"),
                 gate=None,
                 permissions={},
                 use_v9_policy=False,
