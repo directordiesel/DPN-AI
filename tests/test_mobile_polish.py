@@ -29,7 +29,8 @@ def test_diagnostics_exposes_build_connection_and_security_state_without_tokens(
     assert "BuildConfig.VERSION_CODE" in DIAG
     assert "BuildConfig.BUILD_TYPE" in DIAG
     assert "loadLocalCredential" in DIAG
-    assert "loadRemoteCredential" in DIAG
+    assert "hasRemoteGateway" in DIAG
+    assert "loadDesktopCredential" in DIAG
     assert "Android Keystore AES/GCM" in DIAG
     assert "credential.token" not in DIAG
     assert "X-DPN-Token" not in DIAG
