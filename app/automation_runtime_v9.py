@@ -12,6 +12,13 @@ class AutomationMode(str, Enum):
     CONDITION = "condition"
 
 
+class AutomationLifecycle(str, Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+
+
 class OverlapPolicy(str, Enum):
     SKIP = "skip"
     QUEUE = "queue"
@@ -43,6 +50,97 @@ class RetryPolicy:
         policy = self.normalized()
         number = max(1, int(retry_number))
         return min(policy.backoff_seconds * (2 ** (number - 1)), policy.max_backoff_seconds)
+
+
+@dataclass(frozen=True)
+class ConditionProviderSpec:
+    key: str
+    operators: tuple[str, ...]
+    max_payload_bytes: int = 65_536
+    requires_network: bool = False
+
+    def validate(self) -> None:
+        key = self.key.strip()
+        if not key:
+            raise ValueError("Condition provider key is required")
+        if not self.operators:
+            raise ValueError("Condition provider must declare at least one operator")
+        if any(not operator.strip() for operator in self.operators):
+            raise ValueError("Condition provider operators cannot be blank")
+        if len(set(self.operators)) != len(self.operators):
+            raise ValueError("Condition provider operators must be unique")
+        if not 1 <= int(self.max_payload_bytes) <= 1_048_576:
+            raise ValueError("max_payload_bytes must be between 1 and 1048576")
+
+
+@dataclass(frozen=True)
+class ConditionEvaluation:
+    provider: str
+    operator: str
+    matched: bool
+    evidence: tuple[str, ...] = ()
+    observed_value: Any = None
+
+
+class ConditionProviderRegistry:
+    """Fail-closed registry for condition-capable automation providers.
+
+    The registry is intentionally deterministic and contains no provider I/O.
+    External adapters must register an explicit provider contract and supply a
+    verified ConditionEvaluation after performing any permission/network checks.
+    """
+
+    def __init__(self) -> None:
+        self._providers: dict[str, ConditionProviderSpec] = {}
+
+    def register(self, spec: ConditionProviderSpec) -> None:
+        spec.validate()
+        key = spec.key.strip().lower()
+        if key in self._providers:
+            raise ValueError(f"Condition provider already registered: {key}")
+        self._providers[key] = spec
+
+    def get(self, key: str) -> ConditionProviderSpec:
+        normalized = key.strip().lower()
+        if normalized not in self._providers:
+            raise ValueError(f"Unknown condition provider: {normalized or '<blank>'}")
+        return self._providers[normalized]
+
+    def validate_request(self, provider: str, operator: str, payload_size_bytes: int) -> dict[str, Any]:
+        spec = self.get(provider)
+        op = operator.strip()
+        if op not in spec.operators:
+            raise ValueError(f"Unsupported condition operator for {spec.key}: {op or '<blank>'}")
+        size = int(payload_size_bytes)
+        if size < 0:
+            raise ValueError("payload_size_bytes cannot be negative")
+        if size > spec.max_payload_bytes:
+            raise ValueError(
+                f"Condition payload exceeds provider limit: {size} > {spec.max_payload_bytes}"
+            )
+        return {
+            "ok": True,
+            "provider": spec.key,
+            "operator": op,
+            "max_payload_bytes": spec.max_payload_bytes,
+            "requires_network": spec.requires_network,
+        }
+
+    def accept_evaluation(self, evaluation: ConditionEvaluation) -> dict[str, Any]:
+        spec = self.get(evaluation.provider)
+        if evaluation.operator not in spec.operators:
+            raise ValueError(f"Unsupported condition operator for {spec.key}: {evaluation.operator}")
+        evidence = [item.strip() for item in evaluation.evidence if item.strip()]
+        if evaluation.matched and not evidence:
+            raise ValueError("Matched condition evaluations require evidence")
+        return {
+            "ok": True,
+            "provider": spec.key,
+            "operator": evaluation.operator,
+            "matched": bool(evaluation.matched),
+            "evidence": evidence,
+            "observed_value": evaluation.observed_value,
+        }
 
 
 @dataclass
@@ -107,9 +205,24 @@ class AutomationWorkflowRuntime:
     """Deterministic v9 scheduler/workflow state evaluator.
 
     This layer does not replace the persisted scheduler. It normalizes richer v9
-    automation definitions and provides dependency, retry, approval, overlap, and
-    evidence rules that the existing AutomationEngine can adopt incrementally.
+    automation definitions and provides dependency, retry, approval, overlap,
+    condition-provider, lifecycle, and evidence rules that the existing
+    AutomationEngine can adopt incrementally.
     """
+
+    _LIFECYCLE_TRANSITIONS: dict[AutomationLifecycle, set[AutomationLifecycle]] = {
+        AutomationLifecycle.ACTIVE: {
+            AutomationLifecycle.PAUSED,
+            AutomationLifecycle.CANCELLED,
+            AutomationLifecycle.COMPLETED,
+        },
+        AutomationLifecycle.PAUSED: {
+            AutomationLifecycle.ACTIVE,
+            AutomationLifecycle.CANCELLED,
+        },
+        AutomationLifecycle.CANCELLED: set(),
+        AutomationLifecycle.COMPLETED: set(),
+    }
 
     def normalize_definition(self, definition: AutomationDefinition) -> dict[str, Any]:
         definition.validate()
@@ -131,6 +244,36 @@ class AutomationWorkflowRuntime:
             },
             "steps": [self._step_payload(step) for step in definition.steps],
         }
+
+    @staticmethod
+    def transition_lifecycle(
+        current: AutomationLifecycle,
+        target: AutomationLifecycle,
+        *,
+        active_step_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        active = sorted({item.strip() for item in (active_step_ids or []) if item.strip()})
+        allowed = AutomationWorkflowRuntime._LIFECYCLE_TRANSITIONS[current]
+        if target not in allowed:
+            raise ValueError(f"Invalid automation lifecycle transition: {current.value} -> {target.value}")
+        if target == AutomationLifecycle.COMPLETED and active:
+            raise ValueError("Automation cannot complete while workflow steps are active")
+        return {
+            "ok": True,
+            "from": current.value,
+            "to": target.value,
+            "active_step_ids": active,
+            "cancel_running_steps": target == AutomationLifecycle.CANCELLED and bool(active),
+            "dispatch_allowed": target == AutomationLifecycle.ACTIVE,
+        }
+
+    @staticmethod
+    def dispatch_allowed(lifecycle: AutomationLifecycle, condition_matched: bool | None = None) -> bool:
+        if lifecycle != AutomationLifecycle.ACTIVE:
+            return False
+        if condition_matched is None:
+            return True
+        return bool(condition_matched)
 
     @staticmethod
     def _step_payload(step: WorkflowStep) -> dict[str, Any]:
