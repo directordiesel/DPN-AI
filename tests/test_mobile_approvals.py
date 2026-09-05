@@ -38,8 +38,9 @@ def test_approval_activity_is_internal_and_pairing_gated():
     assert '<activity android:name=".ApprovalsActivity" android:exported="false" />' in MANIFEST
     assert 'loadDesktopCredential() == null' in ACTIVITY
     assert 'finish()' in ACTIVITY
-    assert 'Open Approval Inbox' in MAIN
-    assert 'approvalsButton.isEnabled = enabled' in MAIN
+    assert 'addCapability(root, "Approval Inbox", ApprovalsActivity::class.java)' in MAIN
+    assert 'setCapabilityButtons(active)' in MAIN
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in MAIN
 
 
 def test_mobile_approval_inbox_has_no_background_autonomous_decision_service():
