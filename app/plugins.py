@@ -8,6 +8,7 @@ from typing import Any
 
 from app.tools.image_runtime import install_image_tools
 from app.tools.research import install_research_tools
+from app.tools.voice_session import install_voice_session_tools
 from app.voice_security import install_voice_security
 
 
@@ -44,7 +45,7 @@ def _load_plugin(path: Path, expected_parent: Path, registry: Any) -> None:
 def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
     """Install core runtime capabilities, then load optional trusted local plugins.
 
-    Voice hardening, v9 research intelligence, and v9 image intelligence are
+    Voice hardening plus v9 research, image, and voice-session intelligence are
     installed here as core initialization hooks after the ToolRegistry has
     registered its built-in callbacks. They do not depend on files in
     DPN_PLUGINS_DIR, while optional plugins remain restricted to regular files
@@ -53,6 +54,7 @@ def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
     install_voice_security(registry)
     install_research_tools(registry)
     install_image_tools(registry)
+    install_voice_session_tools(registry)
 
     errors: list[dict[str, str]] = []
     plugin_dir.mkdir(parents=True, exist_ok=True)
