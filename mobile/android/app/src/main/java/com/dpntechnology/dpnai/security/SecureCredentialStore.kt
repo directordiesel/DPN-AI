@@ -23,6 +23,8 @@ class SecureCredentialStore(context: Context) {
             .putString(KEY_LOCAL_ENDPOINT, encrypt(baseUrl))
             .putString(KEY_DEVICE_ID, encrypt(deviceId))
             .putString(KEY_LOCAL_TOKEN, encrypt(token))
+            .putLong(KEY_SESSION_ISSUED_AT, System.currentTimeMillis())
+            .putBoolean(KEY_DEVICE_REVOKED, false)
             .apply()
     }
 
@@ -31,6 +33,7 @@ class SecureCredentialStore(context: Context) {
         require(!isLoopbackHost(uri.host)) { "remote gateway must not use a loopback host" }
         require(gatewayToken.length >= 32) { "remote gateway credential is too short" }
         require(loadLocalCredential() != null) { "pair this device locally before enabling remote gateway access" }
+        require(!isDeviceRevoked()) { "revoked device cannot enable remote gateway access" }
         prefs.edit()
             .putString(KEY_REMOTE_ENDPOINT, encrypt(baseUrl.trimEnd('/')))
             .putString(KEY_REMOTE_TOKEN, encrypt(gatewayToken))
@@ -40,14 +43,36 @@ class SecureCredentialStore(context: Context) {
     fun hasRemoteGateway(): Boolean = prefs.contains(KEY_REMOTE_ENDPOINT) && prefs.contains(KEY_REMOTE_TOKEN)
 
     fun setRemoteMode(enabled: Boolean) {
-        if (enabled) require(hasRemoteGateway()) { "remote gateway is not configured" }
+        if (enabled) {
+            require(hasRemoteGateway()) { "remote gateway is not configured" }
+            require(!isDeviceRevoked()) { "revoked device cannot enter remote mode" }
+        }
         prefs.edit().putBoolean(KEY_REMOTE_MODE, enabled).apply()
     }
 
     fun isRemoteMode(): Boolean = prefs.getBoolean(KEY_REMOTE_MODE, false)
 
+    fun markDeviceRevoked() {
+        prefs.edit().putBoolean(KEY_DEVICE_REVOKED, true).putBoolean(KEY_REMOTE_MODE, false).apply()
+    }
+
+    fun isDeviceRevoked(): Boolean = prefs.getBoolean(KEY_DEVICE_REVOKED, false)
+
+    fun sessionAgeSeconds(nowMillis: Long = System.currentTimeMillis()): Long {
+        val issued = prefs.getLong(KEY_SESSION_ISSUED_AT, 0L)
+        if (issued <= 0L || nowMillis < issued) return Long.MAX_VALUE
+        return (nowMillis - issued) / 1000L
+    }
+
+    fun isSessionCurrent(nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (isDeviceRevoked()) return false
+        val maxAge = if (isRemoteMode()) MAX_REMOTE_SESSION_SECONDS else MAX_LOCAL_SESSION_SECONDS
+        return sessionAgeSeconds(nowMillis) <= maxAge
+    }
+
     fun loadDesktopCredential(): DesktopCredential? {
-        val local = loadLocalCredential() ?: return null
+        if (isDeviceRevoked() || !isSessionCurrent()) return null
+        val local = loadLocalCredentialUnchecked() ?: return null
         if (!isRemoteMode()) return local
         val endpoint = prefs.getString(KEY_REMOTE_ENDPOINT, null) ?: return null
         val token = prefs.getString(KEY_REMOTE_TOKEN, null) ?: return null
@@ -55,6 +80,11 @@ class SecureCredentialStore(context: Context) {
     }
 
     fun loadLocalCredential(): DesktopCredential? {
+        if (isDeviceRevoked() || !isSessionCurrent()) return null
+        return loadLocalCredentialUnchecked()
+    }
+
+    private fun loadLocalCredentialUnchecked(): DesktopCredential? {
         val endpoint = prefs.getString(KEY_LOCAL_ENDPOINT, null) ?: return null
         val deviceId = prefs.getString(KEY_DEVICE_ID, null) ?: return null
         val token = prefs.getString(KEY_LOCAL_TOKEN, null) ?: return null
@@ -138,6 +168,10 @@ class SecureCredentialStore(context: Context) {
         private const val KEY_REMOTE_ENDPOINT = "remote_gateway_endpoint"
         private const val KEY_REMOTE_TOKEN = "remote_gateway_token"
         private const val KEY_REMOTE_MODE = "remote_gateway_enabled"
+        private const val KEY_SESSION_ISSUED_AT = "session_issued_at_ms"
+        private const val KEY_DEVICE_REVOKED = "device_revoked_v2"
+        private const val MAX_LOCAL_SESSION_SECONDS = 24L * 60L * 60L
+        private const val MAX_REMOTE_SESSION_SECONDS = 8L * 60L * 60L
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val IV_BYTES = 12
         private const val TAG_BITS = 128

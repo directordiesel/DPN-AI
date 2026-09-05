@@ -116,21 +116,26 @@ class MainActivity : Activity() {
     }
 
     private fun refreshConnectionState() {
-        val locallyPaired = credentialStore.loadLocalCredential() != null
+        val revoked = credentialStore.isDeviceRevoked()
+        val localCredential = credentialStore.loadLocalCredential()
+        val locallyPaired = localCredential != null
+        val sessionCurrent = credentialStore.isSessionCurrent()
         val active = credentialStore.loadDesktopCredential() != null
         setCapabilityButtons(active)
-        gatewayButton.isEnabled = locallyPaired
+        gatewayButton.isEnabled = locallyPaired && sessionCurrent && !revoked
         status.text = when {
+            revoked -> "DEVICE REVOKED • re-pairing required"
+            !sessionCurrent && localCredential == null -> "SESSION EXPIRED • secure re-pairing required"
             !locallyPaired -> "Not paired • secure local desktop pairing required"
-            credentialStore.isRemoteMode() -> "REMOTE GATEWAY • encrypted credential active"
-            else -> "LOCAL DESKTOP • encrypted credential active"
+            credentialStore.isRemoteMode() -> "REMOTE GATEWAY • trusted encrypted session active"
+            else -> "LOCAL DESKTOP • trusted encrypted session active"
         }
     }
 
     private fun setCapabilityButtons(enabled: Boolean) = capabilityButtons.forEach { it.isEnabled = enabled }
 
     private fun checkDesktopConnection() {
-        status.text = "Checking active encrypted connection…"
+        status.text = "Checking active trusted encrypted connection…"
         thread(name = "dpn-mobile-health") {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "connection-check", it) }
