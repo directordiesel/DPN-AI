@@ -66,37 +66,72 @@ class MobileTrustPolicyV2:
             raise TrustPolicyError("invalid device identifier")
         return text
 
+    @staticmethod
+    def _strict_bool(value: bool, field: str) -> bool:
+        # Do not let values such as "false", 1, or arbitrary objects become truthy
+        # authorization signals when contexts are hydrated from transport payloads.
+        if type(value) is not bool:
+            raise TrustPolicyError(f"invalid {field} flag")
+        return value
+
+    @staticmethod
+    def _session_age(value: int) -> int:
+        # bool is an int subclass, so reject it explicitly. Also bound the value to
+        # avoid absurd/untrusted transport values entering policy calculations.
+        if type(value) is not int or value < 0 or value > 365 * 24 * 60 * 60:
+            raise TrustPolicyError("invalid session age")
+        return value
+
+    @staticmethod
+    def _connection_mode(value: ConnectionMode | str) -> ConnectionMode:
+        if isinstance(value, ConnectionMode):
+            return value
+        if isinstance(value, str):
+            try:
+                return ConnectionMode(value.strip().lower())
+            except ValueError as exc:
+                raise TrustPolicyError("unsupported connection mode") from exc
+        raise TrustPolicyError("unsupported connection mode")
+
     def evaluate(self, context: DeviceTrustContext, operation: MobileOperation | str) -> dict[str, Any]:
         device_id = self._clean_device_id(context.device_id)
+        paired = self._strict_bool(context.paired, "paired")
+        revoked = self._strict_bool(context.revoked, "revoked")
+        remote_gateway_authenticated = self._strict_bool(
+            context.remote_gateway_authenticated, "remote gateway authenticated"
+        )
+        approval_present = self._strict_bool(context.approval_present, "approval present")
+        user_presence_confirmed = self._strict_bool(context.user_presence_confirmed, "user presence confirmed")
+        session_age_seconds = self._session_age(context.session_age_seconds)
+        connection_mode = self._connection_mode(context.connection_mode)
+
         try:
             op = operation if isinstance(operation, MobileOperation) else MobileOperation(str(operation).strip().lower())
         except ValueError as exc:
             raise TrustPolicyError("unsupported mobile operation") from exc
 
         failures: list[str] = []
-        if not context.paired:
+        if not paired:
             failures.append("device_not_paired")
-        if context.revoked:
+        if revoked:
             failures.append("device_revoked")
-        if context.session_age_seconds < 0:
-            failures.append("invalid_session_age")
 
-        remote = context.connection_mode == ConnectionMode.REMOTE
+        remote = connection_mode == ConnectionMode.REMOTE
         max_age = self.MAX_REMOTE_SESSION_SECONDS if remote else self.MAX_LOCAL_SESSION_SECONDS
-        if context.session_age_seconds > max_age:
+        if session_age_seconds > max_age:
             failures.append("session_expired")
-        if remote and not context.remote_gateway_authenticated:
+        if remote and not remote_gateway_authenticated:
             failures.append("remote_gateway_not_authenticated")
-        if remote and op in self.WRITE_LIKE and not context.user_presence_confirmed:
+        if remote and op in self.WRITE_LIKE and not user_presence_confirmed:
             failures.append("user_presence_required")
-        if op in self.DESTRUCTIVE and not context.approval_present:
+        if op in self.DESTRUCTIVE and not approval_present:
             failures.append("approval_required")
 
         return {
             "ok": not failures,
             "device_id": device_id,
             "operation": op.value,
-            "connection_mode": context.connection_mode.value,
+            "connection_mode": connection_mode.value,
             "risk": "destructive" if op in self.DESTRUCTIVE else ("write" if op in self.WRITE_LIKE else "read"),
             "approval_required": op in self.DESTRUCTIVE,
             "user_presence_required": remote and op in self.WRITE_LIKE,
