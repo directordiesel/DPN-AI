@@ -11,7 +11,7 @@
 </p>
 
 > **Published stable release:** v6.0.0 · Advanced Core  
-> **Release candidate:** 9.0.0-rc.1 · DPN AI v9  
+> **Published stable release:** v9.0.0 · DPN AI v9
 > **Technology:** Python · Local AI · Missions · Tools · Voice · MCP · Automation · Multimodal
 
 ## v8.0.0 Release Candidate Status
