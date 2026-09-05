@@ -1,13 +1,14 @@
 # DPN AI Branding
 
-<p align="center"><img src="assets/dpn-ai-brand.jpg" alt="DPN AI" width="520"></p>
+<p align="center">
+  <img src="assets/branding/dpn-ai-logo.jpg" alt="DPN AI — Intelligent. Adaptive. Innovative." width="450">
+</p>
 
-This repository artwork is the primary visual identity for **DPN AI**.
+This is the canonical DPN AI repository branding asset supplied by DPN Technology.
 
-## Recommended use
-- Repository and release presentation
-- Documentation headers and project showcases
-- Social/project preview artwork
-- AI product documentation
+- **Product:** DPN AI
+- **Brand:** DPN Technology
+- **Tagline:** Intelligent. Adaptive. Innovative.
+- **Canonical logo:** `assets/branding/dpn-ai-logo.jpg`
 
-Keep the original aspect ratio and avoid stretching, recoloring, or placing the artwork on a light background.
+Use this asset when a repository-level DPN AI logo is needed unless a purpose-specific variant is explicitly required.
