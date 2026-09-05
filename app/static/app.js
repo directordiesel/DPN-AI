@@ -489,7 +489,7 @@ function startMessageEdit(messageId, content, node) {
 function adaptiveVerification(message, profile, mode) {
   if (mode === 'mission') return false;
   const text = String(message || '').toLowerCase();
-  const artifact = /(word document|docx|pdf|spreadsheet|excel|xlsx|powerpoint|pptx|presentation|slide deck)/.test(text);
+  const artifact = /(word document|docx|\bpdf\b|spreadsheet|excel|xlsx|powerpoint|pptx|presentation|slide deck)/.test(text);
   return artifact || ['software','fivem','security','data','science'].includes(profile) || /(verify|test|audit|fix|production|release|deploy|accurate|current research)/.test(text);
 }
 
@@ -1132,5 +1132,5 @@ async function boot() {
   await Promise.all([loadModels(), loadProfiles(), loadSkills(), loadProjects(), loadConversations(), loadVoiceProfiles()]);
   newConversation();
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=8.0.0').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=9.0.0-rc.1').catch(() => {});
 boot().catch(error => toast(error.message, true));
