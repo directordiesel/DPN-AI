@@ -66,6 +66,8 @@ class PermissionEngine:
 
     @staticmethod
     def normalize_risk(value: str | RiskLevel) -> RiskLevel:
+        if isinstance(value, RiskLevel):
+            return value
         try:
             return RiskLevel(str(value))
         except ValueError as exc:
@@ -75,13 +77,13 @@ class PermissionEngine:
         name = (tool_name or "").strip()
         if not name:
             raise ValueError("tool_name is required")
-        self._tool_rules[name] = PermissionRule(PermissionMode(mode), RiskLevel(max_risk))
+        self._tool_rules[name] = PermissionRule(PermissionMode(mode), self.normalize_risk(max_risk))
 
     def set_gate_rule(self, gate: str, mode: PermissionMode, max_risk: RiskLevel = RiskLevel.READ) -> None:
         name = (gate or "").strip()
         if not name:
             raise ValueError("gate is required")
-        self._gate_rules[name] = PermissionRule(PermissionMode(mode), RiskLevel(max_risk))
+        self._gate_rules[name] = PermissionRule(PermissionMode(mode), self.normalize_risk(max_risk))
 
     def grant_session(self, tool_name: str) -> None:
         name = (tool_name or "").strip()
