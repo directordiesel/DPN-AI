@@ -60,7 +60,7 @@ class DiffRiskAnalyzer:
         high = [f for f in findings if f.severity == "high"]
         medium = [f for f in findings if f.severity == "medium"]
         score = min(100, len(high) * 35 + len(medium) * 12 + (10 if additions + deletions >= 1500 else 0))
-        level = "high" if score >= 50 else "medium" if score >= 20 else "low"
+        level = "high" if high or score >= 50 else "medium" if score >= 20 else "low"
         return {
             "risk_level": level,
             "risk_score": score,
