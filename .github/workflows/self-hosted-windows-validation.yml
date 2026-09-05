@@ -1,0 +1,63 @@
+name: DPN GitHub-Hosted Windows Validation
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/self-hosted-windows-validation.yml"
+      - "app/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "launch.py"
+      - "manage.py"
+      - "installer_python_probe.py"
+      - "INSTALL_DPN_AI.ps1"
+      - "*.bat"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-hosted-windows-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-validation:
+    name: GitHub-hosted Windows validation
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Verify configured Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+          python -m pip --version
+      - name: Install development dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Run repository and version guard
+        shell: cmd
+        run: python .github\scripts\ci_repository_guard.py
+      - name: Compile DPN AI sources on Windows
+        shell: cmd
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github\scripts\ci_repository_guard.py
+      - name: Run focused Windows regression suite
+        shell: cmd
+        run: python -m pytest -q tests\test_authorization_boundaries.py tests\test_v5_chat_recovery.py tests\test_security.py
+      - name: Verify Windows installer PowerShell parses
+        shell: python
+        run: |
+          import subprocess
+          script = r'''$tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\INSTALL_DPN_AI.ps1'), [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }; Write-Host 'INSTALL_DPN_AI.ps1 parsed successfully' '''
+          subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], check=True)
