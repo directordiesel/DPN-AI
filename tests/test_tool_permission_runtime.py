@@ -65,6 +65,22 @@ def test_legacy_safe_mode_blocks_command_execution():
     assert result.approval_required is False
 
 
+def test_v9_default_requires_approval_when_no_explicit_rule_exists():
+    runtime = ToolPermissionRuntime()
+    result = runtime.authorize(
+        tool_name="run_command",
+        declared_risk="execute",
+        gate="commands",
+        permissions=base_permissions(),
+        use_v9_policy=True,
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is True
+    assert result.decision.mode == PermissionMode.ASK_EVERY_TIME
+    assert result.decision.source == "default"
+
+
 def test_v9_session_rule_requires_grant_then_allows():
     engine = PermissionEngine(PermissionMode.ASK_EVERY_TIME)
     engine.set_tool_rule("run_command", PermissionMode.ALLOW_SESSION, RiskLevel.EXECUTE)
