@@ -5,6 +5,9 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from app.artifact_studio import ArtifactStudio
+from app.artifact_validation import validate_artifact as validate_generated_artifact
+
 
 _FORMATS = {
     "docx": {
@@ -70,9 +73,9 @@ def build_artifact_mission(
         {"name": "inspect", "purpose": "Inspect existing artifacts and source files before editing." if existing else "Inspect relevant source material and workspace context before generation."},
         {"name": "structure", "purpose": "Design the information hierarchy, tables, charts, slides, sheets, and cross-format consistency."},
         {"name": "produce", "purpose": "Create or revise the requested artifacts with the native document tools.", "preferred_tools": producer_tools},
-        {"name": "validate", "purpose": "Verify real file structure, required content, non-empty output, and format-specific integrity.", "quality_gates": gates},
+        {"name": "validate", "purpose": "Verify real file structure, required content, non-empty output, integrity hash, and format-specific integrity.", "quality_gates": gates},
         {"name": "repair", "purpose": "Repair failed validation or formatting requirements, then validate again."},
-        {"name": "deliver", "purpose": "Return exact artifact paths, validation evidence, limitations, and any source assumptions."},
+        {"name": "deliver", "purpose": "Return exact artifact paths, validation evidence, integrity metadata, limitations, and source assumptions."},
     ]
     return {
         "ok": True,
@@ -89,6 +92,7 @@ def build_artifact_mission(
             "preserve_source_unless_overwrite_requested": True,
             "validate_before_completion_claim": bool(require_validation),
             "report_exact_output_paths": True,
+            "report_integrity_hash": True,
             "cross_format_consistency_required": len(selected) > 1,
         },
         "phases": phases,
@@ -162,11 +166,15 @@ def validate_artifact(workspace: Path, path: str, expected_format: str | None = 
         if not eof_ok:
             errors.append("Missing PDF EOF marker")
 
+    integrity = validate_generated_artifact(target, workspace)
+    checks.append({"name": "sha256_present", "ok": bool(integrity.sha256), "details": integrity.sha256})
+
     return {
         "ok": not errors,
         "path": target.relative_to(workspace.resolve()).as_posix(),
         "format": fmt,
         "size": size,
+        "sha256": integrity.sha256,
         "checks": checks,
         "errors": errors,
     }
@@ -174,6 +182,9 @@ def validate_artifact(workspace: Path, path: str, expected_format: str | None = 
 
 def register(registry):
     workspace = registry.settings.workspace_dir
+    studio = ArtifactStudio(workspace)
+    registry.artifact_studio = studio
+
     registry.register(
         name="plan_artifact_studio",
         description=(
@@ -197,7 +208,7 @@ def register(registry):
     )
     registry.register(
         name="validate_office_artifact",
-        description="Validate a generated DOCX, XLSX, PPTX, or PDF structurally before claiming it was created successfully.",
+        description="Validate a generated DOCX, XLSX, PPTX, or PDF structurally and return SHA-256 integrity evidence before completion is claimed.",
         parameters={
             "type": "object",
             "properties": {
@@ -209,4 +220,20 @@ def register(registry):
         },
         function=lambda path, expected_format=None: validate_artifact(workspace, path, expected_format),
         risk="read",
+    )
+    registry.register(
+        name="create_advanced_spreadsheet",
+        description="Create a styled XLSX workbook with multiple sheets, formulas, bounded bar/line charts, and post-generation integrity validation.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "minLength": 1},
+                "title": {"type": "string", "minLength": 1},
+                "sheets": {"type": "array", "items": {"type": "object"}, "minItems": 1},
+            },
+            "required": ["filename", "title", "sheets"],
+            "additionalProperties": False,
+        },
+        function=studio.create_spreadsheet,
+        risk="write",
     )
