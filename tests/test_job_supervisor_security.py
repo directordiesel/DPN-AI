@@ -149,3 +149,37 @@ def test_non_integer_queue_depth_is_rejected(tmp_path: Path):
     db = Database(tmp_path / "data.sqlite3")
     with pytest.raises(ValueError, match="max_queue_depth"):
         JobSupervisor(db, BlockingAgent(), SimpleNamespace(), SimpleNamespace(), max_queue_depth=True)
+
+
+def test_enqueue_job_id_deduplicates_pending_entries(tmp_path: Path):
+    supervisor = _supervisor(tmp_path, queue_depth=4)
+    job = supervisor.db.create_background_job("direct", {"message": "dedupe"})
+    assert supervisor._enqueue_job_id(job["id"]) is True
+    assert supervisor._enqueue_job_id(job["id"]) is False
+    assert supervisor.queue.qsize() == 1
+    assert job["id"] in supervisor._queued_ids
+
+
+def test_persistent_refill_is_idempotent_for_existing_pending_ids(tmp_path: Path):
+    supervisor = _supervisor(tmp_path, queue_depth=4)
+    job = supervisor.db.create_background_job("direct", {"message": "recover"})
+    assert supervisor._refill_from_persistence() == 1
+    assert supervisor._refill_from_persistence() == 0
+    assert supervisor.queue.qsize() == 1
+    assert job["id"] in supervisor._queued_ids
+
+
+def test_persistent_refill_replenishes_after_capacity_frees(tmp_path: Path):
+    supervisor = _supervisor(tmp_path, queue_depth=1)
+    jobs = [
+        supervisor.db.create_background_job("direct", {"message": f"job-{index}"})
+        for index in range(3)
+    ]
+    assert supervisor._refill_from_persistence() == 1
+    first_id = supervisor.queue.get_nowait()
+    supervisor._queued_ids.discard(first_id)
+    assert supervisor._claim_job(first_id) is True
+    supervisor.queue.task_done()
+    assert supervisor._refill_from_persistence() == 1
+    assert supervisor.queue.qsize() == 1
+    assert sum(1 for job in jobs if supervisor.db.get_background_job(job["id"])["status"] == "queued") == 2
