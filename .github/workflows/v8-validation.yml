@@ -26,64 +26,51 @@ jobs:
   desktop-validation:
     if: github.actor == 'directordiesel'
     name: v8 Desktop / Security / QA / Package Contracts
-    runs-on: [self-hosted, Windows, X64]
+    runs-on: windows-latest
     timeout-minutes: 35
-
     steps:
       - name: Checkout exact v8 head
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-
-      - name: Resolve trusted Windows Python
-        shell: cmd
-        run: .github\scripts\resolve_windows_python.cmd
-
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
       - name: Verify configured Python
         shell: cmd
         run: |
           where python
           python --version
           python -m pip --version
-
       - name: Install development dependencies
         shell: cmd
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
-
       - name: Run repository and version guard
         shell: cmd
         run: python .github\scripts\ci_repository_guard.py
-
       - name: Run DPN source security gate
         shell: cmd
         run: python tools\dpn_security_gate.py --github
-
       - name: Compile desktop and v8 sources
         shell: cmd
         run: python -m compileall -q desktop app tests packaging\windows
-
       - name: Run all v8 regression tests
         shell: cmd
         run: python -m pytest -q tests -k "v8"
-
       - name: Parse Windows packaging PowerShell
         shell: python
         run: |
           import subprocess
           script = r'''$targets = @('.\packaging\windows\build.ps1', '.\packaging\windows\build-installer.ps1'); foreach ($target in $targets) { $tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $target), [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error ("{0}: {1}" -f $target, $_.Message) }; exit 1 } }'''
-          subprocess.run(
-              ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
-              check=True,
-          )
-
+          subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script], check=True)
       - name: Validate packaging contracts without publishing
         shell: python
         run: |
           from pathlib import Path
           import re
-
           spec = Path('packaging/windows/DPN-AI.spec').read_text(encoding='utf-8')
           installer = Path('packaging/windows/DPN-AI.iss').read_text(encoding='utf-8')
           forbidden_bundle_roots = {
@@ -97,8 +84,6 @@ jobs:
               raise SystemExit('Packaging spec bundles forbidden runtime state: ' + ', '.join(bundled))
           if 'uninstall' not in installer.lower():
               raise SystemExit('Installer contract does not expose an uninstall path.')
-          print('Packaging contracts validated without creating or publishing a release.')
-
       - name: v8 validation summary
         if: always()
         shell: cmd
@@ -106,5 +91,5 @@ jobs:
           echo ## DPN AI v8 Desktop Validation>>"%GITHUB_STEP_SUMMARY%"
           echo.>>"%GITHUB_STEP_SUMMARY%"
           echo - Runner: %RUNNER_NAME%>>"%GITHUB_STEP_SUMMARY%"
-          echo - Validation remains fail-closed; inspect individual step conclusions above.>>"%GITHUB_STEP_SUMMARY%"
+          echo - GitHub-hosted Windows validation.>>"%GITHUB_STEP_SUMMARY%"
           echo - No release is published by this workflow.>>"%GITHUB_STEP_SUMMARY%"
