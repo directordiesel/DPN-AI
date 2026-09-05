@@ -60,6 +60,10 @@ class MainActivity : Activity() {
             setTextColor(Color.LTGRAY)
         }
         root.addView(status)
+        root.addView(Button(this).apply {
+            text = "Secure Desktop Pairing"
+            setOnClickListener { startActivity(Intent(this@MainActivity, PairingActivity::class.java)) }
+        })
         root.addView(Button(this).apply { text = "Check Active Connection"; setOnClickListener { checkDesktopConnection() } })
 
         addSection(root, "ASSIST")
