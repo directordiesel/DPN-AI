@@ -30,8 +30,9 @@ def test_task_state_and_priority_are_bounded():
 def test_projects_console_is_pairing_gated_and_internal():
     main = MAIN.read_text(encoding="utf-8")
     manifest = MANIFEST.read_text(encoding="utf-8")
-    assert "Open Projects & Tasks" in main
-    assert "projectsButton.isEnabled = enabled" in main
+    assert 'addCapability(root, "Projects & Tasks", ProjectsActivity::class.java)' in main
+    assert 'setCapabilityButtons(active)' in main
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in main
     assert 'android:name=".ProjectsActivity" android:exported="false"' in manifest
 
 
