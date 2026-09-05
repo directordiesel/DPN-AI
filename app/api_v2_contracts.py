@@ -104,13 +104,21 @@ def encode_cursor(*, sequence: int, stream: str) -> str:
 
 
 def decode_cursor(token: str) -> dict[str, Any]:
-    raw = str(token or "").strip()
+    supplied = str(token or "")
+    raw = supplied.strip()
+    if supplied != raw:
+        raise APIV2ContractError("cursor encoding is non-canonical")
     if not raw or len(raw) > 2048:
         raise APIV2ContractError("cursor is empty or oversized")
     padding = "=" * (-len(raw) % 4)
     try:
         decoded = base64.urlsafe_b64decode((raw + padding).encode("ascii"))
+        canonical = base64.urlsafe_b64encode(decoded).decode("ascii").rstrip("=")
+        if canonical != raw:
+            raise APIV2ContractError("cursor encoding is non-canonical")
         body, checksum = decoded.rsplit(b".", 1)
+    except APIV2ContractError:
+        raise
     except Exception as exc:  # noqa: BLE001
         raise APIV2ContractError("cursor encoding is invalid") from exc
     expected = hashlib.sha256(body).hexdigest().encode("ascii")
