@@ -65,24 +65,23 @@ jobs:
         run: python -m pytest -q tests\test_authorization_boundaries.py tests\test_v5_chat_recovery.py tests\test_security.py
 
       - name: Verify Windows installer PowerShell parses
-        shell: powershell
+        shell: python
         run: |
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\INSTALL_DPN_AI.ps1'), [ref]$null, [ref]$errors) | Out-Null
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            exit 1
-          }
-          Write-Host "INSTALL_DPN_AI.ps1 parsed successfully on $env:RUNNER_NAME"
+          import subprocess
+          script = r'''$tokens = $null; $errors = $null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '.\INSTALL_DPN_AI.ps1'), [ref]$tokens, [ref]$errors) | Out-Null; if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }; Write-Host 'INSTALL_DPN_AI.ps1 parsed successfully' '''
+          subprocess.run(
+              ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+              check=True,
+          )
 
       - name: Runner validation summary
         if: always()
-        shell: powershell
+        shell: cmd
         run: |
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## DPN Self-Hosted Windows Validation"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Runner: $env:RUNNER_NAME"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- OS: $env:RUNNER_OS"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Architecture: $env:RUNNER_ARCH"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Python: trusted resolver with fail-closed validation"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Trusted main/manual execution only"
+          echo ## DPN Self-Hosted Windows Validation>>"%GITHUB_STEP_SUMMARY%"
+          echo.>>"%GITHUB_STEP_SUMMARY%"
+          echo - Runner: %RUNNER_NAME%>>"%GITHUB_STEP_SUMMARY%"
+          echo - OS: %RUNNER_OS%>>"%GITHUB_STEP_SUMMARY%"
+          echo - Architecture: %RUNNER_ARCH%>>"%GITHUB_STEP_SUMMARY%"
+          echo - Python: trusted resolver with verified fallback bootstrap>>"%GITHUB_STEP_SUMMARY%"
+          echo - Trusted main/manual execution only>>"%GITHUB_STEP_SUMMARY%"
