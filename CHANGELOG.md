@@ -1,62 +1,124 @@
-# DPN AI v8.0.0 Release Candidate
+# DPN AI Changelog
 
-> Status: implementation complete on the v8 desktop branch; not yet published as a stable release.
+## v9.0.0 — Stable
 
-## Windows desktop platform
+DPN AI v9.0.0 is the current published stable release. It consolidates the v9 development program into one local-first, permission-aware, evidence-driven AI operations platform.
 
-- Added a native Windows desktop launcher and supervisor with bounded restart behavior and safe-mode support.
-- Added the black/purple DPN AI Desktop Control Center with live runtime status surfaces and no simulated production metrics.
-- Added versioned desktop API and SSE status streaming while preserving one unified AI/runtime/project/memory/agent architecture.
-- Added Windows executable packaging and installer foundations with integrity manifests and trusted-runner isolation.
-- Added Windows startup, context-menu/Open-with, tray, and notification integration using per-user scope.
+### Intelligence Core + Agent Runtime
+- Added deterministic planner/executor/reviewer orchestration.
+- Added task dependency enforcement and mission-state tracking.
+- Added bounded retries, evidence requirements, failure blocking, and completion summaries.
+- Added reusable agent-context seams without forcing unsafe rewrites of large runtime files.
 
-## Reliability and recovery
+### Coding Agent + GitHub Engineering
+- Added repository-aware coding-agent foundations.
+- Added change-risk analysis and high-severity diff escalation.
+- Added repository-engineering planning and CI-diagnostics support.
+- Added self-review/test-selection foundations for safer multi-file changes.
 
-- Added persistent crash journaling and automatic safe-mode escalation after repeated crashes.
-- Added repository-bounded recovery backups with SHA-256 sidecars and retention controls.
-- Added bounded diagnostics that exclude environment secrets and private runtime credentials.
-- Preserved the validated snapshot/restore subsystem as the sole restore authority.
+### Tools + Permission/Sandbox Architecture
+- Added shared permission and risk-policy foundations.
+- Added approval-aware execution and tool-risk classification.
+- Added host-fallback approval hardening for sandbox execution.
+- Added fail-closed behavior for unsupported or disallowed tool paths.
 
-## Performance and model lifecycle
+### Memory + RAG + Knowledge Bases
+- Added scoped memory and semantic retrieval foundations.
+- Added RAG engine, context assembly, and knowledge-base support.
+- Added project-aware memory isolation and persistent agent-context runtime seams.
 
-- Added real CPU/RAM telemetry and configurable pressure thresholds.
-- Added fail-closed admission controls for heavy work under resource pressure.
-- Added explicit model load, ready, use, failure, idle eviction, and critical-pressure eviction states.
-- Preserved provider-specific model loading in the existing model gateway/Ollama runtime.
+### Research + Web Intelligence
+- Added structured research intelligence runtime.
+- Added source-oriented web research tools.
+- Added claim-conflict detection foundations.
+- Added plugin registration and compatibility handling for research capabilities.
 
-## Security, QA, and release gates
+### Artifact Studio
+- Expanded DOCX, PDF, XLSX, and PPTX generation architecture.
+- Added artifact orchestration and validation metadata.
+- Added artifact integrity checks and spreadsheet-enrichment support.
+- Preserved native-format generation through the existing document factory architecture.
 
-- Added dedicated v8 desktop validation on the trusted DIESEL-118 self-hosted Windows runner.
-- Added full v8 regression coverage for desktop platform, supervisor, service API, updater, Windows installer/integration/packaging, recovery, resource controls, and signing readiness.
-- Added a strict non-publishing v8 release-readiness gate for version metadata, required files, documentation, packaging isolation, release policy, and signing integration.
-- Kept pull-request Windows binary packaging intentionally skipped.
-- Added fail-closed Windows Authenticode signing support without embedding credentials or claiming that a production certificate already exists.
+### Image Generation + Vision/Edit Architecture
+- Added provider capability discovery for generation, editing, and vision.
+- Added workspace-safe image request planning and operation validation.
+- Added real ComfyUI-backed image generation.
+- Added fail-closed editing and vision routes when a compatible provider is not configured.
 
-## Production Windows signing
+### Scheduler + Autonomous Workflows
+- Added one-time, recurring, and condition-oriented automation definitions.
+- Added overlap policies, step dependencies, bounded retry/backoff, and completion summaries.
+- Added workflow approval/evidence metadata.
+- Preserved fail-closed behavior for condition execution when a condition provider is absent.
 
-- Added `packaging/windows/sign.ps1` with explicit certificate-thumbprint selection.
-- Added Windows SDK `signtool.exe` resolution without implicit downloads or installation.
-- Added SHA-256 file signing and RFC3161 timestamping.
-- Added post-signing `Get-AuthenticodeSignature` verification.
-- Added signer-certificate thumbprint verification so the resulting signature must match the requested certificate.
-- Added `-RequireSigned` mode to both application and installer build scripts.
-- Release-mode builds fail closed if a trusted certificate is unavailable or signing verification fails.
-- Development package and installer builds remain explicitly marked unsigned.
-- Private keys, certificate passwords, and signing credentials remain outside the repository and must be provisioned separately on the authorized release runner.
+### Voice + Multimodal Interaction
+- Added voice-session state and multimodal attachment handling.
+- Added barge-in/interruption state and hands-free session foundations.
+- Preserved the existing local STT/TTS stack with Piper, faster-whisper, and fallback voices.
 
-## Current release-candidate blockers
+### Desktop UX
+- Added the v9 black/purple desktop experience.
+- Added command palette, keyboard shortcuts, live activity surfaces, and status-count mirroring.
+- Added Task/Approval/Agent routing improvements and responsive/accessibility behavior.
+- Preserved evidence-first wording for pause/resume/cancel operations.
 
-- Stable version promotion from 6.0.0 to 8.0.0 must be performed as one coordinated change across VERSION, runtime metadata, UI version markers, and related release metadata.
-- A real trusted Windows code-signing certificate/provider still needs to be provisioned on the authorized release runner before production artifacts can be signed.
-- Final exact-head source and signed-artifact release gates must pass.
-- PR #29 must remain draft until the final gates are green and an explicit stable merge/release is authorized.
+### Android v2 + Secure Pairing
+- Added stronger device-trust policy and revoked/unpaired fail-closed behavior.
+- Added Android Keystore-backed session handling.
+- Added shorter remote sessions and authenticated gateway requirements.
+- Added user-presence requirements for remote writes and explicit approval for destructive actions.
 
----
+### Models + Local AI Routing
+- Added deterministic local-first routing and capability matching.
+- Added health-aware bounded fallback.
+- Preserved external-endpoint denial unless explicitly allowed.
+- Added malformed-policy fail-closed behavior.
 
-# DPN AI v5.0.7 Changelog
+### Security, Vault, and Audit Hardening
+- Added prompt-injection assessment and plaintext-secret rejection.
+- Added secret-reference handling and URL/network authorization policy.
+- Added tamper-evident chained audit envelopes with SHA-256/HMAC verification foundations.
+- Preserved exact deferred approval arguments in the encrypted vault while persisting only redacted previews.
 
-## Adaptive interface
+### Performance + Recovery + Updating
+- Expanded performance/resource management and recovery readiness.
+- Improved snapshot, integrity, rollback, health, diagnostics, updater, and migration evidence foundations.
 
+### SDK + Integrations
+- Added governed SDK/integration request contracts.
+- Added operation classification and idempotency/write-verification expectations.
+- Preserved connector/MCP approval, allowlist, and secret boundaries.
+
+### Evaluations + Regression/Security Testing
+- Added weighted production-readiness evaluation.
+- Added critical-case fail-closed behavior.
+- Added adversarial coverage for secret leakage, prompt injection, network policy, SDK idempotency, and missing release evidence.
+
+### Installer + Release Engineering
+- Added release-candidate validation contracts and exact Git SHA requirements.
+- Added version/channel coherence checks.
+- Added required SBOM/checksum/release-manifest evidence.
+- Added installer/package, rollback/recovery, CI, Security, Runtime/Recovery, and evaluation readiness requirements.
+
+### Stable Release Publication
+- Promoted all coordinated version sources to **9.0.0**.
+- Passed exact-head CI, DPN Security Gate v2, and Runtime & Recovery Assurance before stable merge.
+- Published `v9.0.0` from the exact stable `main` commit.
+- Generated and attached:
+  - `DPN-AI-v9.0.0-source.zip`
+  - `SHA256SUMS.txt`
+  - `SOURCE_SHA256SUMS.txt`
+  - `SBOM.spdx.json`
+  - `RELEASE_MANIFEST.txt`
+  - `DEPENDENCY_INVENTORY.txt`
+
+## v8 Desktop Platform — Historical Foundation
+
+The v8 desktop work established the native Windows desktop launcher/supervisor, black/purple Control Center, versioned desktop API, Windows packaging and installer foundations, updater/rollback contracts, per-user integration, crash journaling, integrity-tagged recovery, diagnostics hardening, CPU/RAM pressure controls, and model lifecycle management that v9 builds upon.
+
+## v5.0.7 — Historical Foundation
+
+### Adaptive interface
 - Added dynamic viewport-height tracking through `visualViewport`.
 - Increased modal width and usable height while retaining viewport boundaries.
 - Added independent horizontal scrolling for wide tables, boards and audit rows.
@@ -65,21 +127,19 @@
 - Added wrapping for modal actions, forms, toolbars, headers and controls.
 - Added stale message-template repair and null-safe streaming updates.
 - Added an in-app service-worker/cache repair screen.
-- Advanced the interface cache to v5.0.7.
 
-## Sentinel male voice
-
+### Sentinel male voice
 - Changed Sentinel's preferred Piper model to `en_US-ryan-high`.
 - Retained `en_GB-alan-medium` as an automatic fallback.
-- Increased natural pace to 0.89x.
 - Added Clear, Natural and Warm tone presets.
-- Reduced noise scale, compression and make-up gain.
-- Reduced sentence and paragraph pauses.
-- Added an HD-upgrade button and a standalone Windows voice installer.
-- Migrated the old 0.82x browser default automatically.
+- Improved pace and speech-processing defaults.
+- Added HD voice upgrade/install paths.
 
-## Aurora
-
+### Aurora
 - Retained the soft female profile.
 - Added Gentle and Natural tone choices.
-- Slightly increased the natural pace to 0.78x while keeping longer gentle pauses.
+- Improved natural pacing while preserving the gentler preset.
+
+---
+
+For the active engineering direction after v9.0.0, see [`ROADMAP.md`](ROADMAP.md).
