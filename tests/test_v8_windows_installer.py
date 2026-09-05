@@ -49,6 +49,26 @@ def test_installer_build_verifies_package_integrity_before_compilation():
     assert BUILD.index("Get-FileHash -Algorithm SHA256 $PackageExe") < BUILD.index("Invoke-Checked $Compiler")
 
 
+def test_installer_reverifies_signed_package_authenticode_before_compilation():
+    required = (
+        'if ($PackageManifest.signing -eq "signed-production-artifact")',
+        "Get-AuthenticodeSignature -FilePath $PackageExe",
+        "SignatureStatus]::Valid",
+        "Authenticode verification returned no signer certificate",
+        "signer thumbprint does not match build-manifest.json",
+        "Unsigned package manifest must not contain signer identity metadata",
+    )
+    for value in required:
+        assert value in BUILD
+    assert BUILD.index("Get-AuthenticodeSignature -FilePath $PackageExe") < BUILD.index("Invoke-Checked $Compiler")
+
+
+def test_installer_build_rejects_invalid_manifest_signer_identity():
+    assert "Signed package manifest contains an invalid signer thumbprint" in BUILD
+    assert "^[A-F0-9]{40,64}$" in BUILD
+    assert "$PackageManifest.signer_thumbprint" in BUILD
+
+
 def test_installer_build_never_implicitly_installs_tooling_on_trusted_runner():
     assert "Refusing to download or install build tools implicitly on the trusted runner" in BUILD
     assert "Invoke-WebRequest" not in BUILD
@@ -63,6 +83,8 @@ def test_installer_manifest_records_upgrade_data_and_signing_policy():
         '$SigningState = "unsigned-development-installer"',
         "source_executable_sha256 = $ActualPackageHash",
         "source_executable_signing = $PackageManifest.signing",
+        "source_executable_signer_thumbprint = $VerifiedPackageSignerThumbprint",
+        "source_executable_signer_subject = $VerifiedPackageSignerSubject",
     ):
         assert required in BUILD
 
@@ -74,6 +96,8 @@ def test_release_installer_requires_signed_source_and_verified_signature():
     assert "sign.ps1" in BUILD
     assert "Get-AuthenticodeSignature" in SIGN
     assert "SignerCertificate.Thumbprint" in SIGN
+    assert "Get-AuthenticodeSignature -FilePath $PackageExe" in BUILD
+    assert "$ActualSignerThumbprint -ne $ManifestSignerThumbprint" in BUILD
 
 
 def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
