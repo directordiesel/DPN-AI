@@ -19,13 +19,16 @@ def test_device_credentials_use_android_keystore_aes_gcm():
     assert 'AndroidKeyStore' in STORE
     assert 'AES/GCM/NoPadding' in STORE
     assert 'KeyProperties.KEY_ALGORITHM_AES' in STORE
-    assert '.putString(KEY_TOKEN, encrypt(token))' in STORE
-    assert '.putString(KEY_TOKEN, token)' not in STORE
+    assert '.putString(KEY_LOCAL_TOKEN, encrypt(token))' in STORE
+    assert '.putString(KEY_REMOTE_TOKEN, encrypt(gatewayToken))' in STORE
+    assert '.putString(KEY_LOCAL_TOKEN, token)' not in STORE
+    assert '.putString(KEY_REMOTE_TOKEN, gatewayToken)' not in STORE
 
 
 def test_mobile_endpoint_and_api_client_are_https_only():
-    assert 'baseUrl.startsWith("https://")' in STORE
-    assert 'baseUri.scheme.equals("https"' in CLIENT
+    assert 'validateHttpsEndpoint(baseUrl)' in STORE
+    assert 'uri.scheme.equals("https", ignoreCase = true)' in STORE
+    assert 'baseUri.scheme.equals("https", true)' in CLIENT
     assert 'instanceFollowRedirects = false' in CLIENT
     assert 'X-DPN-Token' in CLIENT
     assert 'X-DPN-Device-ID' in CLIENT
