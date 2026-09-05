@@ -11,7 +11,7 @@ MANIFEST = (ANDROID / "AndroidManifest.xml").read_text(encoding="utf-8")
 
 def test_mobile_chat_uses_unified_backend_conversation_contract():
     assert '"/api/conversations"' in CLIENT
-    assert '"/api/conversations/$safeId"' in CLIENT
+    assert '"/api/conversations/${encodePathSegment(conversationId)}"' in CLIENT
     assert '"/api/chat"' in CLIENT
     assert '"conversation_id"' in CLIENT
     assert '"project_id"' in CLIENT
@@ -19,7 +19,7 @@ def test_mobile_chat_uses_unified_backend_conversation_contract():
 
 
 def test_mobile_chat_preserves_device_authentication_and_https_boundary():
-    assert 'baseUri.scheme.equals("https"' in CLIENT
+    assert 'baseUri.scheme.equals("https", true)' in CLIENT
     assert 'X-DPN-Token' in CLIENT
     assert 'X-DPN-Device-ID' in CLIENT
     assert 'instanceFollowRedirects = false' in CLIENT
@@ -37,9 +37,9 @@ def test_chat_activity_syncs_server_history_instead_of_mobile_only_history():
 
 
 def test_control_center_exposes_chat_only_after_pairing():
-    assert 'Open Unified Chat' in MAIN
-    assert 'chatButton.isEnabled = paired' in MAIN
-    assert 'ChatActivity::class.java' in MAIN
+    assert 'addCapability(root, "Unified Chat", ChatActivity::class.java)' in MAIN
+    assert 'setCapabilityButtons(active)' in MAIN
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in MAIN
 
 
 def test_chat_activity_is_not_exported_to_other_apps():
