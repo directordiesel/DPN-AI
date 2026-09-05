@@ -1,4 +1,9 @@
-from plugins.automation_scheduler_v7 import evaluate_automation_run_v7, plan_automation_v7
+from plugins.automation_scheduler_v7 import (
+    evaluate_automation_run_v7,
+    evaluate_workflow_v9,
+    plan_automation_v7,
+    plan_automation_v9,
+)
 
 
 def test_automation_plan_requires_objective():
@@ -68,3 +73,71 @@ def test_terminal_failure_remains_auditable_not_successful():
     })
     assert result["ready"] is False
     assert result["failure_recorded"] is True
+
+
+def test_v9_plan_supports_chained_steps_and_destructive_approval():
+    result = plan_automation_v9(
+        name="CI repair workflow",
+        objective="Diagnose a failed CI run and prepare a safe repair",
+        mode="recurring",
+        schedule="hourly",
+        steps=[
+            {"step_id": "inspect", "title": "Inspect CI", "action": "read logs"},
+            {
+                "step_id": "repair",
+                "title": "Prepare repair",
+                "action": "patch code",
+                "depends_on": ["inspect"],
+                "destructive": True,
+            },
+        ],
+    )
+    assert result["ok"] is True
+    assert result["engine"] == "dpn-automation-workflow-v9"
+    assert result["steps"][1]["depends_on"] == ["inspect"]
+    assert result["steps"][1]["approval_required"] is True
+    assert result["persistent_scheduler_compatibility"]["legacy_interval_daily_engine_preserved"] is True
+
+
+def test_v9_plan_rejects_forward_dependency():
+    result = plan_automation_v9(
+        name="bad workflow",
+        objective="Reject unsafe dependency order",
+        mode="once",
+        schedule="2026-09-05T12:00:00Z",
+        steps=[
+            {"step_id": "first", "action": "one", "depends_on": ["second"]},
+            {"step_id": "second", "action": "two"},
+        ],
+    )
+    assert result["ok"] is False
+    assert "forward dependency" in result["error"]
+
+
+def test_v9_condition_watch_is_explicit_about_provider_requirement():
+    result = plan_automation_v9(
+        name="CI condition watch",
+        objective="Run when CI becomes red",
+        mode="condition",
+        condition="CI status is failure",
+    )
+    assert result["ok"] is True
+    compatibility = result["persistent_scheduler_compatibility"]
+    assert compatibility["condition_execution_requires_condition_provider"] is True
+    assert compatibility["unsupported_runtime_paths_fail_closed"] is True
+
+
+def test_v9_workflow_completion_requires_all_steps_succeeded():
+    incomplete = evaluate_workflow_v9([
+        {"step_id": "inspect", "status": "succeeded", "evidence": ["logs captured"]},
+        {"step_id": "verify", "status": "failed", "evidence": ["tests red"]},
+    ])
+    assert incomplete["ok"] is False
+    assert incomplete["failed"] == ["verify"]
+
+    complete = evaluate_workflow_v9([
+        {"step_id": "inspect", "status": "succeeded", "evidence": ["logs captured"]},
+        {"step_id": "verify", "status": "succeeded", "evidence": ["tests green"]},
+    ])
+    assert complete["ok"] is True
+    assert complete["evidence_count"] == 2
