@@ -41,9 +41,9 @@ def test_voice_output_is_bounded_and_stoppable():
 
 
 def test_voice_activity_is_pairing_gated_and_not_exported():
-    assert 'Open Voice Console' in MAIN
-    assert 'voiceButton.isEnabled = paired' in MAIN
-    assert 'VoiceActivity::class.java' in MAIN
+    assert 'addCapability(root, "Voice Console", VoiceActivity::class.java)' in MAIN
+    assert 'setCapabilityButtons(active)' in MAIN
+    assert 'capabilityButtons.forEach { it.isEnabled = enabled }' in MAIN
     assert 'android:name=".VoiceActivity"' in MANIFEST
     voice_section = MANIFEST.split('android:name=".VoiceActivity"', 1)[1].split('/>', 1)[0]
     assert 'android:exported="false"' in voice_section
