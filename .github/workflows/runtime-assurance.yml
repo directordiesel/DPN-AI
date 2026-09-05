@@ -9,6 +9,7 @@ on:
       - "app/**"
       - "tests/**"
       - "requirements*.txt"
+      - ".github/scripts/resolve_windows_python.cmd"
   pull_request:
     branches: ["main"]
     paths:
@@ -17,6 +18,7 @@ on:
       - "app/**"
       - "tests/**"
       - "requirements*.txt"
+      - ".github/scripts/resolve_windows_python.cmd"
   workflow_dispatch:
 
 permissions:
@@ -27,24 +29,109 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  runtime-recovery:
+  runtime-recovery-main:
+    if: github.event_name != 'pull_request'
+    name: runtime-recovery
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
+      - name: Verify configured Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Install DPN AI development dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Run focused persistence and recovery regression suite
+        shell: cmd
+        run: python -m pytest -q tests\test_secure_database.py tests\test_database_maintenance.py tests\test_persistence_security.py tests\test_v5_chat_recovery.py tests\test_authorization_boundaries.py
+      - name: Run live startup, auth, restart, corruption, and recovery assurance
+        shell: cmd
+        run: python .github\scripts\runtime_assurance.py
+      - name: Reject leaked runtime state after assurance
+        shell: python
+        run: |
+          import re
+          import subprocess
+          status = subprocess.check_output(
+              ["git", "status", "--porcelain", "--untracked-files=all"],
+              text=True,
+              errors="replace",
+          ).splitlines()
+          pattern = re.compile(r"(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/", re.I)
+          leaked = [line for line in status if pattern.search(line)]
+          if leaked:
+              raise SystemExit("Runtime assurance leaked private state into the checkout:\n" + "\n".join(leaked))
+
+  runtime-recovery-pr-trusted:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel'
+    name: runtime-recovery
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Resolve trusted Windows Python
+        shell: cmd
+        run: .github\scripts\resolve_windows_python.cmd
+      - name: Verify configured Python
+        shell: cmd
+        run: |
+          where python
+          python --version
+      - name: Install DPN AI development dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+      - name: Run focused persistence and recovery regression suite
+        shell: cmd
+        run: python -m pytest -q tests\test_secure_database.py tests\test_database_maintenance.py tests\test_persistence_security.py tests\test_v5_chat_recovery.py tests\test_authorization_boundaries.py
+      - name: Run live startup, auth, restart, corruption, and recovery assurance
+        shell: cmd
+        run: python .github\scripts\runtime_assurance.py
+      - name: Reject leaked runtime state after assurance
+        shell: python
+        run: |
+          import re
+          import subprocess
+          status = subprocess.check_output(
+              ["git", "status", "--porcelain", "--untracked-files=all"],
+              text=True,
+              errors="replace",
+          ).splitlines()
+          pattern = re.compile(r"(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/", re.I)
+          leaked = [line for line in status if pattern.search(line)]
+          if leaked:
+              raise SystemExit("Runtime assurance leaked private state into the checkout:\n" + "\n".join(leaked))
+
+  runtime-recovery-pr-hosted:
+    if: github.event_name == 'pull_request' && !(github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'directordiesel')
+    name: runtime-recovery
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
           cache: pip
-
       - name: Install DPN AI development dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
-
       - name: Run focused persistence and recovery regression suite
         run: |
           pytest -q \
@@ -53,26 +140,10 @@ jobs:
             tests/test_persistence_security.py \
             tests/test_v5_chat_recovery.py \
             tests/test_authorization_boundaries.py
-
       - name: Run live startup, auth, restart, corruption, and recovery assurance
         run: python .github/scripts/runtime_assurance.py
-
       - name: Reject leaked runtime state after assurance
         shell: bash
         run: |
           leaked="$(git status --porcelain --untracked-files=all | grep -Ei '(^| )data/.*\.(sqlite|sqlite3|db|enc)$|(^| )runtime_logs/|(^| )workspace/generated/' || true)"
           test -z "$leaked" || { echo "::error::Runtime assurance leaked private state into the checkout"; echo "$leaked"; exit 1; }
-
-      - name: Phase 3 summary
-        run: |
-          {
-            echo "## DPN Phase 3 runtime & recovery assurance"
-            echo ""
-            echo "- live application startup: passed"
-            echo "- token authorization boundary: passed"
-            echo "- graceful shutdown and same-state restart: passed"
-            echo "- corrupted SQLite state fails closed: passed"
-            echo "- restored-state recovery restart: passed"
-            echo "- focused persistence/recovery regression suite: passed"
-            echo "- runtime state leak check: passed"
-          } >> "$GITHUB_STEP_SUMMARY"
