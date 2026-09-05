@@ -23,9 +23,16 @@ class BlockingAgent:
         return SimpleNamespace(model_dump=lambda: {"ok": True, "message": kwargs.get("user_message", "")})
 
 
-def _supervisor(tmp_path: Path, agent=None, concurrency: int = 2) -> JobSupervisor:
+def _supervisor(tmp_path: Path, agent=None, concurrency: int = 2, queue_depth: int = 1000) -> JobSupervisor:
     db = Database(tmp_path / "data.sqlite3")
-    return JobSupervisor(db, agent or BlockingAgent(), SimpleNamespace(), SimpleNamespace(), max_concurrency=concurrency)
+    return JobSupervisor(
+        db,
+        agent or BlockingAgent(),
+        SimpleNamespace(),
+        SimpleNamespace(),
+        max_concurrency=concurrency,
+        max_queue_depth=queue_depth,
+    )
 
 
 def test_atomic_claim_allows_only_one_winner(tmp_path: Path):
@@ -115,3 +122,30 @@ async def test_retry_requires_terminal_retryable_state(tmp_path: Path):
     assert retried["ok"] is True
     assert retried["job"]["id"] != queued["id"]
     assert retried["job"]["status"] == "queued"
+
+
+@pytest.mark.asyncio
+async def test_submit_fails_fast_when_queue_is_at_capacity(tmp_path: Path):
+    supervisor = _supervisor(tmp_path, queue_depth=1)
+    first = await supervisor.submit("direct", {"message": "one"})
+    assert first["ok"] is True
+    second = await supervisor.submit("direct", {"message": "two"})
+    assert second["ok"] is False
+    assert "capacity" in second["error"].lower()
+    assert second["queue"] == {"depth": 1, "capacity": 1}
+    queued = supervisor.db.list_background_jobs("queued", 10)
+    assert len(queued) == 1
+
+
+def test_queue_depth_is_bounded_and_status_is_secret_free(tmp_path: Path):
+    supervisor = _supervisor(tmp_path, concurrency=99, queue_depth=50_000)
+    assert supervisor.max_concurrency == 8
+    assert supervisor.max_queue_depth == 10_000
+    assert supervisor.queue.maxsize == 10_000
+    assert supervisor.queue_status() == {"depth": 0, "capacity": 10_000, "active": 0, "workers": 0}
+
+
+def test_non_integer_queue_depth_is_rejected(tmp_path: Path):
+    db = Database(tmp_path / "data.sqlite3")
+    with pytest.raises(ValueError, match="max_queue_depth"):
+        JobSupervisor(db, BlockingAgent(), SimpleNamespace(), SimpleNamespace(), max_queue_depth=True)
