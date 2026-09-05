@@ -67,6 +67,8 @@ def test_installer_manifest_records_upgrade_data_and_signing_policy():
 
 def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
     assert "if: github.event_name != 'pull_request'" in WORKFLOW
-    assert "runs-on: [self-hosted, Windows, X64]" in WORKFLOW
-    assert r".\packaging\windows\build-installer.ps1 -Python python" in WORKFLOW
+    assert "runs-on: windows-latest" in WORKFLOW
+    assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97" in WORKFLOW
+    assert r".\packaging\windows\build-installer.ps1" in WORKFLOW
+    assert "-Python python" in WORKFLOW
     assert "preserve-user-data-outside-install-directory" in WORKFLOW
