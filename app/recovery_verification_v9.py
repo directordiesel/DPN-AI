@@ -38,15 +38,21 @@ _VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 
 
 def _safe_relative_path(value: str) -> str:
-    raw = str(value or "").replace("\\", "/").strip()
+    supplied = str(value or "")
+    raw = supplied.replace("\\", "/").strip()
+    if supplied != supplied.strip():
+        raise RecoveryVerificationError("recovery path must be canonical and whitespace-free")
     if not raw or len(raw) > 1024 or "\x00" in raw:
         raise RecoveryVerificationError("recovery path is empty or invalid")
     path = PurePosixPath(raw)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
         raise RecoveryVerificationError("recovery path must be a normalized relative path")
+    normalized = path.as_posix()
+    if raw != normalized:
+        raise RecoveryVerificationError("recovery path must be canonical and normalized")
     if ":" in path.parts[0]:
         raise RecoveryVerificationError("recovery path must not contain a drive prefix")
-    return path.as_posix()
+    return normalized
 
 
 def validate_manifest(manifest: RecoveryManifest, *, max_files: int = 100_000, max_total_bytes: int = 100 * 1024**3) -> RecoveryVerificationResult:
