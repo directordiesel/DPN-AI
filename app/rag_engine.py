@@ -19,6 +19,7 @@ class RetrievalSource:
     content: str
     semantic_score: float = 0.0
     keyword_score: float = 0.0
+    lexical_score: float = 0.0
     rerank_score: float = 0.0
     metadata: dict[str, Any] | None = None
 
@@ -88,6 +89,20 @@ class RAGEngine:
         return max(0.0, min(score, 1.0))
 
     @staticmethod
+    def _query_terms(query: str) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(re.findall(r"[a-z0-9_\-]{2,}", (query or "").lower())))
+
+    @staticmethod
+    def _lexical_score(content: str, query_terms: tuple[str, ...]) -> float:
+        if not query_terms:
+            return 0.0
+        content_terms = set(re.findall(r"[a-z0-9_\-]{2,}", (content or "").lower()))
+        if not content_terms:
+            return 0.0
+        matched = sum(1 for term in query_terms if term in content_terms)
+        return matched / len(query_terms)
+
+    @staticmethod
     def _source_id(source_type: str, locator: str, content: str) -> str:
         value = f"{source_type}\0{locator}\0{RAGEngine._fingerprint(content)}"
         return hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
@@ -107,6 +122,7 @@ class RAGEngine:
             return {"ok": False, "error": "query is required", "sources": [], "context": ""}
 
         namespace = self.namespace_for(project_id, knowledge_base)
+        query_terms = self._query_terms(query)
         semantic = await self.semantic_search(query, namespace, max(1, min(semantic_limit, 100)))
         keyword = self.keyword_search(query, max(1, min(keyword_limit, 100)))
 
@@ -126,6 +142,7 @@ class RAGEngine:
                 locator=locator,
                 content=content,
                 semantic_score=self._semantic_score(item.get("score")),
+                lexical_score=self._lexical_score(content, query_terms),
                 metadata=dict(item.get("metadata") or {}),
             )
             if current is None or source.semantic_score > current.semantic_score:
@@ -138,6 +155,7 @@ class RAGEngine:
             locator = str(item.get("path") or item.get("source") or "workspace")
             fingerprint = self._fingerprint(content)
             kw_score = self._keyword_score(item.get("score"))
+            lexical_score = self._lexical_score(content, query_terms)
             current = merged.get(fingerprint)
             if current is None:
                 merged[fingerprint] = RetrievalSource(
@@ -147,6 +165,7 @@ class RAGEngine:
                     locator=locator,
                     content=content,
                     keyword_score=kw_score,
+                    lexical_score=lexical_score,
                     metadata={"path": locator},
                 )
             else:
@@ -158,13 +177,20 @@ class RAGEngine:
                     content=current.content,
                     semantic_score=current.semantic_score,
                     keyword_score=max(current.keyword_score, kw_score),
+                    lexical_score=max(current.lexical_score, lexical_score),
                     metadata={**(current.metadata or {}), "path": locator},
                 )
 
         reranked: list[RetrievalSource] = []
         for source in merged.values():
             hybrid_bonus = 0.08 if source.semantic_score > 0 and source.keyword_score > 0 else 0.0
-            score = min(1.0, source.semantic_score * 0.68 + source.keyword_score * 0.32 + hybrid_bonus)
+            score = min(
+                1.0,
+                source.semantic_score * 0.58
+                + source.keyword_score * 0.27
+                + source.lexical_score * 0.15
+                + hybrid_bonus,
+            )
             reranked.append(RetrievalSource(
                 source_id=source.source_id,
                 source_type=source.source_type,
@@ -173,6 +199,7 @@ class RAGEngine:
                 content=source.content,
                 semantic_score=source.semantic_score,
                 keyword_score=source.keyword_score,
+                lexical_score=source.lexical_score,
                 rerank_score=round(score, 6),
                 metadata=source.metadata,
             ))
@@ -184,17 +211,17 @@ class RAGEngine:
         citations: list[dict[str, Any]] = []
         used = 0
         for index, source in enumerate(selected, start=1):
-            remaining = self.max_context_chars - used
-            if remaining <= 0:
-                break
-            body = source.content[: min(self.per_source_chars, remaining)]
             label = f"[S{index}] {source.locator}"
-            block = f"{label}\n{body}".strip()
-            if used + len(block) > self.max_context_chars:
-                block = block[: max(0, self.max_context_chars - used)]
-            if not block:
+            separator_cost = 2 if context_parts else 0
+            body_budget = self.max_context_chars - used - separator_cost - len(label) - 1
+            if body_budget <= 0:
                 break
+            body = source.content[: min(self.per_source_chars, body_budget)]
+            if not body:
+                break
+            block = f"{label}\n{body}"
             context_parts.append(block)
+            used += separator_cost + len(block)
             citations.append({
                 "ref": f"S{index}",
                 "source_id": source.source_id,
@@ -202,16 +229,19 @@ class RAGEngine:
                 "namespace": source.namespace,
                 "locator": source.locator,
                 "score": source.rerank_score,
+                "excerpt_chars": len(body),
+                "source_chars": len(source.content),
+                "truncated": len(body) < len(source.content),
             })
-            used += len(block) + 2
 
+        context = "\n\n".join(context_parts)
         return {
             "ok": True,
             "query": query,
             "namespace": namespace,
             "sources": [item.to_dict() for item in selected],
             "citations": citations,
-            "context": "\n\n".join(context_parts),
-            "context_chars": min(used, self.max_context_chars),
+            "context": context,
+            "context_chars": len(context),
             "deduplicated_count": len(merged),
         }
