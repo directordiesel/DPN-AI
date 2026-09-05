@@ -57,7 +57,7 @@ jobs:
               '<img alt="Release Candidate" src="https://img.shields.io/badge/9.0.0-Release%20Candidate-7c3aed?style=for-the-badge">',
               '<img alt="Stable" src="https://img.shields.io/badge/Stable-v9.0.0-7c3aed?style=for-the-badge">',
           )
-          text = text.replace('> **Release candidate:** 9.0.0 · DPN AI v9  ', '> **Published stable release:** v9.0.0 · DPN AI v9  ')
+          text = text.replace('> **Release candidate:** 9.0.0 · DPN AI v9  ', '> **Published stable release:** v9.0.0 · DPN AI v9')
           readme.write_text(text, encoding='utf-8')
 
           index = Path('app/static/index.html')
