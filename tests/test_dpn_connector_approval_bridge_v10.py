@@ -58,6 +58,11 @@ class _FakeHub:
         }
 
 
+class _FakeVault:
+    def list(self):
+        return {"ok": True, "secrets": []}
+
+
 def _permissions(mode="autonomous", allow_connectors=True, allow_mcp=True):
     return {
         "allow_connectors": allow_connectors,
@@ -188,6 +193,7 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
         db = _FakeDB()
         connectors = _FakeHub()
         mcp = SimpleNamespace()
+        vault = _FakeVault()
 
         def register(self, *, name, description, parameters, function, gate=None, risk="read"):
             registered[name] = SimpleNamespace(
@@ -204,6 +210,7 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
         "dpn_connector_ecosystem_catalog",
         "dpn_connector_ecosystem_health",
         "dpn_connector_profile_catalog",
+        "dpn_connector_profile_readiness",
         "dpn_connector_profile_install",
         "dpn_connector_catalog",
         "dpn_connector_read",
@@ -217,6 +224,8 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert registered["dpn_connector_ecosystem_health"].gate == "connectors"
     assert registered["dpn_connector_ecosystem_health"].risk == "read"
     assert registered["dpn_connector_profile_catalog"].risk == "read"
+    assert registered["dpn_connector_profile_readiness"].gate == "connectors"
+    assert registered["dpn_connector_profile_readiness"].risk == "read"
     assert registered["dpn_connector_profile_install"].gate == "connectors"
     assert registered["dpn_connector_profile_install"].risk == "destructive"
     assert "approval" in registered["dpn_connector_profile_install"].description.lower()
