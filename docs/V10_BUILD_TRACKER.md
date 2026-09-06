@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 7 — Deep Research Engine**
+Current active batch: **Batch 8 — Advanced Layered Memory Architecture**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -24,8 +24,8 @@ Overall program state: **IN DEVELOPMENT**
 4. ✅ Unified Multimodal Intelligence
 5. ✅ Long-Horizon Mission Runtime
 6. ✅ DPN Connector Protocol + Connector Ecosystem
-7. 🟣 Deep Research Engine
-8. ⏳ Advanced Layered Memory Architecture
+7. ✅ Deep Research Engine
+8. 🟣 Advanced Layered Memory Architecture
 9. ⏳ Professional Artifact Studio
 10. ⏳ Advanced Low-Latency Voice Runtime
 11. ⏳ Proactive Intelligence + Condition-Driven Operations
@@ -136,16 +136,31 @@ Overall program state: **IN DEVELOPMENT**
 - Add a research writer that synthesizes only from admitted evidence and a citation validator that rejects unsupported or mismatched citations.
 - Preserve prompt-injection defenses, network permissions, connector boundaries, bounded concurrency, and fail-closed provider behavior.
 
-## Batch 7 Current Evidence
+## Batch 7 Completion Evidence
 
-- Added `app/deep_research_engine_v10.py` with bounded research planning, typed evidence graph, fact checking, conflict detection, citation validation, and a fail-closed synthesis readiness gate.
-- Foundation exact head `08ea3599a39c70d9bc81192cc99c95d83c33bacd` passed CI, DPN Security Gate v2, and Runtime & Recovery Assurance.
-- Added `app/deep_research_web_worker_v10.py` as the first concrete worker integration, reusing the existing `WebResearchRuntime` rather than creating a second network/search implementation.
-- Web evidence admission requires source identity, URL/domain provenance, bounded evidence text, valid quality/freshness scores, and a WEB workstream task.
-- Runtime output is staged and collision-preflighted before graph mutation so malformed or conflicting batches cannot partially mutate the evidence graph.
-- Added deterministic tests for provenance admission, source/excerpt bounds, duplicate identities, live-graph collision rollback, required/optional empty results, failed runtime handling, workstream isolation, and bounded partial-failure reporting.
-- Added `docs/V10_DEEP_RESEARCH_WEB_WORKER.md` documenting the trust boundary and remaining Batch 7 work.
-- Current web-worker checkpoint requires exact-head CI, Security Gate v2, and Runtime & Recovery Assurance before being treated as verified.
+- Added `app/deep_research_engine_v10.py` with bounded research planning, typed Evidence Graph, deterministic fact checking, conflict detection, citation validation, and fail-closed synthesis readiness.
+- Added `app/deep_research_web_worker_v10.py`, reusing the existing bounded `WebResearchRuntime`; WEB evidence admission requires source identity, URL/domain provenance, bounded evidence, valid quality/freshness values, and collision-safe transactional graph admission.
+- Added `app/deep_research_document_worker_v10.py`, reusing scoped `RAGEngine` retrieval and independently revalidating project/knowledge-base namespace plus source provenance before evidence admission.
+- Added `app/deep_research_data_worker_v10.py`, reusing governed `SQLiteConnectorProtocolService`; DATA research requires explicit bounded `DataQuerySpec`, exposes no raw SQL or natural-language-to-SQL path, and independently revalidates read-only/parameterized/provider/table/row-count provenance.
+- Added `app/deep_research_claim_orchestrator_v10.py`; untrusted extractor output cannot invent provenance, all claim→evidence references must already exist in the graph, mutation is transactional, and claims flow through deterministic fact checking, conflict detection, citation validation, and readiness gating.
+- Added `app/deep_research_writer_v10.py`; writer execution is blocked on disputed, unsupported, stale, or conflict-bearing claims, and final citations are reconstructed from trusted graph relationships rather than authored by the writer/model.
+- Added `app/deep_research_mission_v10.py` integrating Research Director → WEB/DOCUMENTS/DATA workers → Evidence Graph → claim assessment → grounded writer → release-readiness evidence.
+- Mission readiness requires exact planned required task IDs to complete; optional workstream failures remain explicit and cannot be upgraded to `release_ready=true`.
+- Added focused regression suites for web/document/data provenance, namespace isolation, read-only data access, transactional admission, claim grounding, citation acceptance, conflict handling, writer coverage, task completion, and end-to-end WEB + DOCUMENTS + DATA missions.
+- Added Deep Research implementation and security documentation, including `docs/V10_DEEP_RESEARCH_WEB_WORKER.md`, `docs/V10_DEEP_RESEARCH_DOCUMENT_WORKER.md`, `docs/V10_DEEP_RESEARCH_DATA_WORKER.md`, `docs/V10_DEEP_RESEARCH_CLAIM_ORCHESTRATION.md`, `docs/V10_DEEP_RESEARCH_WRITER.md`, `docs/V10_DEEP_RESEARCH_MISSION.md`, and `docs/V10_DEEP_RESEARCH_SECURITY_AUDIT.md`.
+- Security audit confirmed no arbitrary SQL generation, no destructive connector path, no writer-controlled citation authority, no unsupported claim admission, no silent conflict resolution, and no optional-failure promotion to release-ready success.
+- Exact audited code head `409d2fc84a744d89e8bd8e20a47c6d234321ccb6` passed CI across Ubuntu/Windows Python 3.11/3.12, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
+- Batch 7 completion is subject only to verification of this tracker-only completion-evidence commit; no functional code changed after the audited head.
+
+## Batch 8 Goals
+
+- Implement advanced layered memory spanning working, conversation, project, organization, user, procedural, episodic, and semantic layers without duplicating mature persistence primitives.
+- Preserve provenance, scope isolation, retention/expiry policy, conflict detection, supersession history, and deterministic source identity across all persistent memory writes.
+- Separate observation/fact storage from derived summaries and inferred semantic memory; never silently convert low-confidence inference into trusted fact.
+- Add bounded retrieval/ranking across memory layers with freshness, relevance, confidence, authority, and privacy-aware selection.
+- Add explicit promotion/demotion rules between volatile and persistent layers, with approval gates for sensitive cross-scope or destructive mutations.
+- Integrate mission/deep-research evidence into memory through typed provenance instead of copying ungrounded model prose.
+- Build recovery, compaction, deduplication, conflict, and audit evidence so long-horizon missions can resume with trustworthy contextual state.
 
 ## Verification Rules
 
