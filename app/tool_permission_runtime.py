@@ -49,9 +49,9 @@ class ToolPermissionRuntime:
     Tool arguments may further narrow authority. In particular, opting out of the
     Docker security boundary for ``run_python_sandbox`` is always approval-gated,
     even when the base sandbox tool is otherwise allowed for the session or by an
-    Always Allow rule. DPN Connector Protocol writes are likewise always human-
-    approval gated, including autonomous/Always Allow modes, because they produce
-    external side effects and may include destructive operations.
+    Always Allow rule. DPN Connector Protocol writes and MCP tool calls are likewise
+    always human-approval gated, including autonomous/Always Allow modes, because
+    their external side effects cannot be assumed safe or idempotent.
     """
 
     def __init__(self, engine: PermissionEngine | None = None):
@@ -85,14 +85,14 @@ class ToolPermissionRuntime:
         decision: PermissionDecision,
         profile: ToolRiskProfile,
     ) -> PermissionDecision:
-        if tool_name == "dpn_connector_write":
+        if tool_name in {"dpn_connector_write", "dpn_connector_mcp_call"}:
             if not decision.allowed:
                 return decision
             return PermissionDecision(
                 False,
                 True,
                 PermissionMode.ASK_EVERY_TIME,
-                "DPN Connector Protocol writes require explicit human approval",
+                "DPN Connector Protocol external writes require explicit human approval",
                 "connector_write_boundary",
                 profile.risk,
             )
