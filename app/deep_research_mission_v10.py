@@ -207,11 +207,12 @@ class DeepResearchMissionOrchestrator:
             "blocked_claims": [dict(item) for item in write_result.blocked_claims],
         }
 
+        completed_task_ids = {str(item.get("task_id") or "") for item in task_results}
         completed_workstreams = {item["workstream"] for item in task_results}
         failed_workstreams = {item["workstream"] for item in task_failures}
-        required_tasks_complete = all(
-            task.workstream.value in completed_workstreams for task in plan.tasks if task.required
-        )
+        required_task_ids = {task.task_id for task in plan.tasks if task.required}
+        missing_required_task_ids = sorted(required_task_ids - completed_task_ids)
+        required_tasks_complete = not missing_required_task_ids
         release_ready = (
             required_tasks_complete
             and not failed_workstreams
@@ -222,6 +223,8 @@ class DeepResearchMissionOrchestrator:
         readiness = {
             "release_ready": release_ready,
             "required_tasks_complete": required_tasks_complete,
+            "missing_required_task_ids": missing_required_task_ids,
+            "completed_task_ids": sorted(completed_task_ids),
             "optional_failure_count": len(task_failures),
             "claim_readiness": bool(assessment.readiness.get("ready")),
             "citation_validation_ok": bool(assessment.citation_validation.get("ok")),
