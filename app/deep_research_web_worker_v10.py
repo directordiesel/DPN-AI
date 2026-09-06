@@ -110,7 +110,17 @@ class DeepResearchWebWorker:
         if task.required and not staged:
             raise DeepResearchError("required web task produced no admissible evidence")
 
-        # Commit only after the entire runtime result has validated, preventing partial graph mutation.
+        # Preflight collisions against the live graph so admission remains all-or-nothing.
+        existing_sources = {item.source_id: item for item in graph.sources}
+        existing_evidence = {item.evidence_id: item for item in graph.evidence}
+        for source, node in staged:
+            current_source = existing_sources.get(source.source_id)
+            if current_source is not None and current_source != source:
+                raise DeepResearchError("source id collision detected before graph commit")
+            current_node = existing_evidence.get(node.evidence_id)
+            if current_node is not None and current_node != node:
+                raise DeepResearchError("evidence id collision detected before graph commit")
+
         for source, node in staged:
             graph.add_source(source)
             graph.add_evidence(node)
