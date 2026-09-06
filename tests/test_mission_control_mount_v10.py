@@ -62,7 +62,11 @@ class _FakeDB:
 
 
 def _paths(app: FastAPI) -> list[str]:
-    return [str(path) for route in app.routes if (path := getattr(route, "path", None))]
+    # FastAPI 0.141+ may preserve included routers as nested route objects rather
+    # than flattening every child onto app.routes. OpenAPI is the public routing
+    # contract and accurately proves the mounted endpoints are reachable.
+    app.openapi_schema = None
+    return list((app.openapi().get("paths") or {}).keys())
 
 
 def test_mount_mission_control_router_is_idempotent():
