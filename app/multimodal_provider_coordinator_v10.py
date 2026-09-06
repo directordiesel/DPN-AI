@@ -79,9 +79,12 @@ class MultimodalProviderCoordinator:
         kind: EvidenceKind,
     ) -> str:
         prefix = f"{asset_id}:{kind.value}:"
-        existing = sum(1 for item in session.evidence if item.evidence_id.startswith(prefix))
-        pending = sum(1 for item in staged if item.evidence_id.startswith(prefix))
-        return f"{prefix}{existing + pending + 1}"
+        used = {item.evidence_id for item in session.evidence}
+        used.update(item.evidence_id for item in staged)
+        index = 1
+        while f"{prefix}{index}" in used:
+            index += 1
+        return f"{prefix}{index}"
 
     @staticmethod
     def _provider_fields(payload: dict[str, Any], route: RouteDecision) -> tuple[str, str]:
@@ -243,7 +246,6 @@ class MultimodalProviderCoordinator:
                 if evidence is not None:
                     staged.append(evidence)
 
-        # Commit provider evidence only after every required call succeeds.
         for evidence in staged:
             session.add_evidence(evidence)
 
