@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.dpn_connector_ecosystem_v10 import DPNConnectorEcosystemService
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
 
@@ -7,7 +8,24 @@ from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
 def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
     mcp_service = MCPConnectorProtocolService(registry.mcp)
+    ecosystem = DPNConnectorEcosystemService(service, mcp_service)
 
+    registry.register(
+        name="dpn_connector_ecosystem_catalog",
+        description="List the unified DPN Connector Protocol ecosystem across concrete transports without exposing connector secrets.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=ecosystem.catalog,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_ecosystem_health",
+        description="Return fail-closed health/readiness for all configured DPN Connector Protocol transports without executing external mutations.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=ecosystem.health,
+        gate="connectors",
+        risk="read",
+    )
     registry.register(
         name="dpn_connector_catalog",
         description="List DPN Connector Protocol capabilities without exposing connector secrets.",
