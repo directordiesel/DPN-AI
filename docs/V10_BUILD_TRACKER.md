@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 6 — DPN Connector Protocol + Connector Ecosystem**
+Current active batch: **Batch 7 — Deep Research Engine**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -23,8 +23,8 @@ Overall program state: **IN DEVELOPMENT**
 3. ✅ Computer & Browser Agent
 4. ✅ Unified Multimodal Intelligence
 5. ✅ Long-Horizon Mission Runtime
-6. 🟣 DPN Connector Protocol + Connector Ecosystem
-7. ⏳ Deep Research Engine
+6. ✅ DPN Connector Protocol + Connector Ecosystem
+7. 🟣 Deep Research Engine
 8. ⏳ Advanced Layered Memory Architecture
 9. ⏳ Professional Artifact Studio
 10. ⏳ Advanced Low-Latency Voice Runtime
@@ -108,16 +108,33 @@ Overall program state: **IN DEVELOPMENT**
 - Keep unavailable or unconfigured services fail-closed and never fabricate connector success.
 - Preserve project/user scope, approval boundaries, secrets isolation, and evidence provenance across connector operations.
 
-## Batch 6 Progress Evidence
+## Batch 6 Completion Evidence
 
 - Added `app/dpn_connector_protocol_v10.py` with typed connector lifecycle actions, health/risk states, capability/resource manifests, least-privilege authorization, configured/enabled gates, deterministic registry discovery, provider identity verification, and provenance-required successful evidence.
 - Destructive connector capabilities cannot be declared without explicit approval requirements; write actions cannot be mislabeled read-only.
-- Initial protocol foundation head `824b26ecc042f2ad043f149e4ad4073a9264329d` passed CI across Ubuntu/Windows Python 3.11/3.12, DPN Security Gate v2, and Runtime & Recovery Assurance.
-- Added `app/dpn_http_connector_adapter_v10.py` to translate persisted HTTP ConnectorHub records into protocol manifests and reuse the existing hardened ConnectorHub for actual HTTP execution rather than creating a second network path.
-- HTTP protocol manifests derive only capabilities supported by configured methods. GET/HEAD/OPTIONS yield read/search; POST yields create; PUT/PATCH yield update; DELETE yields delete. External writes and deletes are declared approval-required.
-- The HTTP adapter rejects action/method confusion before any network call, validates connector health through the existing base-URL/SSRF policy, requires provider/provenance evidence, and emits bounded metadata-only audit records without request bodies, headers, secret templates, or response bodies.
-- Added `tests/test_dpn_http_connector_adapter_v10.py` covering least-privilege capability derivation, secret-redacted catalog output, read execution through ConnectorHub, metadata-only auditing, disabled connector refusal, action/method confusion, and degraded failed-response evidence.
-- The protocol service intentionally exposes only read/search execution at this checkpoint. Write/destructive protocol actions remain unavailable until a trusted single-use approval-token bridge is integrated; callers cannot self-authorize by supplying a boolean.
+- Added hardened HTTP ConnectorHub integration with method-derived capabilities, SSRF/host/method enforcement, bounded read retries, provenance evidence, and metadata-only auditing.
+- Added MCPBridge integration with live allowlist revalidation, tool discovery without process startup during cataloging, and explicit approval for arbitrary MCP execution.
+- Added unified ecosystem catalog, health, readiness, and release-evidence gates that execute no external mutations during inventory and fail closed on unsafe or unavailable states.
+- Added curated first-party HTTP profiles for GitHub, Google APIs (Gmail/Calendar/Drive), Microsoft Graph (Outlook/Calendar/OneDrive), Slack, Discord, and Reddit with secret-name-only readiness checks and bounded authentication probes.
+- Added a read-only SQLite connector using `mode=ro`, `PRAGMA query_only=ON`, an explicit operational-table allowlist, parameterized filters, schema validation, and a 500-row hard cap; raw SQL and direct writes are refused.
+- Added native protocol identities for DPN ECS, DPN WatchTower, DPN HR, DPN Aqua Labs, SSH, and Windows through trusted injected adapters. Unavailable adapters remain unconfigured/disabled; SSH does not infer arbitrary shell execution; Windows mutations require approval.
+- Added `dpn_connector_native_catalog` and wired native identities into live ecosystem catalog, health, readiness, and release evidence.
+- Added approval-bridge and regression coverage proving autonomous modes cannot bypass connector-write or MCP-call approval boundaries.
+- Fixed two final CI regressions introduced by native catalog exposure: plugin registration expectations now include `dpn_connector_native_catalog`, and the release-evidence test now exercises the release gate without constructing an invalid manifest that protocol validation already rejects earlier.
+- README branding was repaired to use a GitHub-safe raw image source for `assets/branding/dpn-ai-logo.jpg`; the real JPEG remains tracked and verified on `main`.
+- Removed obsolete branding placeholders: `README_FIX_PENDING.txt`, `STOP.txt`, `dpn-ai-logo-clean-note.txt`, `dpn-ai-logo-clean.b64`, and `test.txt`.
+- Exact code/branding head `b9da14ace8e2fd55bee3fb72e7ed51a5099d12fe` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
+- PR #91 is eligible for squash merge after this tracker-only completion head passes the same exact-head gates.
+
+## Batch 7 Goals
+
+- Upgrade the existing research runtime into a coordinated Deep Research Engine without duplicating mature web/research foundations.
+- Implement a Research Director that decomposes complex investigations into web, document, and data research workstreams.
+- Build an evidence graph that preserves claim-to-source provenance, source quality, freshness, confidence, and cross-source relationships.
+- Add deterministic conflict detection and explicit unresolved-conflict state instead of silently choosing one source.
+- Add fact-checking and claim verification gates that distinguish verified, disputed, unsupported, and stale claims.
+- Add a research writer that synthesizes only from admitted evidence and a citation validator that rejects unsupported or mismatched citations.
+- Preserve prompt-injection defenses, network permissions, connector boundaries, bounded concurrency, and fail-closed provider behavior.
 
 ## Verification Rules
 
