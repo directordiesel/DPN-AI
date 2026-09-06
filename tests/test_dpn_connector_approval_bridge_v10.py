@@ -186,7 +186,7 @@ def test_approved_write_rejects_action_method_confusion_before_network():
     assert hub.calls == []
 
 
-def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
+def test_protocol_plugin_registers_governed_http_mcp_sql_and_ecosystem_tools():
     registered = {}
 
     class _Registry:
@@ -209,6 +209,8 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert set(registered) == {
         "dpn_connector_ecosystem_catalog",
         "dpn_connector_ecosystem_health",
+        "dpn_connector_sql_catalog",
+        "dpn_connector_sql_read",
         "dpn_connector_profile_catalog",
         "dpn_connector_profile_readiness",
         "dpn_connector_profile_probe",
@@ -224,6 +226,12 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert registered["dpn_connector_ecosystem_catalog"].risk == "read"
     assert registered["dpn_connector_ecosystem_health"].gate == "connectors"
     assert registered["dpn_connector_ecosystem_health"].risk == "read"
+    assert registered["dpn_connector_sql_catalog"].gate == "connectors"
+    assert registered["dpn_connector_sql_catalog"].risk == "read"
+    assert registered["dpn_connector_sql_read"].gate == "connectors"
+    assert registered["dpn_connector_sql_read"].risk == "read"
+    assert "raw sql" in registered["dpn_connector_sql_read"].description.lower()
+    assert registered["dpn_connector_sql_read"].parameters["properties"]["limit"]["maximum"] == 500
     assert registered["dpn_connector_profile_catalog"].risk == "read"
     assert registered["dpn_connector_profile_readiness"].gate == "connectors"
     assert registered["dpn_connector_profile_readiness"].risk == "read"
