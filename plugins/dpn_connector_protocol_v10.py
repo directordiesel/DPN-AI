@@ -45,6 +45,23 @@ def register(registry) -> None:
         risk="read",
     )
     registry.register(
+        name="dpn_connector_profile_probe",
+        description="Perform one bounded GET-only authentication probe against a fixed curated provider identity endpoint. Returns status metadata only and never exposes provider response bodies or credentials.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string", "enum": ["discord", "github", "google", "microsoft_graph", "reddit", "slack"]},
+                "connector_id": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 10, "minimum": 5, "maximum": 15},
+            },
+            "required": ["profile_id", "connector_id"],
+            "additionalProperties": False,
+        },
+        function=first_party.probe,
+        gate="connectors",
+        risk="external",
+    )
+    registry.register(
         name="dpn_connector_profile_install",
         description="Install a curated first-party connector profile using vault secret references only. Installation changes connector configuration and always requires explicit human approval.",
         parameters={
