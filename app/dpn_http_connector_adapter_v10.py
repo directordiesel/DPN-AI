@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+import asyncio
 from typing import Any
 
 from app.connectors import ConnectorHub
@@ -22,6 +22,7 @@ _READ_METHODS = {"GET", "HEAD", "OPTIONS"}
 _CREATE_METHODS = {"POST"}
 _UPDATE_METHODS = {"PUT", "PATCH"}
 _DELETE_METHODS = {"DELETE"}
+_TRANSIENT_READ_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 
 
 class HTTPConnectorProtocolAdapter:
@@ -29,7 +30,9 @@ class HTTPConnectorProtocolAdapter:
 
     The adapter deliberately reuses ConnectorHub for URL validation, SSRF blocking,
     encrypted-secret resolution, redirect refusal, response bounds, and method
-    allow-listing. It does not create a second HTTP execution path.
+    allow-listing. Read/search operations may use bounded retries for transient
+    failures. External writes are never automatically retried because a timeout or
+    transport failure can leave their side-effect outcome ambiguous.
     """
 
     def __init__(self, db: Database, hub: ConnectorHub, connector_id: str) -> None:
@@ -84,15 +87,30 @@ class HTTPConnectorProtocolAdapter:
         params = request.payload.get("params")
         json_body = request.payload.get("json_body")
         timeout_seconds = int(request.payload.get("timeout_seconds") or 30)
+        is_read = request.action in {ConnectorAction.READ, ConnectorAction.SEARCH}
+        requested_attempts = int(request.payload.get("retry_attempts") or (2 if is_read else 1))
+        max_attempts = max(1, min(requested_attempts, 3)) if is_read else 1
 
-        result = await self.hub.request(
-            self.connector_id,
-            method=method,
-            path=path,
-            params=params if isinstance(params, dict) else None,
-            json_body=json_body,
-            timeout_seconds=timeout_seconds,
-        )
+        result: dict[str, Any] = {"ok": False, "error": "connector request did not execute"}
+        attempts = 0
+        for attempt in range(max_attempts):
+            attempts = attempt + 1
+            result = await self.hub.request(
+                self.connector_id,
+                method=method,
+                path=path,
+                params=params if isinstance(params, dict) else None,
+                json_body=json_body,
+                timeout_seconds=timeout_seconds,
+            )
+            if bool(result.get("ok")):
+                break
+            status = result.get("status_code")
+            retryable = is_read and (status is None or status in _TRANSIENT_READ_STATUSES)
+            if not retryable or attempts >= max_attempts:
+                break
+            await asyncio.sleep(min(0.1 * (2 ** attempt), 0.5))
+
         ok = bool(result.get("ok"))
         health = ConnectorHealth.HEALTHY if ok else ConnectorHealth.DEGRADED
         provenance = {
@@ -101,6 +119,7 @@ class HTTPConnectorProtocolAdapter:
             "url": result.get("url"),
             "status_code": result.get("status_code"),
             "content_type": result.get("content_type"),
+            "attempts": attempts,
         }
         self.db.audit(
             "connector.protocol_execution",
@@ -112,6 +131,7 @@ class HTTPConnectorProtocolAdapter:
                 "method": method,
                 "ok": ok,
                 "status_code": result.get("status_code"),
+                "attempts": attempts,
             },
         )
         return ConnectorEvidence(
@@ -136,12 +156,10 @@ def http_manifest(connector: dict[str, Any]) -> ConnectorManifest:
         ConnectorCapability(ConnectorAction.HEALTH, risk=ConnectorRisk.READ_ONLY),
     ]
     if methods & _READ_METHODS:
-        capabilities.extend(
-            [
-                ConnectorCapability(ConnectorAction.READ, risk=ConnectorRisk.READ_ONLY),
-                ConnectorCapability(ConnectorAction.SEARCH, risk=ConnectorRisk.READ_ONLY),
-            ]
-        )
+        capabilities.extend([
+            ConnectorCapability(ConnectorAction.READ, risk=ConnectorRisk.READ_ONLY),
+            ConnectorCapability(ConnectorAction.SEARCH, risk=ConnectorRisk.READ_ONLY),
+        ])
     if methods & _CREATE_METHODS:
         capabilities.append(ConnectorCapability(ConnectorAction.CREATE, risk=ConnectorRisk.WRITE, approval_required=True))
     if methods & _UPDATE_METHODS:
@@ -223,6 +241,7 @@ class HTTPConnectorProtocolService:
         path: str = "",
         params: dict[str, Any] | None = None,
         timeout_seconds: int = 30,
+        retry_attempts: int = 2,
         *,
         search: bool = False,
     ) -> dict[str, Any]:
@@ -230,7 +249,13 @@ class HTTPConnectorProtocolService:
         request = ConnectorRequest(
             connector_id=connector_id,
             action=action,
-            payload={"method": "GET", "path": path, "params": params or {}, "timeout_seconds": timeout_seconds},
+            payload={
+                "method": "GET",
+                "path": path,
+                "params": params or {},
+                "timeout_seconds": timeout_seconds,
+                "retry_attempts": retry_attempts,
+            },
         )
         return self._render(await self.registry().execute(request))
 
@@ -249,8 +274,7 @@ class HTTPConnectorProtocolService:
         This method is intentionally registered only as the ``dpn_connector_write``
         tool. ToolPermissionRuntime forces that tool through ApprovalSecurity even
         when autonomous/Always Allow policy would otherwise permit destructive work.
-        The approval record holds the exact encrypted arguments and execution is
-        single-use, so callers cannot self-authorize with a request boolean.
+        Write requests are single-attempt to avoid replaying ambiguous side effects.
         """
         try:
             parsed_action = ConnectorAction(str(action).strip().lower())
@@ -268,6 +292,7 @@ class HTTPConnectorProtocolService:
                 "params": params or {},
                 "json_body": json_body,
                 "timeout_seconds": timeout_seconds,
+                "retry_attempts": 1,
             },
         )
         return self._render(await self.registry().execute(request))
