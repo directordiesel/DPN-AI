@@ -26,6 +26,7 @@ class DiscoveredModel:
 @dataclass(frozen=True)
 class BenchmarkEvidence:
     model: str
+    provider: str
     samples: int
     passed: int
     latency_ms: int | None = None
@@ -82,8 +83,11 @@ def validate_benchmark(evidence: BenchmarkEvidence) -> BenchmarkEvidence:
     if not isinstance(evidence, BenchmarkEvidence):
         raise ModelDiscoveryError("benchmark evidence must be BenchmarkEvidence")
     model = str(evidence.model or "").strip()
+    provider = str(evidence.provider or "").strip().lower()
     if not _MODEL_NAME_RE.fullmatch(model):
         raise ModelDiscoveryError("benchmark model name is invalid")
+    if not _PROVIDER_RE.fullmatch(provider):
+        raise ModelDiscoveryError("benchmark provider identifier is invalid")
     for value, field_name in ((evidence.samples, "samples"), (evidence.passed, "passed")):
         if isinstance(value, bool) or not isinstance(value, int):
             raise ModelDiscoveryError(f"benchmark {field_name} must be an integer")
@@ -99,7 +103,15 @@ def validate_benchmark(evidence: BenchmarkEvidence) -> BenchmarkEvidence:
             continue
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)) or not 0.0 <= float(value) <= 1.0:
             raise ModelDiscoveryError(f"benchmark {field_name} must be between 0 and 1")
-    return evidence
+    return BenchmarkEvidence(
+        model=model,
+        provider=provider,
+        samples=evidence.samples,
+        passed=evidence.passed,
+        latency_ms=evidence.latency_ms,
+        quality_score=evidence.quality_score,
+        health_score=evidence.health_score,
+    )
 
 
 def candidate_from_evidence(
@@ -117,8 +129,8 @@ def candidate_from_evidence(
 
     if benchmark is not None:
         result = validate_benchmark(benchmark)
-        if result.model != model.name:
-            raise ModelDiscoveryError("benchmark evidence belongs to a different model")
+        if result.provider != model.provider or result.model != model.name:
+            raise ModelDiscoveryError("benchmark evidence belongs to a different provider/model identity")
         quality = float(result.quality_score) if result.quality_score is not None else (result.passed / result.samples)
         health = float(result.health_score) if result.health_score is not None else (result.passed / result.samples)
         latency = result.latency_ms
