@@ -54,9 +54,10 @@ class _FakeHub:
         }
 
 
-def _permissions(mode="autonomous", allow_connectors=True):
+def _permissions(mode="autonomous", allow_connectors=True, allow_mcp=True):
     return {
         "allow_connectors": allow_connectors,
+        "allow_mcp": allow_mcp,
         "approval_mode": mode,
         "use_v9_permissions": False,
     }
@@ -77,6 +78,21 @@ def test_connector_write_is_human_approval_gated_even_in_autonomous_mode():
     assert result.decision.source == "connector_write_boundary"
 
 
+def test_mcp_connector_call_is_human_approval_gated_even_in_autonomous_mode():
+    runtime = ToolPermissionRuntime()
+    result = runtime.authorize(
+        tool_name="dpn_connector_mcp_call",
+        declared_risk="destructive",
+        gate="mcp",
+        permissions=_permissions("autonomous"),
+        arguments={"connector_id": "mcp:srv-1", "tool_name": "mutate"},
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is True
+    assert result.decision.source == "connector_write_boundary"
+
+
 def test_connector_write_cannot_bypass_disabled_connector_gate():
     runtime = ToolPermissionRuntime()
     result = runtime.authorize(
@@ -85,6 +101,21 @@ def test_connector_write_cannot_bypass_disabled_connector_gate():
         gate="connectors",
         permissions=_permissions("autonomous", allow_connectors=False),
         arguments={"connector_id": "http-write-1", "action": "delete"},
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is False
+    assert "disabled" in result.reason
+
+
+def test_mcp_connector_call_cannot_bypass_disabled_mcp_gate():
+    runtime = ToolPermissionRuntime()
+    result = runtime.authorize(
+        tool_name="dpn_connector_mcp_call",
+        declared_risk="destructive",
+        gate="mcp",
+        permissions=_permissions("autonomous", allow_mcp=False),
+        arguments={"connector_id": "mcp:srv-1", "tool_name": "mutate"},
     )
 
     assert result.allowed is False
@@ -131,12 +162,13 @@ def test_approved_write_rejects_action_method_confusion_before_network():
     assert hub.calls == []
 
 
-def test_protocol_plugin_registers_destructive_write_tool():
+def test_protocol_plugin_registers_governed_http_and_mcp_tools():
     registered = {}
 
     class _Registry:
         db = _FakeDB()
         connectors = _FakeHub()
+        mcp = SimpleNamespace()
 
         def register(self, *, name, description, parameters, function, gate=None, risk="read"):
             registered[name] = SimpleNamespace(
@@ -149,7 +181,14 @@ def test_protocol_plugin_registers_destructive_write_tool():
 
     register(_Registry())
 
-    assert set(registered) == {"dpn_connector_catalog", "dpn_connector_read", "dpn_connector_write"}
+    assert set(registered) == {
+        "dpn_connector_catalog",
+        "dpn_connector_read",
+        "dpn_connector_write",
+        "dpn_connector_mcp_catalog",
+        "dpn_connector_mcp_discover",
+        "dpn_connector_mcp_call",
+    }
     assert registered["dpn_connector_write"].gate == "connectors"
     assert registered["dpn_connector_write"].risk == "destructive"
     assert registered["dpn_connector_write"].parameters["properties"]["action"]["enum"] == [
@@ -157,3 +196,6 @@ def test_protocol_plugin_registers_destructive_write_tool():
         "update",
         "delete",
     ]
+    assert registered["dpn_connector_mcp_call"].gate == "mcp"
+    assert registered["dpn_connector_mcp_call"].risk == "destructive"
+    assert "approval" in registered["dpn_connector_mcp_call"].description.lower()
