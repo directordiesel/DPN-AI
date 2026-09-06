@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.dpn_connector_ecosystem_v10 import DPNConnectorEcosystemService
+from app.dpn_first_party_connectors_v10 import FirstPartyConnectorService
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
 
@@ -9,6 +10,7 @@ def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
     mcp_service = MCPConnectorProtocolService(registry.mcp)
     ecosystem = DPNConnectorEcosystemService(service, mcp_service)
+    first_party = FirstPartyConnectorService(registry.connectors)
 
     registry.register(
         name="dpn_connector_ecosystem_catalog",
@@ -25,6 +27,31 @@ def register(registry) -> None:
         function=ecosystem.health,
         gate="connectors",
         risk="read",
+    )
+    registry.register(
+        name="dpn_connector_profile_catalog",
+        description="List curated first-party DPN connector profiles and required vault secret names without exposing secret values.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=first_party.catalog,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_profile_install",
+        description="Install a curated first-party connector profile using vault secret references only. Installation changes connector configuration and always requires explicit human approval.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string", "enum": ["discord", "github", "google", "microsoft_graph", "reddit", "slack"]},
+                "name": {"type": "string", "default": ""},
+                "enabled": {"type": "boolean", "default": False},
+            },
+            "required": ["profile_id"],
+            "additionalProperties": False,
+        },
+        function=first_party.install,
+        gate="connectors",
+        risk="destructive",
     )
     registry.register(
         name="dpn_connector_catalog",
