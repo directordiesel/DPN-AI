@@ -4,12 +4,14 @@ import asyncio
 
 import pytest
 
+from app.dpn_connector_ecosystem_v10 import DPNConnectorEcosystemService
 from app.dpn_connector_protocol_v10 import (
     ConnectorAction,
     ConnectorEvidence,
     ConnectorHealth,
     ConnectorProtocolError,
     ConnectorRequest,
+    DPNConnectorRegistry,
 )
 from app.dpn_native_connectors_v10 import DPNNativeConnectorService, NativeConnectorConfig
 
@@ -34,6 +36,11 @@ class _Adapter:
             result={"ok": True},
             provenance={"adapter": "test-native", "sequence": self.calls},
         )
+
+
+class _EmptyService:
+    def registry(self):
+        return DPNConnectorRegistry()
 
 
 def test_catalog_declares_all_approved_native_connector_identities_fail_closed():
@@ -101,3 +108,19 @@ def test_windows_mutation_is_approval_gated():
     cap = manifest.capability_for(ConnectorAction.UPDATE, "desktop")
     assert cap is not None
     assert cap.approval_required is True
+
+
+def test_unified_ecosystem_surfaces_native_connectors_as_blocked_until_configured():
+    ecosystem = DPNConnectorEcosystemService(
+        _EmptyService(),
+        _EmptyService(),
+        native_service=DPNNativeConnectorService(),
+    )
+    catalog = ecosystem.catalog()
+    assert catalog["connector_count"] == 6
+    readiness = asyncio.run(ecosystem.readiness())
+    assert readiness["ready"] is False
+    assert readiness["ready_count"] == 0
+    assert readiness["blocked_count"] == 6
+    assert readiness["blocked_reasons"]["not_configured"] == 6
+    assert readiness["blocked_reasons"]["disabled"] == 6
