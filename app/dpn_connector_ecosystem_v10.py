@@ -6,6 +6,7 @@ from typing import Any
 from app.dpn_connector_protocol_v10 import ConnectorHealth, ConnectorManifest, ConnectorProtocolError
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
+from app.dpn_sql_connector_v10 import SQLiteConnectorProtocolService
 
 
 class DPNConnectorEcosystemService:
@@ -22,12 +23,17 @@ class DPNConnectorEcosystemService:
         self,
         http_service: HTTPConnectorProtocolService,
         mcp_service: MCPConnectorProtocolService,
+        sql_service: SQLiteConnectorProtocolService | None = None,
     ) -> None:
         self.http_service = http_service
         self.mcp_service = mcp_service
+        self.sql_service = sql_service
 
     def _registries(self):
-        return (self.http_service.registry(), self.mcp_service.registry())
+        registries = [self.http_service.registry(), self.mcp_service.registry()]
+        if self.sql_service is not None:
+            registries.append(self.sql_service.registry())
+        return tuple(registries)
 
     def manifests(self) -> list[ConnectorManifest]:
         manifests: list[ConnectorManifest] = []
