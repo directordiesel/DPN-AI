@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/dpn-ai-logo.jpg" alt="DPN AI — Intelligent. Adaptive. Innovative." width="700">
+  <img src="https://raw.githubusercontent.com/directordiesel/DPN-AI/main/assets/branding/dpn-ai-logo.jpg" alt="DPN AI — Intelligent. Adaptive. Innovative." width="700">
 </p>
 
 <h1 align="center">DPN AI</h1>
