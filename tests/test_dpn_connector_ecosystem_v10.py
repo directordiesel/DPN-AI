@@ -158,6 +158,62 @@ async def test_readiness_requires_at_least_one_connector_before_global_ready():
     assert result["ready"] is False
 
 
+@pytest.mark.asyncio
+async def test_release_evidence_requires_approval_for_all_mutating_capabilities():
+    http = FakeService([
+        (manifest("http:approved", "http", approval_required=True), FakeAdapter()),
+    ])
+    mcp = FakeService([])
+    service = DPNConnectorEcosystemService(http, mcp)
+
+    result = await service.release_evidence()
+
+    assert result["ok"] is True
+    assert result["contract_ready"] is True
+    assert result["operational_ready"] is True
+    assert result["release_ready"] is True
+    assert result["approval_protected_mutation_count"] == 1
+    assert result["contract_violation_count"] == 0
+    assert result["contract_violations"] == []
+    assert result["transport_kinds"] == {"http": 1}
+
+
+@pytest.mark.asyncio
+async def test_release_evidence_fails_closed_on_unapproved_mutation_without_executing_it():
+    unsafe = ConnectorManifest(
+        connector_id="http:unsafe",
+        kind="http",
+        display_name="unsafe",
+        capabilities=(
+            ConnectorCapability(
+                ConnectorAction.DELETE,
+                risk=ConnectorRisk.DESTRUCTIVE,
+                approval_required=False,
+            ),
+        ),
+        configured=True,
+        enabled=True,
+    )
+    service = DPNConnectorEcosystemService(
+        FakeService([(unsafe, FakeAdapter())]),
+        FakeService([]),
+    )
+
+    result = await service.release_evidence()
+
+    assert result["contract_ready"] is False
+    assert result["operational_ready"] is True
+    assert result["release_ready"] is False
+    assert result["contract_violation_count"] == 1
+    assert result["contract_violations"] == [
+        {
+            "connector_id": "http:unsafe",
+            "action": "delete",
+            "reason": "mutation_without_explicit_approval",
+        }
+    ]
+
+
 def test_duplicate_identity_across_transports_is_rejected():
     duplicate = manifest("shared", "http")
     http = FakeService([(duplicate, FakeAdapter())])
