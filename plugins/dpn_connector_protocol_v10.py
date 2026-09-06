@@ -10,7 +10,7 @@ def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
     mcp_service = MCPConnectorProtocolService(registry.mcp)
     ecosystem = DPNConnectorEcosystemService(service, mcp_service)
-    first_party = FirstPartyConnectorService(registry.connectors)
+    first_party = FirstPartyConnectorService(registry.connectors, registry.vault)
 
     registry.register(
         name="dpn_connector_ecosystem_catalog",
@@ -33,6 +33,14 @@ def register(registry) -> None:
         description="List curated first-party DPN connector profiles and required vault secret names without exposing secret values.",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
         function=first_party.catalog,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_profile_readiness",
+        description="Check first-party connector credential readiness from SecretVault metadata only, without decrypting credentials or contacting providers.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=first_party.readiness,
         gate="connectors",
         risk="read",
     )
