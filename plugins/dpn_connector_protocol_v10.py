@@ -4,6 +4,7 @@ from app.dpn_connector_ecosystem_v10 import DPNConnectorEcosystemService
 from app.dpn_first_party_connectors_v10 import FirstPartyConnectorService
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
+from app.dpn_native_connectors_v10 import DPNNativeConnectorService
 from app.dpn_sql_connector_v10 import SQLiteConnectorProtocolService
 
 
@@ -11,7 +12,8 @@ def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
     mcp_service = MCPConnectorProtocolService(registry.mcp)
     sql_service = SQLiteConnectorProtocolService(registry.db)
-    ecosystem = DPNConnectorEcosystemService(service, mcp_service, sql_service)
+    native_service = DPNNativeConnectorService()
+    ecosystem = DPNConnectorEcosystemService(service, mcp_service, sql_service, native_service)
     first_party = FirstPartyConnectorService(registry.connectors, registry.vault)
 
     registry.register(
@@ -43,6 +45,14 @@ def register(registry) -> None:
         description="Return deterministic connector release evidence. Fails the contract gate if any create/update/delete capability lacks explicit approval protection; executes no connector actions and decrypts no credentials.",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
         function=ecosystem.release_evidence,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_native_catalog",
+        description="List DPN ECS, WatchTower, HR, Aqua Labs, SSH and Windows protocol identities. Missing runtime adapters remain explicitly unconfigured and cannot execute.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=native_service.catalog,
         gate="connectors",
         risk="read",
     )
