@@ -84,10 +84,14 @@ Overall program state: **IN DEVELOPMENT**
 - Unified multimodal runtime contracts cover text, images, screenshots, PDF/document, spreadsheet, presentation, code, audio, video, and transcript assets.
 - Native-first extraction preserves file hash plus page/document/table/code provenance and inventories binary media without fabricating interpretation.
 - Fusion context preserves source/page/frame/timestamp evidence references and blocks verified completion when structured evidence conflicts remain unresolved.
-- Provider execution coordinator now routes required vision/transcription work, records provider-backed evidence, and feeds results through readiness plus fusion gates.
+- Provider execution coordinator routes required vision/transcription work, records provider-backed evidence, and feeds results through readiness plus fusion gates.
 - Provider execution is transactional: a later provider failure cannot leave partially committed provider evidence in the session.
 - Provider/model provenance must be explicitly reported by the backend and match the selected route; silent fallback is rejected.
 - Matching provider-backed evidence can be reused on repeat execution without generating duplicate evidence.
+- Concrete `ConfigurableVisionProvider` and local `VoiceAdapter.transcribe`/faster-whisper adapters now implement the coordinator runner contracts without duplicating provider code.
+- faster-whisper execution is moved off the async mission loop through `asyncio.to_thread`, while transcript/model/language/confidence/segment metadata remain preserved.
+- Adapter tests verify missing provenance, invalid confidence, missing model identity, incompatible backend contracts, and successful vision/STT mapping.
+- Exact head `6912631e5d9fc1a3464e40d53c5feea3f323557f` passed CI, DPN Security Gate v2, and Runtime & Recovery Assurance before the adapter commits; final adapter head still requires the same exact-head gates.
 - PR #89 remains draft until the exact final Batch 4 head passes CI, DPN Security Gate v2, and Runtime & Recovery Assurance.
 
 ## Verification Rules
