@@ -4,6 +4,7 @@ import pytest
 
 from app.deep_research_engine_v10 import DeepResearchError, EvidenceGraph, ResearchTask, ResearchWorkstream
 from app.deep_research_web_worker_v10 import DeepResearchWebWorker
+from app.research_intelligence import ResearchSource
 
 
 class FakeRuntime:
@@ -90,6 +91,23 @@ def test_worker_rejects_duplicate_source_ids_before_commit():
         asyncio.run(DeepResearchWebWorker(FakeRuntime(payload)).execute(web_task(), graph))
 
     assert graph.sources == ()
+
+
+def test_worker_preflights_live_graph_collisions_before_any_commit():
+    graph = EvidenceGraph()
+    graph.add_source(ResearchSource(
+        source_id="collision",
+        title="Existing",
+        url="https://existing.example/source",
+        domain="existing.example",
+    ))
+    before = graph.to_dict()
+    payload = {"ok": True, "sources": [source("new-source"), source("collision")]}
+
+    with pytest.raises(DeepResearchError, match="collision detected before graph commit"):
+        asyncio.run(DeepResearchWebWorker(FakeRuntime(payload)).execute(web_task(), graph))
+
+    assert graph.to_dict() == before
 
 
 def test_required_task_rejects_empty_admissible_evidence():
