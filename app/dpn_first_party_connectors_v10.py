@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.connectors import ConnectorHub
+from app.vault import SecretVault
 
 
 @dataclass(frozen=True)
@@ -93,21 +94,62 @@ _PROFILES: dict[str, FirstPartyConnectorProfile] = {
 
 
 class FirstPartyConnectorService:
-    """Curated provider profiles layered over the hardened HTTP ConnectorHub.
+    """Curated provider profiles layered over the hardened HTTP ConnectorHub."""
 
-    Installing a profile stores only secret references, never secret values. The
-    caller must place the named secret in SecretVault separately. This operation
-    changes local connector configuration and is therefore registered behind an
-    explicit human-approval boundary.
-    """
-
-    def __init__(self, hub: ConnectorHub) -> None:
+    def __init__(self, hub: ConnectorHub, vault: SecretVault | None = None) -> None:
         self.hub = hub
+        self.vault = vault or getattr(hub, "vault", None)
 
     def catalog(self) -> dict[str, Any]:
         return {
             "ok": True,
             "profiles": [_PROFILES[key].public_dict() for key in sorted(_PROFILES)],
+        }
+
+    def readiness(self) -> dict[str, Any]:
+        """Return secret-safe local readiness without contacting external providers.
+
+        Readiness is intentionally conservative: a profile is never reported ready
+        unless every required secret name exists in the configured SecretVault.
+        Secret values are not decrypted or returned by this operation.
+        """
+        if self.vault is None:
+            return {
+                "ok": False,
+                "error": "Secret vault unavailable; first-party connector readiness cannot be verified",
+                "ready_count": 0,
+                "profiles": [],
+            }
+        try:
+            listed = self.vault.list()
+            available = set(listed.get("secrets", [])) if listed.get("ok") else set()
+        except Exception:
+            return {
+                "ok": False,
+                "error": "Secret vault unavailable; first-party connector readiness cannot be verified",
+                "ready_count": 0,
+                "profiles": [],
+            }
+
+        profiles: list[dict[str, Any]] = []
+        ready_count = 0
+        for key in sorted(_PROFILES):
+            profile = _PROFILES[key]
+            missing = [name for name in profile.secret_names if name not in available]
+            ready = not missing
+            ready_count += int(ready)
+            profiles.append(
+                {
+                    "profile_id": profile.profile_id,
+                    "ready": ready,
+                    "missing_secrets": missing,
+                }
+            )
+        return {
+            "ok": True,
+            "ready_count": ready_count,
+            "profile_count": len(profiles),
+            "profiles": profiles,
         }
 
     def install(self, profile_id: str, name: str = "", enabled: bool = False) -> dict[str, Any]:
