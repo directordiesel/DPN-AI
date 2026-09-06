@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
+from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
 
 
 def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
+    mcp_service = MCPConnectorProtocolService(registry.mcp)
 
     registry.register(
         name="dpn_connector_catalog",
@@ -53,5 +55,43 @@ def register(registry) -> None:
         },
         function=service.approved_write,
         gate="connectors",
+        risk="destructive",
+    )
+    registry.register(
+        name="dpn_connector_mcp_catalog",
+        description="List configured MCP servers and only their explicitly allow-listed DPN Connector Protocol capabilities without starting a server process.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=mcp_service.catalog,
+        gate="mcp",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_mcp_discover",
+        description="Discover tools from one enabled MCP server through the existing hardened MCP bridge.",
+        parameters={
+            "type": "object",
+            "properties": {"connector_id": {"type": "string"}},
+            "required": ["connector_id"],
+            "additionalProperties": False,
+        },
+        function=mcp_service.discover,
+        gate="mcp",
+        risk="external",
+    )
+    registry.register(
+        name="dpn_connector_mcp_call",
+        description="Execute one explicitly allow-listed MCP tool after single-use human approval. MCP tool side effects are treated as write-risk regardless of tool name.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "connector_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "arguments": {"type": ["object", "null"], "default": None},
+            },
+            "required": ["connector_id", "tool_name"],
+            "additionalProperties": False,
+        },
+        function=mcp_service.approved_call,
+        gate="mcp",
         risk="destructive",
     )
