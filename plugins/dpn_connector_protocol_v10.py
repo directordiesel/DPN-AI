@@ -16,7 +16,7 @@ def register(registry) -> None:
     )
     registry.register(
         name="dpn_connector_read",
-        description="Execute a least-privilege DPN Connector Protocol read/search through the hardened connector transport.",
+        description="Execute a least-privilege DPN Connector Protocol read/search through the hardened connector transport with bounded idempotent retries.",
         parameters={
             "type": "object",
             "properties": {
@@ -24,6 +24,7 @@ def register(registry) -> None:
                 "path": {"type": "string", "default": ""},
                 "params": {"type": ["object", "null"], "default": None},
                 "timeout_seconds": {"type": "integer", "default": 30},
+                "retry_attempts": {"type": "integer", "default": 2, "minimum": 1, "maximum": 3},
                 "search": {"type": "boolean", "default": False},
             },
             "required": ["connector_id"],
@@ -35,7 +36,7 @@ def register(registry) -> None:
     )
     registry.register(
         name="dpn_connector_write",
-        description="Execute an explicitly human-approved DPN Connector Protocol create, update, or delete operation. This tool is always single-use approval gated.",
+        description="Execute an explicitly human-approved DPN Connector Protocol create, update, or delete operation. This tool is always single-use approval gated and never automatically retried.",
         parameters={
             "type": "object",
             "properties": {
