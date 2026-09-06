@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable
 
 from app.computer_browser_driver_v10 import (
     DriverAction,
@@ -190,7 +189,6 @@ class PlatformAdapter:
         if after_snapshot.snapshot_id == before.snapshot_id:
             raise DriverContractError("post-action snapshot id must be fresh")
 
-        session.record_snapshot(after_snapshot)
         receipt = AdapterExecutionReceipt(
             adapter_id=self.descriptor.adapter_id,
             command=command,
@@ -209,6 +207,7 @@ class PlatformAdapter:
                 detail=receipt.reason,
             )
         )
+        session.record_snapshot(after_snapshot)
         return receipt
 
 
