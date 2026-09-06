@@ -49,7 +49,9 @@ class ToolPermissionRuntime:
     Tool arguments may further narrow authority. In particular, opting out of the
     Docker security boundary for ``run_python_sandbox`` is always approval-gated,
     even when the base sandbox tool is otherwise allowed for the session or by an
-    Always Allow rule. A host subprocess is bounded but is not a sandbox.
+    Always Allow rule. DPN Connector Protocol writes are likewise always human-
+    approval gated, including autonomous/Always Allow modes, because they produce
+    external side effects and may include destructive operations.
     """
 
     def __init__(self, engine: PermissionEngine | None = None):
@@ -83,6 +85,18 @@ class ToolPermissionRuntime:
         decision: PermissionDecision,
         profile: ToolRiskProfile,
     ) -> PermissionDecision:
+        if tool_name == "dpn_connector_write":
+            if not decision.allowed:
+                return decision
+            return PermissionDecision(
+                False,
+                True,
+                PermissionMode.ASK_EVERY_TIME,
+                "DPN Connector Protocol writes require explicit human approval",
+                "connector_write_boundary",
+                profile.risk,
+            )
+
         if tool_name != "run_python_sandbox" or not isinstance(arguments, dict):
             return decision
         if arguments.get("use_host_fallback") is not True:
