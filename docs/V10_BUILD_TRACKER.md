@@ -91,7 +91,7 @@ Overall program state: **IN DEVELOPMENT**
 - Keep unresolved approval-gated work blocked after restart instead of silently replaying it.
 - Route failed/recovering missions into bounded repair and route missing/untrusted checkpoints into replan rather than guessing.
 - Enforce time/tool budgets across resume boundaries.
-- Integrate the runtime with the existing MissionOrchestrator and API after the durable state contract is proven by tests.
+- Integrate the runtime with the existing MissionOrchestrator and HTTP control plane after the durable state contract is proven by tests.
 
 ## Batch 5 Progress Evidence
 
@@ -104,7 +104,10 @@ Overall program state: **IN DEVELOPMENT**
 - Resume execution cross-checks checkpoint-completed steps against live database state before trusting them, preserves cumulative elapsed/tool-call budgets, skips already-completed steps, validates dependency completion, performs bounded retries, and advances the integrity-protected cursor after each resumed step.
 - Final resumed completion requires deterministic evidence verification plus an independent security review; failed verification remains blocked instead of being mislabeled complete.
 - Added restart/resume tests proving completed work is not replayed, checkpoint/database disagreement fails closed, terminal missions cannot resume, and cumulative budget exhaustion remains enforced across restart boundaries.
-- PR #90 remains draft until Mission API resume controls, current exact-head CI/security/runtime gates, and end-to-end pause/restart/resume acceptance are complete.
+- Added `app/mission_control_api_v10.py`, a FastAPI router/control service for recovery status, latest verified checkpoint, cooperative pause, and resume operations. Pause is persisted and intentionally does not interrupt an in-flight side effect.
+- Added API-control tests covering verified recovery state, idempotent pause, terminal-state refusal, missing missions, and resume that executes only unfinished work.
+- Foundation head `2fbc7be41d81601b34ad472dd840d59911639fdf` passed CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Resume-coordinator head `97536ecfa7db49893d18e9d00d7f2d93b9339f0f` has Security and Runtime gates green with the CI matrix still completing.
+- PR #90 remains draft until the mission-control router is mounted into the main application, cooperative pause is honored at the live orchestrator step boundary, an end-to-end pause/restart/resume acceptance test passes, and the exact final head passes CI/security/runtime gates.
 
 ## Verification Rules
 
