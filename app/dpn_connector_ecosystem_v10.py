@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from app.dpn_connector_protocol_v10 import ConnectorHealth, ConnectorManifest, ConnectorProtocolError
+from app.dpn_connector_protocol_v10 import ConnectorAction, ConnectorHealth, ConnectorManifest, ConnectorProtocolError
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
 from app.dpn_sql_connector_v10 import SQLiteConnectorProtocolService
@@ -197,6 +197,61 @@ class DPNConnectorEcosystemService:
             "approval_required_capability_count": approval_capability_count,
             "blocked_reasons": dict(sorted(blocked_reasons.items())),
             "connectors": entries,
+        }
+
+    async def release_evidence(self) -> dict[str, Any]:
+        """Produce deterministic connector contract and operational release evidence.
+
+        The release gate is intentionally stricter than a health snapshot. Any manifest
+        that advertises create/update/delete without explicit approval is a contract
+        violation and makes the connector batch ineligible for release. This method does
+        not execute connector actions, decrypt credentials, or include provider payloads.
+        """
+        manifests = self.manifests()
+        readiness = await self.readiness()
+        mutation_actions = {
+            ConnectorAction.CREATE,
+            ConnectorAction.UPDATE,
+            ConnectorAction.DELETE,
+        }
+        violations: list[dict[str, str]] = []
+        approval_protected_mutations = 0
+
+        for manifest in manifests:
+            for capability in manifest.capabilities:
+                if capability.action not in mutation_actions:
+                    continue
+                if capability.approval_required:
+                    approval_protected_mutations += 1
+                    continue
+                violations.append(
+                    {
+                        "connector_id": manifest.connector_id,
+                        "action": capability.action.value,
+                        "reason": "mutation_without_explicit_approval",
+                    }
+                )
+
+        violations.sort(key=lambda item: (item["connector_id"], item["action"]))
+        kinds = dict(sorted(Counter(item.kind for item in manifests).items()))
+        contract_ready = bool(manifests) and not violations
+        operational_ready = bool(readiness["ready"])
+        return {
+            "ok": True,
+            "protocol": self.PROTOCOL,
+            "release_ready": contract_ready and operational_ready,
+            "contract_ready": contract_ready,
+            "operational_ready": operational_ready,
+            "connector_count": len(manifests),
+            "transport_kinds": kinds,
+            "approval_protected_mutation_count": approval_protected_mutations,
+            "contract_violation_count": len(violations),
+            "contract_violations": violations,
+            "operational": {
+                "ready_count": readiness["ready_count"],
+                "blocked_count": readiness["blocked_count"],
+                "blocked_reasons": readiness["blocked_reasons"],
+            },
         }
 
 
