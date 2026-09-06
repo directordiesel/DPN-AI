@@ -124,7 +124,7 @@ Overall program state: **IN DEVELOPMENT**
 - README branding was repaired to use a GitHub-safe raw image source for `assets/branding/dpn-ai-logo.jpg`; the real JPEG remains tracked and verified on `main`.
 - Removed obsolete branding placeholders: `README_FIX_PENDING.txt`, `STOP.txt`, `dpn-ai-logo-clean-note.txt`, `dpn-ai-logo-clean.b64`, and `test.txt`.
 - Exact code/branding head `b9da14ace8e2fd55bee3fb72e7ed51a5099d12fe` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
-- PR #91 is eligible for squash merge after this tracker-only completion head passes the same exact-head gates.
+- PR #91 was squash-merged; merge commit `b2627a57de9b18ede9e7b54a1cf05b9720e1ae28`.
 
 ## Batch 7 Goals
 
@@ -135,6 +135,17 @@ Overall program state: **IN DEVELOPMENT**
 - Add fact-checking and claim verification gates that distinguish verified, disputed, unsupported, and stale claims.
 - Add a research writer that synthesizes only from admitted evidence and a citation validator that rejects unsupported or mismatched citations.
 - Preserve prompt-injection defenses, network permissions, connector boundaries, bounded concurrency, and fail-closed provider behavior.
+
+## Batch 7 Current Evidence
+
+- Added `app/deep_research_engine_v10.py` with bounded research planning, typed evidence graph, fact checking, conflict detection, citation validation, and a fail-closed synthesis readiness gate.
+- Foundation exact head `08ea3599a39c70d9bc81192cc99c95d83c33bacd` passed CI, DPN Security Gate v2, and Runtime & Recovery Assurance.
+- Added `app/deep_research_web_worker_v10.py` as the first concrete worker integration, reusing the existing `WebResearchRuntime` rather than creating a second network/search implementation.
+- Web evidence admission requires source identity, URL/domain provenance, bounded evidence text, valid quality/freshness scores, and a WEB workstream task.
+- Runtime output is staged and collision-preflighted before graph mutation so malformed or conflicting batches cannot partially mutate the evidence graph.
+- Added deterministic tests for provenance admission, source/excerpt bounds, duplicate identities, live-graph collision rollback, required/optional empty results, failed runtime handling, workstream isolation, and bounded partial-failure reporting.
+- Added `docs/V10_DEEP_RESEARCH_WEB_WORKER.md` documenting the trust boundary and remaining Batch 7 work.
+- Current web-worker checkpoint requires exact-head CI, Security Gate v2, and Runtime & Recovery Assurance before being treated as verified.
 
 ## Verification Rules
 
