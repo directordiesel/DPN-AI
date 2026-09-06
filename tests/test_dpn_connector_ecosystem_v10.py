@@ -178,8 +178,7 @@ async def test_release_evidence_requires_approval_for_all_mutating_capabilities(
     assert result["transport_kinds"] == {"http": 1}
 
 
-@pytest.mark.asyncio
-async def test_release_evidence_fails_closed_on_unapproved_mutation_without_executing_it():
+def test_unapproved_destructive_capability_is_rejected_before_release_inventory():
     unsafe = ConnectorManifest(
         connector_id="http:unsafe",
         kind="http",
@@ -194,24 +193,9 @@ async def test_release_evidence_fails_closed_on_unapproved_mutation_without_exec
         configured=True,
         enabled=True,
     )
-    service = DPNConnectorEcosystemService(
-        FakeService([(unsafe, FakeAdapter())]),
-        FakeService([]),
-    )
 
-    result = await service.release_evidence()
-
-    assert result["contract_ready"] is False
-    assert result["operational_ready"] is True
-    assert result["release_ready"] is False
-    assert result["contract_violation_count"] == 1
-    assert result["contract_violations"] == [
-        {
-            "connector_id": "http:unsafe",
-            "action": "delete",
-            "reason": "mutation_without_explicit_approval",
-        }
-    ]
+    with pytest.raises(ConnectorProtocolError, match="must require approval"):
+        FakeService([(unsafe, FakeAdapter())]).registry()
 
 
 def test_duplicate_identity_across_transports_is_rejected():
