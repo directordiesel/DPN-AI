@@ -12,14 +12,14 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 1 — Model Intelligence Engine + Benchmark Laboratory**
+Current active batch: **Batch 2 — Autonomous Coding Runtime**
 
 Overall program state: **IN DEVELOPMENT**
 
 ## Batches
 
-1. 🟣 Model Intelligence Engine + Benchmark Laboratory
-2. ⏳ Autonomous Coding Runtime
+1. ✅ Model Intelligence Engine + Benchmark Laboratory
+2. 🟣 Autonomous Coding Runtime
 3. ⏳ Computer & Browser Agent
 4. ⏳ Unified Multimodal Intelligence
 5. ⏳ Long-Horizon Mission Runtime
@@ -37,14 +37,23 @@ Overall program state: **IN DEVELOPMENT**
 17. ⏳ Performance + Benchmark Optimization
 18. ⏳ Production Readiness + Stable Release
 
-## Batch 1 Goals
+## Batch 1 Completion Evidence
 
-- Create a capability-aware model intelligence layer that scores task difficulty, modality requirements, privacy constraints, latency/cost preferences, model health, and benchmark history.
-- Produce explainable model-routing evidence for every selection.
-- Expand the benchmark system from component contracts into an end-to-end evaluation laboratory.
-- Record benchmark task, selected model, provider, tools used, result, verification outcome, latency, retries, score, and evidence.
-- Add regression gates so routing or model changes cannot silently reduce verified capability.
-- Preserve fail-closed behavior when a required capability or approved provider is unavailable.
+- Model Intelligence Engine implemented with difficulty, privacy, capability, latency, cost, health, and benchmark-aware selection.
+- Benchmark Laboratory implemented with persistent evidence, summaries, regressions, leaderboards, and readiness gates.
+- CI passed across Ubuntu and Windows on Python 3.11 and 3.12.
+- DPN Security Gate v2 passed.
+- Runtime & Recovery Assurance passed.
+- PR #86 merged from the exact tested head.
+
+## Batch 2 Goals
+
+- Build a durable coding mission state machine: inspect → plan → isolate → edit → validate → diagnose → repair → review → CI → ready.
+- Record repository evidence and exact validation results for each stage.
+- Enforce bounded repair loops and fail closed on exhausted attempts.
+- Track affected files/tests and prevent unsupported claims of completion.
+- Require security/review evidence before PR-ready status.
+- Integrate CI diagnostics and preserve approval gates for destructive/high-risk operations.
 
 ## Verification Rules
 
