@@ -97,8 +97,8 @@ Overall program state: **IN DEVELOPMENT**
 - Added restart/resume tests proving completed work is not replayed, checkpoint/database disagreement fails closed, terminal missions cannot resume, cumulative budget exhaustion remains enforced across restart boundaries, and pause-boundary checkpoints contain trusted cursor/budget evidence.
 - Added full acceptance coverage using a real on-disk SQLite database: process 1 pauses and checkpoints; process 2 opens the same database with a fresh orchestrator; resume executes only the unfinished step; completed work is not replayed; final deterministic/security verification completes the mission.
 - FastAPI 0.141 nested included-router behavior was accounted for by verifying the public OpenAPI path contract rather than relying on private route object structure.
-- Exact acceptance head `8298b6b90137ba33ea74151871892a731b952051` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
-- PR #90 is ready for final exact-head verification and merge after this tracker-only completion commit.
+- Exact final head `e2b719cb8bbd68d5f18ac81d60251f420c654d79` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
+- PR #90 squash-merged from that exact verified head; merge commit `0a6821f8388a763c8ea360d068e70300a9b522b0`.
 
 ## Batch 6 Goals
 
@@ -107,6 +107,17 @@ Overall program state: **IN DEVELOPMENT**
 - Integrate first-party adapters for GitHub, Gmail, Outlook, Calendar, Drive, OneDrive, Discord, Slack, Reddit, SQL, DPN ECS, WatchTower, HR, Aqua Labs, SSH, and Windows where credentials/configuration are available.
 - Keep unavailable or unconfigured services fail-closed and never fabricate connector success.
 - Preserve project/user scope, approval boundaries, secrets isolation, and evidence provenance across connector operations.
+
+## Batch 6 Progress Evidence
+
+- Added `app/dpn_connector_protocol_v10.py` with typed connector lifecycle actions, health/risk states, capability/resource manifests, least-privilege authorization, configured/enabled gates, deterministic registry discovery, provider identity verification, and provenance-required successful evidence.
+- Destructive connector capabilities cannot be declared without explicit approval requirements; write actions cannot be mislabeled read-only.
+- Initial protocol foundation head `824b26ecc042f2ad043f149e4ad4073a9264329d` passed CI across Ubuntu/Windows Python 3.11/3.12, DPN Security Gate v2, and Runtime & Recovery Assurance.
+- Added `app/dpn_http_connector_adapter_v10.py` to translate persisted HTTP ConnectorHub records into protocol manifests and reuse the existing hardened ConnectorHub for actual HTTP execution rather than creating a second network path.
+- HTTP protocol manifests derive only capabilities supported by configured methods. GET/HEAD/OPTIONS yield read/search; POST yields create; PUT/PATCH yield update; DELETE yields delete. External writes and deletes are declared approval-required.
+- The HTTP adapter rejects action/method confusion before any network call, validates connector health through the existing base-URL/SSRF policy, requires provider/provenance evidence, and emits bounded metadata-only audit records without request bodies, headers, secret templates, or response bodies.
+- Added `tests/test_dpn_http_connector_adapter_v10.py` covering least-privilege capability derivation, secret-redacted catalog output, read execution through ConnectorHub, metadata-only auditing, disabled connector refusal, action/method confusion, and degraded failed-response evidence.
+- The protocol service intentionally exposes only read/search execution at this checkpoint. Write/destructive protocol actions remain unavailable until a trusted single-use approval-token bridge is integrated; callers cannot self-authorize by supplying a boolean.
 
 ## Verification Rules
 
