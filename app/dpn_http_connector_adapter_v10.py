@@ -102,8 +102,6 @@ class HTTPConnectorProtocolAdapter:
             "status_code": result.get("status_code"),
             "content_type": result.get("content_type"),
         }
-        # Never place request payloads, headers, secret templates, or response bodies
-        # into the audit log. The protocol audit contains only bounded metadata.
         self.db.audit(
             "connector.protocol_execution",
             f"DPN connector {request.action.value} via HTTP",
@@ -130,7 +128,6 @@ class HTTPConnectorProtocolAdapter:
 
 
 def http_manifest(connector: dict[str, Any]) -> ConnectorManifest:
-    """Translate a persisted ConnectorHub record into a fail-closed v10 manifest."""
     config = connector.get("config") or {}
     methods = {str(item).strip().upper() for item in config.get("allowed_methods", ["GET"]) if str(item).strip()}
     capabilities: list[ConnectorCapability] = [
@@ -146,29 +143,11 @@ def http_manifest(connector: dict[str, Any]) -> ConnectorManifest:
             ]
         )
     if methods & _CREATE_METHODS:
-        capabilities.append(
-            ConnectorCapability(
-                ConnectorAction.CREATE,
-                risk=ConnectorRisk.WRITE,
-                approval_required=True,
-            )
-        )
+        capabilities.append(ConnectorCapability(ConnectorAction.CREATE, risk=ConnectorRisk.WRITE, approval_required=True))
     if methods & _UPDATE_METHODS:
-        capabilities.append(
-            ConnectorCapability(
-                ConnectorAction.UPDATE,
-                risk=ConnectorRisk.WRITE,
-                approval_required=True,
-            )
-        )
+        capabilities.append(ConnectorCapability(ConnectorAction.UPDATE, risk=ConnectorRisk.WRITE, approval_required=True))
     if methods & _DELETE_METHODS:
-        capabilities.append(
-            ConnectorCapability(
-                ConnectorAction.DELETE,
-                risk=ConnectorRisk.DESTRUCTIVE,
-                approval_required=True,
-            )
-        )
+        capabilities.append(ConnectorCapability(ConnectorAction.DELETE, risk=ConnectorRisk.DESTRUCTIVE, approval_required=True))
     return ConnectorManifest(
         connector_id=str(connector.get("id") or ""),
         kind="http",
@@ -197,6 +176,19 @@ class HTTPConnectorProtocolService:
             manifest = http_manifest(connector)
             registry.register(manifest, HTTPConnectorProtocolAdapter(self.db, self.hub, manifest.connector_id))
         return registry
+
+    @staticmethod
+    def _render(evidence: ConnectorEvidence) -> dict[str, Any]:
+        return {
+            "ok": evidence.ok,
+            "connector_id": evidence.connector_id,
+            "action": evidence.action.value,
+            "resource": evidence.resource,
+            "health": evidence.health.value,
+            "result": evidence.result,
+            "error": evidence.error,
+            "provenance": evidence.provenance,
+        }
 
     def catalog(self) -> dict[str, Any]:
         manifests = self.registry().discover()
@@ -234,38 +226,51 @@ class HTTPConnectorProtocolService:
         *,
         search: bool = False,
     ) -> dict[str, Any]:
-        """Expose only read/search execution at this service boundary.
-
-        Write/destructive protocol actions exist in manifests but are intentionally not
-        exposed here. They require a trusted approval-token integration rather than a
-        caller-supplied boolean.
-        """
         action = ConnectorAction.SEARCH if search else ConnectorAction.READ
         request = ConnectorRequest(
             connector_id=connector_id,
             action=action,
+            payload={"method": "GET", "path": path, "params": params or {}, "timeout_seconds": timeout_seconds},
+        )
+        return self._render(await self.registry().execute(request))
+
+    async def approved_write(
+        self,
+        connector_id: str,
+        action: str,
+        path: str = "",
+        method: str = "",
+        params: dict[str, Any] | None = None,
+        json_body: Any = None,
+        timeout_seconds: int = 30,
+    ) -> dict[str, Any]:
+        """Execute a write after the core ApprovalSecurity boundary has released it.
+
+        This method is intentionally registered only as the ``dpn_connector_write``
+        tool. ToolPermissionRuntime forces that tool through ApprovalSecurity even
+        when autonomous/Always Allow policy would otherwise permit destructive work.
+        The approval record holds the exact encrypted arguments and execution is
+        single-use, so callers cannot self-authorize with a request boolean.
+        """
+        try:
+            parsed_action = ConnectorAction(str(action).strip().lower())
+        except ValueError as exc:
+            raise ConnectorProtocolError("connector write action must be create, update, or delete") from exc
+        if parsed_action not in {ConnectorAction.CREATE, ConnectorAction.UPDATE, ConnectorAction.DELETE}:
+            raise ConnectorProtocolError("connector write action must be create, update, or delete")
+        request = ConnectorRequest(
+            connector_id=connector_id,
+            action=parsed_action,
+            approval_granted=True,
             payload={
-                "method": "GET",
+                "method": str(method or "").strip().upper(),
                 "path": path,
                 "params": params or {},
+                "json_body": json_body,
                 "timeout_seconds": timeout_seconds,
             },
         )
-        evidence = await self.registry().execute(request)
-        return {
-            "ok": evidence.ok,
-            "connector_id": evidence.connector_id,
-            "action": evidence.action.value,
-            "resource": evidence.resource,
-            "health": evidence.health.value,
-            "result": evidence.result,
-            "error": evidence.error,
-            "provenance": evidence.provenance,
-        }
+        return self._render(await self.registry().execute(request))
 
 
-__all__ = [
-    "HTTPConnectorProtocolAdapter",
-    "HTTPConnectorProtocolService",
-    "http_manifest",
-]
+__all__ = ["HTTPConnectorProtocolAdapter", "HTTPConnectorProtocolService", "http_manifest"]
