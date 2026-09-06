@@ -1,16 +1,132 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, HTTPException
 
-from app.long_horizon_mission_runtime_v10 import LongHorizonMissionError, LongHorizonMissionRuntime
+from app.long_horizon_mission_runtime_v10 import (
+    LongHorizonMissionError,
+    LongHorizonMissionRuntime,
+    MissionBudgetSnapshot,
+    MissionCheckpointState,
+    MissionCursor,
+    MissionLifecycle,
+)
 from app.mission_resume_coordinator_v10 import MissionResumeCoordinator, MissionResumeError
 
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 MOUNT_STATE_KEY = "dpn_v10_mission_control_mounted"
+PAUSE_BOUNDARY_KEY = "_dpn_v10_pause_boundary_installed"
+
+
+class MissionPauseSignal(asyncio.CancelledError):
+    """Cooperative stop raised only at a verified boundary before step side effects."""
+
+
+def _mission_elapsed_seconds(mission: dict[str, Any]) -> int:
+    raw = str(mission.get("created_at") or "").strip()
+    if not raw:
+        return 0
+    try:
+        created = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        return max(0, int((datetime.now(timezone.utc) - created.astimezone(timezone.utc)).total_seconds()))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _persist_pause_boundary(db: Any, mission_id: str, next_step_id: str) -> dict[str, Any]:
+    mission = db.get_mission(mission_id)
+    if not mission:
+        raise MissionPauseSignal("mission disappeared before cooperative pause boundary")
+    steps = db.list_mission_steps(mission_id)
+    completed = tuple(str(step["id"]) for step in steps if step.get("status") == "completed")
+    failed = tuple(str(step["id"]) for step in steps if step.get("status") == "failed")
+    tool_calls = sum(
+        max(0, int((step.get("result") or {}).get("tool_count") or 0))
+        for step in steps
+        if step.get("status") == "completed"
+    )
+    budget = mission.get("budget") or {}
+    max_seconds = max(1, int(budget.get("max_seconds") or 86400))
+    max_tool_calls = max(1, int(budget.get("max_tool_calls") or 10000))
+    previous = LongHorizonMissionRuntime(db).latest_verified(mission_id)
+    revision = int(previous[1].revision) + 1 if previous else 1
+    state = MissionCheckpointState(
+        schema_version=1,
+        lifecycle=MissionLifecycle.PAUSED,
+        cursor=MissionCursor(
+            mission_id=mission_id,
+            next_step_id=next_step_id,
+            completed_step_ids=completed,
+            failed_step_ids=failed,
+            attempt=sum(max(0, int(step.get("attempts") or 0)) for step in steps),
+        ),
+        budget=MissionBudgetSnapshot(
+            elapsed_seconds=_mission_elapsed_seconds(mission),
+            tool_calls_used=tool_calls,
+            max_seconds=max_seconds,
+            max_tool_calls=max_tool_calls,
+        ),
+        evidence_ids=tuple(
+            str((step.get("result") or {}).get("run_id"))
+            for step in steps
+            if step.get("status") == "completed" and str((step.get("result") or {}).get("run_id") or "").strip()
+        ),
+        artifact_refs=tuple(
+            dict.fromkeys(
+                str(path)
+                for step in steps
+                if step.get("status") == "completed"
+                for path in ((step.get("result") or {}).get("generated_files") or [])
+                if str(path).strip()
+            )
+        ),
+        reason="operator pause honored at safe pre-step execution boundary",
+        revision=revision,
+    )
+    return LongHorizonMissionRuntime(db).checkpoint(state, step_id=next_step_id)
+
+
+def install_cooperative_pause_boundary(orchestrator: Any) -> bool:
+    """Wrap the existing step executor so persisted pause state is honored safely.
+
+    The guard runs after the orchestrator marks the step active but before its agent/tool
+    execution begins. MissionPauseSignal inherits from asyncio.CancelledError rather than
+    Exception, so the mature retry/failure loop does not misclassify an operator pause as
+    a failed step. A verified v10 checkpoint is persisted first for restart recovery.
+    """
+    if bool(getattr(orchestrator, PAUSE_BOUNDARY_KEY, False)):
+        return False
+    original = getattr(orchestrator, "_execute_step", None)
+    db = getattr(orchestrator, "db", None)
+    if not callable(original) or db is None:
+        raise RuntimeError("orchestrator does not expose the required cooperative pause contract")
+
+    async def guarded_execute_step(mission_id: str, *args: Any, **kwargs: Any):
+        mission = db.get_mission(mission_id)
+        if mission and str(mission.get("status") or "") == "paused":
+            step = args[2] if len(args) >= 3 else kwargs.get("step")
+            step_id = str((step or {}).get("id") or "").strip()
+            if not step_id:
+                raise MissionPauseSignal("pause boundary could not identify the next mission step")
+            _persist_pause_boundary(db, mission_id, step_id)
+            db.audit(
+                "mission.pause_boundary",
+                f"Mission {mission_id} stopped at a safe execution boundary",
+                {"mission_id": mission_id, "next_step_id": step_id},
+            )
+            raise MissionPauseSignal(f"mission paused before step {step_id}")
+        return await original(mission_id, *args, **kwargs)
+
+    setattr(orchestrator, "_execute_step", guarded_execute_step)
+    setattr(orchestrator, PAUSE_BOUNDARY_KEY, True)
+    return True
 
 
 class MissionControlAPI:
@@ -134,6 +250,7 @@ def create_mission_control_router(db: Any, orchestrator: Any) -> APIRouter:
 
 def mount_mission_control_router(app: FastAPI, db: Any, orchestrator: Any) -> bool:
     """Mount v10 mission controls exactly once on the live FastAPI application."""
+    install_cooperative_pause_boundary(orchestrator)
     if bool(getattr(app.state, MOUNT_STATE_KEY, False)):
         return False
     app.include_router(create_mission_control_router(db, orchestrator))
@@ -141,4 +258,10 @@ def mount_mission_control_router(app: FastAPI, db: Any, orchestrator: Any) -> bo
     return True
 
 
-__all__ = ["MissionControlAPI", "create_mission_control_router", "mount_mission_control_router"]
+__all__ = [
+    "MissionControlAPI",
+    "MissionPauseSignal",
+    "create_mission_control_router",
+    "install_cooperative_pause_boundary",
+    "mount_mission_control_router",
+]
