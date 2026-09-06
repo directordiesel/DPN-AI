@@ -31,6 +31,14 @@ def register(registry) -> None:
         risk="read",
     )
     registry.register(
+        name="dpn_connector_ecosystem_readiness",
+        description="Return deterministic fail-closed connector operational readiness evidence derived from manifests and health only. No credentials are decrypted and no connector actions are executed.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=ecosystem.readiness,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
         name="dpn_connector_sql_catalog",
         description="Describe the local DPN SQLite connector and its explicit operational-table allowlist. Raw SQL is never accepted.",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
