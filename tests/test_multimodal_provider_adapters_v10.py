@@ -47,34 +47,33 @@ def asset(modality: Modality, source_ref: str = "uploads/test.bin") -> Multimoda
     return MultimodalAsset(asset_id="a1", modality=modality, source_ref=source_ref)
 
 
-@pytest.mark.asyncio
-async def test_vision_adapter_preserves_actual_backend_identity():
+def test_vision_adapter_preserves_actual_backend_identity():
     runner = ConfigurableVisionRunnerAdapter(FakeVisionProvider())
-    result = await runner(asset(Modality.IMAGE, "uploads/image.png"), "inspect image", "vision-model")
+    result = asyncio.run(runner(asset(Modality.IMAGE, "uploads/image.png"), "inspect image", "vision-model"))
     assert result["ok"] is True
     assert result["provider"] == "vision-gateway"
     assert result["model"] == "vision-model"
     assert "uploads/image.png" in result["analysis"]
 
 
-@pytest.mark.asyncio
-async def test_vision_adapter_fails_closed_when_provenance_is_missing():
+def test_vision_adapter_fails_closed_when_provenance_is_missing():
     class BadProvider:
         async def analyze(self, **kwargs):
             return {"ok": True, "analysis": "looks fine"}
 
-    result = await ConfigurableVisionRunnerAdapter(BadProvider())(
-        asset(Modality.IMAGE, "uploads/image.png"), "inspect", "vision-model"
+    result = asyncio.run(
+        ConfigurableVisionRunnerAdapter(BadProvider())(
+            asset(Modality.IMAGE, "uploads/image.png"), "inspect", "vision-model"
+        )
     )
     assert result["ok"] is False
     assert "provenance" in result["error"]
 
 
-@pytest.mark.asyncio
-async def test_whisper_adapter_maps_voice_adapter_to_coordinator_contract():
+def test_whisper_adapter_maps_voice_adapter_to_coordinator_contract():
     voice = FakeVoiceAdapter()
     runner = FasterWhisperRunnerAdapter(voice, language="en", device="cpu", compute_type="int8")
-    result = await runner(asset(Modality.AUDIO, "uploads/voice/test.wav"), "base")
+    result = asyncio.run(runner(asset(Modality.AUDIO, "uploads/voice/test.wav"), "base"))
     assert result["ok"] is True
     assert result["provider"] == "faster-whisper"
     assert result["model"] == "base"
@@ -83,18 +82,16 @@ async def test_whisper_adapter_maps_voice_adapter_to_coordinator_contract():
     assert voice.calls == [("uploads/voice/test.wav", "base", "en", None, "cpu", "int8")]
 
 
-@pytest.mark.asyncio
-async def test_whisper_adapter_rejects_model_provenance_omission():
+def test_whisper_adapter_rejects_model_provenance_omission():
     voice = FakeVoiceAdapter({"ok": True, "text": "hello", "model": ""})
-    result = await FasterWhisperRunnerAdapter(voice)(asset(Modality.AUDIO, "audio.wav"), "base")
+    result = asyncio.run(FasterWhisperRunnerAdapter(voice)(asset(Modality.AUDIO, "audio.wav"), "base"))
     assert result["ok"] is False
     assert "model provenance" in result["error"]
 
 
-@pytest.mark.asyncio
-async def test_whisper_adapter_rejects_invalid_probability():
+def test_whisper_adapter_rejects_invalid_probability():
     voice = FakeVoiceAdapter({"ok": True, "text": "hello", "model": "base", "probability": 4.2})
-    result = await FasterWhisperRunnerAdapter(voice)(asset(Modality.AUDIO, "audio.wav"), "base")
+    result = asyncio.run(FasterWhisperRunnerAdapter(voice)(asset(Modality.AUDIO, "audio.wav"), "base"))
     assert result["ok"] is False
     assert "between 0 and 1" in result["error"]
 
