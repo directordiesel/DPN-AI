@@ -153,7 +153,14 @@ class DPNConnectorEcosystemService:
                 reasons.append("not_configured")
             if not manifest.enabled:
                 reasons.append("disabled")
-            if health not in {ConnectorHealth.HEALTHY.value, ConnectorHealth.DEGRADED.value}:
+            # A disabled connector is intentionally administratively blocked, not
+            # independently unhealthy. Only enabled connectors receive transport-health
+            # failure evidence; this keeps readiness reasons non-redundant while still
+            # failing closed for enabled/unconfigured or otherwise unavailable entries.
+            if manifest.enabled and health not in {
+                ConnectorHealth.HEALTHY.value,
+                ConnectorHealth.DEGRADED.value,
+            }:
                 reasons.append("unhealthy")
 
             approval_actions = sorted(
