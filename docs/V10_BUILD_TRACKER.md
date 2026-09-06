@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 3 — Computer & Browser Agent**
+Current active batch: **Batch 4 — Unified Multimodal Intelligence**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -20,8 +20,8 @@ Overall program state: **IN DEVELOPMENT**
 
 1. ✅ Model Intelligence Engine + Benchmark Laboratory
 2. ✅ Autonomous Coding Runtime
-3. 🟣 Computer & Browser Agent
-4. ⏳ Unified Multimodal Intelligence
+3. ✅ Computer & Browser Agent
+4. 🟣 Unified Multimodal Intelligence
 5. ⏳ Long-Horizon Mission Runtime
 6. ⏳ DPN Connector Protocol + Connector Ecosystem
 7. ⏳ Deep Research Engine
@@ -57,15 +57,27 @@ Overall program state: **IN DEVELOPMENT**
 - Runtime & Recovery Assurance passed.
 - PR #87 merged from exact verified head `385d750fc229b76fdb9ea6cd8ccfe5426ddbb443`; squash merge commit `47312f3b11cace3e6b35f0757e32d72847054364`.
 
-## Batch 3 Goals
+## Batch 3 Completion Evidence
 
-- Build a governed computer/browser observe → understand → decide → act → verify → correct loop.
-- Represent browser, desktop, window, URL, element, form-value, enabled/visible/checked, and action-receipt evidence explicitly.
-- Require unique UI targets and fresh post-action observations before claiming success.
-- Add bounded retry/recovery behavior when UI actions do not produce expected state changes.
-- Preserve approval requirements for destructive, security-sensitive, or otherwise high-risk actions.
-- Add browser/desktop driver interfaces without fabricating platform execution evidence.
-- Expand toward real platform integrations only behind capability, policy, and evidence boundaries.
+- Governed computer/browser observe → act → verify → correct runtime implemented.
+- Typed browser/desktop observations, UI targets, action risks, driver sessions, verification expectations, platform capability/health policy gates, execution receipts, and bounded recovery are integrated.
+- Accepted actions require concrete fresh post-action evidence before success can be claimed.
+- Acceptance testing found and fixed an action-receipt ordering defect before merge.
+- CI passed on Ubuntu and Windows with Python 3.11 and 3.12.
+- DPN Security Gate v2 passed.
+- Runtime & Recovery Assurance passed.
+- PR #88 merged from exact verified head `f7079b0b5fba04ac1447b6a0b92d3fb7c6192196`; squash merge commit `279f739379aaf7c4eb12da6cf3da29d002f2ba3c`.
+
+## Batch 4 Goals
+
+- Normalize text, images, screenshots, PDFs, documents, spreadsheets, presentations, code, audio, video, and transcripts as first-class multimodal assets.
+- Reuse existing native extraction and configured vision/provider foundations rather than duplicate provider implementations.
+- Route only to configured healthy providers that satisfy every required modality capability; never silently degrade visual/audio/video work to text-only reasoning.
+- Preserve source, page, frame, timestamp, file, provider, model, and confidence provenance.
+- Prefer native document text/structure before page-image reasoning and keep OCR as a bounded fallback.
+- Require actual visual evidence for visual claims and actual transcription/audio evidence for audio claims.
+- Fuse evidence across modalities while preserving asset-level provenance and uncertainty.
+- Add cross-check and completion gates so multimodal missions cannot claim success from incomplete or fabricated evidence.
 
 ## Verification Rules
 
