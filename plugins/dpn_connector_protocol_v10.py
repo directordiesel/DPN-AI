@@ -39,6 +39,14 @@ def register(registry) -> None:
         risk="read",
     )
     registry.register(
+        name="dpn_connector_ecosystem_release_evidence",
+        description="Return deterministic connector release evidence. Fails the contract gate if any create/update/delete capability lacks explicit approval protection; executes no connector actions and decrypts no credentials.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=ecosystem.release_evidence,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
         name="dpn_connector_sql_catalog",
         description="Describe the local DPN SQLite connector and its explicit operational-table allowlist. Raw SQL is never accepted.",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
