@@ -162,7 +162,7 @@ def test_approved_write_rejects_action_method_confusion_before_network():
     assert hub.calls == []
 
 
-def test_protocol_plugin_registers_governed_http_and_mcp_tools():
+def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     registered = {}
 
     class _Registry:
@@ -182,6 +182,8 @@ def test_protocol_plugin_registers_governed_http_and_mcp_tools():
     register(_Registry())
 
     assert set(registered) == {
+        "dpn_connector_ecosystem_catalog",
+        "dpn_connector_ecosystem_health",
         "dpn_connector_catalog",
         "dpn_connector_read",
         "dpn_connector_write",
@@ -189,6 +191,10 @@ def test_protocol_plugin_registers_governed_http_and_mcp_tools():
         "dpn_connector_mcp_discover",
         "dpn_connector_mcp_call",
     }
+    assert registered["dpn_connector_ecosystem_catalog"].gate == "connectors"
+    assert registered["dpn_connector_ecosystem_catalog"].risk == "read"
+    assert registered["dpn_connector_ecosystem_health"].gate == "connectors"
+    assert registered["dpn_connector_ecosystem_health"].risk == "read"
     assert registered["dpn_connector_write"].gate == "connectors"
     assert registered["dpn_connector_write"].risk == "destructive"
     assert registered["dpn_connector_write"].parameters["properties"]["action"]["enum"] == [
