@@ -6,6 +6,7 @@ from typing import Any
 from app.dpn_connector_protocol_v10 import ConnectorAction, ConnectorHealth, ConnectorManifest, ConnectorProtocolError
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
+from app.dpn_native_connectors_v10 import DPNNativeConnectorService
 from app.dpn_sql_connector_v10 import SQLiteConnectorProtocolService
 
 
@@ -24,15 +25,19 @@ class DPNConnectorEcosystemService:
         http_service: HTTPConnectorProtocolService,
         mcp_service: MCPConnectorProtocolService,
         sql_service: SQLiteConnectorProtocolService | None = None,
+        native_service: DPNNativeConnectorService | None = None,
     ) -> None:
         self.http_service = http_service
         self.mcp_service = mcp_service
         self.sql_service = sql_service
+        self.native_service = native_service
 
     def _registries(self):
         registries = [self.http_service.registry(), self.mcp_service.registry()]
         if self.sql_service is not None:
             registries.append(self.sql_service.registry())
+        if self.native_service is not None:
+            registries.append(self.native_service.registry())
         return tuple(registries)
 
     def manifests(self) -> list[ConnectorManifest]:
@@ -128,13 +133,7 @@ class DPNConnectorEcosystemService:
         }
 
     async def readiness(self) -> dict[str, Any]:
-        """Return deterministic fail-closed operational readiness evidence.
-
-        This report is intentionally derived from manifests plus connector health only.
-        It does not execute connector actions, decrypt credentials, or include provider
-        response bodies. A connector is ready only when it is configured, enabled, and
-        healthy/degraded according to its transport adapter.
-        """
+        """Return deterministic fail-closed operational readiness evidence."""
         manifests = self.manifests()
         health_snapshot = await self.health()
         health_by_id = {
@@ -153,10 +152,6 @@ class DPNConnectorEcosystemService:
                 reasons.append("not_configured")
             if not manifest.enabled:
                 reasons.append("disabled")
-            # A disabled connector is intentionally administratively blocked, not
-            # independently unhealthy. Only enabled connectors receive transport-health
-            # failure evidence; this keeps readiness reasons non-redundant while still
-            # failing closed for enabled/unconfigured or otherwise unavailable entries.
             if manifest.enabled and health not in {
                 ConnectorHealth.HEALTHY.value,
                 ConnectorHealth.DEGRADED.value,
@@ -200,13 +195,7 @@ class DPNConnectorEcosystemService:
         }
 
     async def release_evidence(self) -> dict[str, Any]:
-        """Produce deterministic connector contract and operational release evidence.
-
-        The release gate is intentionally stricter than a health snapshot. Any manifest
-        that advertises create/update/delete without explicit approval is a contract
-        violation and makes the connector batch ineligible for release. This method does
-        not execute connector actions, decrypt credentials, or include provider payloads.
-        """
+        """Produce deterministic connector contract and operational release evidence."""
         manifests = self.manifests()
         readiness = await self.readiness()
         mutation_actions = {
