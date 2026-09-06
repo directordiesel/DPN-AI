@@ -127,5 +127,70 @@ class DPNConnectorEcosystemService:
             "connectors": entries,
         }
 
+    async def readiness(self) -> dict[str, Any]:
+        """Return deterministic fail-closed operational readiness evidence.
+
+        This report is intentionally derived from manifests plus connector health only.
+        It does not execute connector actions, decrypt credentials, or include provider
+        response bodies. A connector is ready only when it is configured, enabled, and
+        healthy/degraded according to its transport adapter.
+        """
+        manifests = self.manifests()
+        health_snapshot = await self.health()
+        health_by_id = {
+            item["connector_id"]: item["health"] for item in health_snapshot["connectors"]
+        }
+
+        entries: list[dict[str, Any]] = []
+        ready_count = 0
+        approval_capability_count = 0
+        blocked_reasons: Counter[str] = Counter()
+
+        for manifest in manifests:
+            health = health_by_id.get(manifest.connector_id, ConnectorHealth.UNAVAILABLE.value)
+            reasons: list[str] = []
+            if not manifest.configured:
+                reasons.append("not_configured")
+            if not manifest.enabled:
+                reasons.append("disabled")
+            if health not in {ConnectorHealth.HEALTHY.value, ConnectorHealth.DEGRADED.value}:
+                reasons.append("unhealthy")
+
+            approval_actions = sorted(
+                capability.action.value
+                for capability in manifest.capabilities
+                if capability.approval_required
+            )
+            approval_capability_count += len(approval_actions)
+            ready = not reasons
+            ready_count += int(ready)
+            for reason in reasons:
+                blocked_reasons[reason] += 1
+
+            entries.append(
+                {
+                    "connector_id": manifest.connector_id,
+                    "kind": manifest.kind,
+                    "ready": ready,
+                    "health": health,
+                    "approval_required_actions": approval_actions,
+                    "blocked_reasons": reasons,
+                }
+            )
+
+        entries.sort(key=lambda item: (item["kind"], item["connector_id"]))
+        connector_count = len(entries)
+        return {
+            "ok": True,
+            "protocol": self.PROTOCOL,
+            "ready": connector_count > 0 and ready_count == connector_count,
+            "connector_count": connector_count,
+            "ready_count": ready_count,
+            "blocked_count": connector_count - ready_count,
+            "approval_required_capability_count": approval_capability_count,
+            "blocked_reasons": dict(sorted(blocked_reasons.items())),
+            "connectors": entries,
+        }
+
 
 __all__ = ["DPNConnectorEcosystemService"]
