@@ -43,6 +43,10 @@ class _FakeHub:
     def _validate_base_url(self, base_url):
         return (base_url.startswith("https://"), "")
 
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"ok": True, "connector": {"id": "profile-1", "enabled": kwargs.get("enabled", False)}}
+
     async def request(self, connector_id, **kwargs):
         self.calls.append((connector_id, kwargs))
         return {
@@ -71,6 +75,21 @@ def test_connector_write_is_human_approval_gated_even_in_autonomous_mode():
         gate="connectors",
         permissions=_permissions("autonomous"),
         arguments={"connector_id": "http-write-1", "action": "delete"},
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is True
+    assert result.decision.source == "connector_write_boundary"
+
+
+def test_connector_profile_install_is_human_approval_gated_even_in_autonomous_mode():
+    runtime = ToolPermissionRuntime()
+    result = runtime.authorize(
+        tool_name="dpn_connector_profile_install",
+        declared_risk="destructive",
+        gate="connectors",
+        permissions=_permissions("autonomous"),
+        arguments={"profile_id": "github"},
     )
 
     assert result.allowed is False
@@ -184,6 +203,8 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert set(registered) == {
         "dpn_connector_ecosystem_catalog",
         "dpn_connector_ecosystem_health",
+        "dpn_connector_profile_catalog",
+        "dpn_connector_profile_install",
         "dpn_connector_catalog",
         "dpn_connector_read",
         "dpn_connector_write",
@@ -195,6 +216,10 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert registered["dpn_connector_ecosystem_catalog"].risk == "read"
     assert registered["dpn_connector_ecosystem_health"].gate == "connectors"
     assert registered["dpn_connector_ecosystem_health"].risk == "read"
+    assert registered["dpn_connector_profile_catalog"].risk == "read"
+    assert registered["dpn_connector_profile_install"].gate == "connectors"
+    assert registered["dpn_connector_profile_install"].risk == "destructive"
+    assert "approval" in registered["dpn_connector_profile_install"].description.lower()
     assert registered["dpn_connector_write"].gate == "connectors"
     assert registered["dpn_connector_write"].risk == "destructive"
     assert registered["dpn_connector_write"].parameters["properties"]["action"]["enum"] == [
