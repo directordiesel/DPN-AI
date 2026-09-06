@@ -12,6 +12,7 @@ from app.dpn_connector_protocol_v10 import (
     ConnectorProtocolError,
     ConnectorRequest,
     ConnectorRisk,
+    DPNConnectorRegistry,
 )
 from app.mcp_bridge import MCPBridge
 
@@ -169,7 +170,7 @@ class MCPConnectorProtocolAdapter:
 
 
 class MCPConnectorProtocolService:
-    """Discovers MCP server configurations as protocol manifests without starting them."""
+    """Exposes configured MCP servers through the governed v10 connector contract."""
 
     def __init__(self, bridge: MCPBridge) -> None:
         self.bridge = bridge
@@ -185,8 +186,76 @@ class MCPConnectorProtocolService:
                 adapters.append(MCPConnectorProtocolAdapter(self.bridge, str(server["id"])))
         return sorted(adapters, key=lambda item: item.connector_id)
 
+    def registry(self) -> DPNConnectorRegistry:
+        registry = DPNConnectorRegistry()
+        for adapter in self.adapters():
+            registry.register(adapter.manifest(), adapter)
+        return registry
+
     def manifests(self) -> list[ConnectorManifest]:
-        return [adapter.manifest() for adapter in self.adapters()]
+        return self.registry().discover()
+
+    @staticmethod
+    def _render(evidence: ConnectorEvidence) -> dict[str, Any]:
+        return {
+            "ok": evidence.ok,
+            "connector_id": evidence.connector_id,
+            "action": evidence.action.value,
+            "resource": evidence.resource,
+            "health": evidence.health.value,
+            "result": evidence.result,
+            "error": evidence.error,
+            "provenance": evidence.provenance,
+        }
+
+    def catalog(self) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "protocol": "dpn-connector-v1",
+            "connectors": [
+                {
+                    "connector_id": item.connector_id,
+                    "kind": item.kind,
+                    "display_name": item.display_name,
+                    "configured": item.configured,
+                    "enabled": item.enabled,
+                    "local": item.local,
+                    "metadata": item.metadata,
+                    "capabilities": [
+                        {
+                            "action": cap.action.value,
+                            "resource": cap.resource,
+                            "risk": cap.risk.value,
+                            "approval_required": cap.approval_required,
+                        }
+                        for cap in item.capabilities
+                    ],
+                }
+                for item in self.manifests()
+            ],
+        }
+
+    async def discover(self, connector_id: str) -> dict[str, Any]:
+        request = ConnectorRequest(
+            connector_id=connector_id,
+            action=ConnectorAction.DISCOVER,
+            resource="tools",
+        )
+        return self._render(await self.registry().execute(request))
+
+    async def approved_call(self, connector_id: str, tool_name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Execute an MCP tool only after ApprovalSecurity releases this tool call."""
+        clean_name = str(tool_name or "").strip()
+        if not clean_name:
+            raise ConnectorProtocolError("MCP tool name is required")
+        request = ConnectorRequest(
+            connector_id=connector_id,
+            action=ConnectorAction.UPDATE,
+            resource=f"tool:{clean_name}",
+            payload={"arguments": arguments or {}},
+            approval_granted=True,
+        )
+        return self._render(await self.registry().execute(request))
 
 
 __all__ = ["MCPConnectorBinding", "MCPConnectorProtocolAdapter", "MCPConnectorProtocolService"]
