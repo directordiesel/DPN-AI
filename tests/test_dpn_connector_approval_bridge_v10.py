@@ -210,6 +210,7 @@ def test_protocol_plugin_registers_governed_http_mcp_sql_and_ecosystem_tools():
         "dpn_connector_ecosystem_catalog",
         "dpn_connector_ecosystem_health",
         "dpn_connector_ecosystem_readiness",
+        "dpn_connector_ecosystem_release_evidence",
         "dpn_connector_sql_catalog",
         "dpn_connector_sql_read",
         "dpn_connector_profile_catalog",
@@ -230,6 +231,9 @@ def test_protocol_plugin_registers_governed_http_mcp_sql_and_ecosystem_tools():
     assert registered["dpn_connector_ecosystem_readiness"].gate == "connectors"
     assert registered["dpn_connector_ecosystem_readiness"].risk == "read"
     assert "no credentials" in registered["dpn_connector_ecosystem_readiness"].description.lower()
+    assert registered["dpn_connector_ecosystem_release_evidence"].gate == "connectors"
+    assert registered["dpn_connector_ecosystem_release_evidence"].risk == "read"
+    assert "explicit approval" in registered["dpn_connector_ecosystem_release_evidence"].description.lower()
     assert registered["dpn_connector_sql_catalog"].gate == "connectors"
     assert registered["dpn_connector_sql_catalog"].risk == "read"
     assert registered["dpn_connector_sql_read"].gate == "connectors"
