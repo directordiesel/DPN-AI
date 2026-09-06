@@ -4,12 +4,14 @@ from app.dpn_connector_ecosystem_v10 import DPNConnectorEcosystemService
 from app.dpn_first_party_connectors_v10 import FirstPartyConnectorService
 from app.dpn_http_connector_adapter_v10 import HTTPConnectorProtocolService
 from app.dpn_mcp_connector_adapter_v10 import MCPConnectorProtocolService
+from app.dpn_sql_connector_v10 import SQLiteConnectorProtocolService
 
 
 def register(registry) -> None:
     service = HTTPConnectorProtocolService(registry.db, registry.connectors)
     mcp_service = MCPConnectorProtocolService(registry.mcp)
-    ecosystem = DPNConnectorEcosystemService(service, mcp_service)
+    sql_service = SQLiteConnectorProtocolService(registry.db)
+    ecosystem = DPNConnectorEcosystemService(service, mcp_service, sql_service)
     first_party = FirstPartyConnectorService(registry.connectors, registry.vault)
 
     registry.register(
@@ -25,6 +27,38 @@ def register(registry) -> None:
         description="Return fail-closed health/readiness for all configured DPN Connector Protocol transports without executing external mutations.",
         parameters={"type": "object", "properties": {}, "additionalProperties": False},
         function=ecosystem.health,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_sql_catalog",
+        description="Describe the local DPN SQLite connector and its explicit operational-table allowlist. Raw SQL is never accepted.",
+        parameters={"type": "object", "properties": {}, "additionalProperties": False},
+        function=sql_service.catalog,
+        gate="connectors",
+        risk="read",
+    )
+    registry.register(
+        name="dpn_connector_sql_read",
+        description="Read allow-listed DPN operational SQLite tables through a parameterized read-only connector. Raw SQL, writes, DDL and arbitrary identifiers are refused.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "table": {
+                    "type": "string",
+                    "enum": ["audit_events", "automations", "operation_runs", "project_tasks", "projects"],
+                },
+                "columns": {"type": ["array", "null"], "items": {"type": "string"}, "default": None, "maxItems": 50},
+                "filters": {"type": ["object", "null"], "default": None, "maxProperties": 20},
+                "order_by": {"type": "string", "default": ""},
+                "order_direction": {"type": "string", "enum": ["ASC", "DESC"], "default": "ASC"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100},
+                "search": {"type": "boolean", "default": False},
+            },
+            "required": ["table"],
+            "additionalProperties": False,
+        },
+        function=sql_service.read,
         gate="connectors",
         risk="read",
     )
