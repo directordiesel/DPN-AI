@@ -100,6 +100,11 @@ Overall program state: **IN DEVELOPMENT**
 - Latest verified checkpoint selection skips corrupt newer records and falls back only to a valid older checkpoint.
 - Resume decisions distinguish resume, repair, replan, and stop; terminal missions, exhausted budgets, and unresolved approvals fail closed.
 - Added unit coverage for checkpoint round-trip integrity, tampering, unknown step references, corrupt-newer fallback, approval blocking, repair routing, budget exhaustion, terminal missions, and missing checkpoints.
+- Added `app/mission_resume_coordinator_v10.py` to execute the unfinished portion of an existing mission through the current `MissionOrchestrator._execute_step` and reviewer contracts instead of creating a duplicate tool/provider execution path.
+- Resume execution cross-checks checkpoint-completed steps against live database state before trusting them, preserves cumulative elapsed/tool-call budgets, skips already-completed steps, validates dependency completion, performs bounded retries, and advances the integrity-protected cursor after each resumed step.
+- Final resumed completion requires deterministic evidence verification plus an independent security review; failed verification remains blocked instead of being mislabeled complete.
+- Added restart/resume tests proving completed work is not replayed, checkpoint/database disagreement fails closed, terminal missions cannot resume, and cumulative budget exhaustion remains enforced across restart boundaries.
+- PR #90 remains draft until Mission API resume controls, current exact-head CI/security/runtime gates, and end-to-end pause/restart/resume acceptance are complete.
 
 ## Verification Rules
 
