@@ -211,6 +211,7 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
         "dpn_connector_ecosystem_health",
         "dpn_connector_profile_catalog",
         "dpn_connector_profile_readiness",
+        "dpn_connector_profile_probe",
         "dpn_connector_profile_install",
         "dpn_connector_catalog",
         "dpn_connector_read",
@@ -226,6 +227,9 @@ def test_protocol_plugin_registers_governed_http_mcp_and_ecosystem_tools():
     assert registered["dpn_connector_profile_catalog"].risk == "read"
     assert registered["dpn_connector_profile_readiness"].gate == "connectors"
     assert registered["dpn_connector_profile_readiness"].risk == "read"
+    assert registered["dpn_connector_profile_probe"].gate == "connectors"
+    assert registered["dpn_connector_profile_probe"].risk == "external"
+    assert registered["dpn_connector_profile_probe"].parameters["properties"]["timeout_seconds"]["maximum"] == 15
     assert registered["dpn_connector_profile_install"].gate == "connectors"
     assert registered["dpn_connector_profile_install"].risk == "destructive"
     assert "approval" in registered["dpn_connector_profile_install"].description.lower()
