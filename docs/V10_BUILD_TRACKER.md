@@ -12,15 +12,15 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 2 — Autonomous Coding Runtime**
+Current active batch: **Batch 3 — Computer & Browser Agent**
 
 Overall program state: **IN DEVELOPMENT**
 
 ## Batches
 
 1. ✅ Model Intelligence Engine + Benchmark Laboratory
-2. 🟣 Autonomous Coding Runtime
-3. ⏳ Computer & Browser Agent
+2. ✅ Autonomous Coding Runtime
+3. 🟣 Computer & Browser Agent
 4. ⏳ Unified Multimodal Intelligence
 5. ⏳ Long-Horizon Mission Runtime
 6. ⏳ DPN Connector Protocol + Connector Ecosystem
@@ -46,14 +46,26 @@ Overall program state: **IN DEVELOPMENT**
 - Runtime & Recovery Assurance passed.
 - PR #86 merged from the exact tested head.
 
-## Batch 2 Goals
+## Batch 2 Completion Evidence
 
-- Build a durable coding mission state machine: inspect → plan → isolate → edit → validate → diagnose → repair → review → CI → ready.
-- Record repository evidence and exact validation results for each stage.
-- Enforce bounded repair loops and fail closed on exhausted attempts.
-- Track affected files/tests and prevent unsupported claims of completion.
-- Require security/review evidence before PR-ready status.
-- Integrate CI diagnostics and preserve approval gates for destructive/high-risk operations.
+- Autonomous coding mission state machine implemented: inspect → plan → isolate → edit → validate → diagnose → repair → review → CI → ready.
+- Repository mapping, change impact, affected-test selection, diff risk, structured change planning, failure diagnosis, bounded repair routing, CI analysis, and end-to-end coordination implemented.
+- Full validation, review, security, and CI evidence are required before PR-ready status.
+- High-risk and security-sensitive repairs preserve approval boundaries and fail closed when evidence is insufficient.
+- CI passed across Ubuntu and Windows on Python 3.11 and 3.12.
+- DPN Security Gate v2 passed.
+- Runtime & Recovery Assurance passed.
+- PR #87 merged from exact verified head `385d750fc229b76fdb9ea6cd8ccfe5426ddbb443`; squash merge commit `47312f3b11cace3e6b35f0757e32d72847054364`.
+
+## Batch 3 Goals
+
+- Build a governed computer/browser observe → understand → decide → act → verify → correct loop.
+- Represent browser, desktop, window, URL, element, form-value, enabled/visible/checked, and action-receipt evidence explicitly.
+- Require unique UI targets and fresh post-action observations before claiming success.
+- Add bounded retry/recovery behavior when UI actions do not produce expected state changes.
+- Preserve approval requirements for destructive, security-sensitive, or otherwise high-risk actions.
+- Add browser/desktop driver interfaces without fabricating platform execution evidence.
+- Expand toward real platform integrations only behind capability, policy, and evidence boundaries.
 
 ## Verification Rules
 
