@@ -79,6 +79,17 @@ Overall program state: **IN DEVELOPMENT**
 - Fuse evidence across modalities while preserving asset-level provenance and uncertainty.
 - Add cross-check and completion gates so multimodal missions cannot claim success from incomplete or fabricated evidence.
 
+## Batch 4 Progress Evidence
+
+- Unified multimodal runtime contracts cover text, images, screenshots, PDF/document, spreadsheet, presentation, code, audio, video, and transcript assets.
+- Native-first extraction preserves file hash plus page/document/table/code provenance and inventories binary media without fabricating interpretation.
+- Fusion context preserves source/page/frame/timestamp evidence references and blocks verified completion when structured evidence conflicts remain unresolved.
+- Provider execution coordinator now routes required vision/transcription work, records provider-backed evidence, and feeds results through readiness plus fusion gates.
+- Provider execution is transactional: a later provider failure cannot leave partially committed provider evidence in the session.
+- Provider/model provenance must be explicitly reported by the backend and match the selected route; silent fallback is rejected.
+- Matching provider-backed evidence can be reused on repeat execution without generating duplicate evidence.
+- PR #89 remains draft until the exact final Batch 4 head passes CI, DPN Security Gate v2, and Runtime & Recovery Assurance.
+
 ## Verification Rules
 
 A batch is not complete merely because files exist. Completion requires relevant tests, evidence, documentation, and end-to-end integration. High-risk or destructive actions remain approval-gated. Stable v10.0.0 is not declared until all batches are integrated and production-readiness gates pass.
