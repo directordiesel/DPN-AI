@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import Any
 
 from app.db import Database, utc_now
@@ -64,7 +65,26 @@ class JobSupervisor:
                 added += 1
         return added
 
+    def _mount_v10_mission_control(self) -> bool:
+        """Attach v10 mission control routes to the live app during lifespan startup.
+
+        Importing app.main here would create a circular dependency, so the already
+        loaded module is read from sys.modules. FastAPI's lifespan starts only after
+        app.main has created the application object, making this a deterministic and
+        idempotent mount point.
+        """
+        main_module = sys.modules.get("app.main")
+        app = getattr(main_module, "app", None) if main_module is not None else None
+        if app is None:
+            return False
+        from app.mission_control_api_v10 import mount_mission_control_router
+
+        return mount_mission_control_router(app, self.db, self.orchestrator)
+
     async def start(self) -> None:
+        # The live FastAPI application exists before lifespan.start invokes us.
+        # Mount Batch 5 mission controls before workers can accept mission work.
+        self._mount_v10_mission_control()
         # start() may be called more than once by application lifecycle hooks.
         # Do not enqueue the persistent queue again while workers are alive.
         self.workers = [worker for worker in self.workers if not worker.done()]
