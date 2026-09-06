@@ -6,16 +6,18 @@ from app.benchmark_readiness_v10 import (
 from app.benchmark_laboratory_v10 import BenchmarkSummary
 
 
-def summary(model: str, family: str, success: float, quality: float, samples: int, latency: int | None = 500):
+def summary(model: str, family: str, success: float, quality: float, samples: int, latency: int = 500):
+    passed = round(success * samples)
     return BenchmarkSummary(
         model_name=model,
         task_family=family,
+        samples=samples,
+        passed=passed,
         success_rate=success,
-        quality_score=quality,
+        mean_quality_score=quality,
         median_latency_ms=latency,
-        sample_count=samples,
         total_retries=0,
-        total_tokens=100,
+        total_token_usage=100,
     )
 
 
