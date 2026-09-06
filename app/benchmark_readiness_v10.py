@@ -32,11 +32,11 @@ class ReadinessGateResult:
 
 
 def _leaderboard_score(summary: BenchmarkSummary) -> float:
-    latency_penalty = 0.0 if summary.median_latency_ms is None else min(0.20, summary.median_latency_ms / 100_000.0)
-    evidence_strength = min(1.0, summary.sample_count / 100.0)
+    latency_penalty = min(0.20, summary.median_latency_ms / 100_000.0)
+    evidence_strength = min(1.0, summary.samples / 100.0)
     return (
         summary.success_rate * 0.60
-        + summary.quality_score * 0.25
+        + summary.mean_quality_score * 0.25
         + evidence_strength * 0.15
         - latency_penalty
     )
@@ -52,8 +52,8 @@ def build_leaderboard(summaries: Iterable[BenchmarkSummary]) -> tuple[Leaderboar
         key=lambda item: (
             -_leaderboard_score(item),
             -item.success_rate,
-            -item.quality_score,
-            item.median_latency_ms if item.median_latency_ms is not None else 1_000_000_000,
+            -item.mean_quality_score,
+            item.median_latency_ms,
             item.model_name.lower(),
             item.task_family.lower(),
         ),
@@ -64,9 +64,9 @@ def build_leaderboard(summaries: Iterable[BenchmarkSummary]) -> tuple[Leaderboar
             model_name=summary.model_name,
             task_family=summary.task_family,
             success_rate=summary.success_rate,
-            quality_score=summary.quality_score,
+            quality_score=summary.mean_quality_score,
             median_latency_ms=summary.median_latency_ms,
-            sample_count=summary.sample_count,
+            sample_count=summary.samples,
             score=_leaderboard_score(summary),
         )
         for index, summary in enumerate(ordered)
@@ -112,11 +112,11 @@ def evaluate_readiness(
             failures.append(f"{family}:missing")
             continue
         family_failures: list[str] = []
-        if summary.sample_count < minimum_samples:
+        if summary.samples < minimum_samples:
             family_failures.append("samples")
         if summary.success_rate < minimum_success_rate:
             family_failures.append("success_rate")
-        if summary.quality_score < minimum_quality_score:
+        if summary.mean_quality_score < minimum_quality_score:
             family_failures.append("quality_score")
         if family_failures:
             failures.append(f"{family}:{','.join(family_failures)}")
