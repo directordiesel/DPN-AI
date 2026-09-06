@@ -3,13 +3,14 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 
 from app.long_horizon_mission_runtime_v10 import LongHorizonMissionError, LongHorizonMissionRuntime
 from app.mission_resume_coordinator_v10 import MissionResumeCoordinator, MissionResumeError
 
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+MOUNT_STATE_KEY = "dpn_v10_mission_control_mounted"
 
 
 class MissionControlAPI:
@@ -131,4 +132,13 @@ def create_mission_control_router(db: Any, orchestrator: Any) -> APIRouter:
     return router
 
 
-__all__ = ["MissionControlAPI", "create_mission_control_router"]
+def mount_mission_control_router(app: FastAPI, db: Any, orchestrator: Any) -> bool:
+    """Mount v10 mission controls exactly once on the live FastAPI application."""
+    if bool(getattr(app.state, MOUNT_STATE_KEY, False)):
+        return False
+    app.include_router(create_mission_control_router(db, orchestrator))
+    setattr(app.state, MOUNT_STATE_KEY, True)
+    return True
+
+
+__all__ = ["MissionControlAPI", "create_mission_control_router", "mount_mission_control_router"]
