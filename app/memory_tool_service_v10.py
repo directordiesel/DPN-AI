@@ -8,8 +8,9 @@ from app.advanced_layered_memory_v10 import (
     MemoryProvenance,
     MemoryWriteRequest,
 )
-from app.memory_compaction_v10 import MemoryCompactionService
+from app.memory_compaction_v10 import MemoryCompactionError, MemoryCompactionService
 from app.memory_lineage_v10 import MemoryLineageService, MemorySupersessionRequest
+from app.memory_scope import MemoryScope, ScopedMemory
 from app.memory_service import MemoryService
 
 
@@ -100,20 +101,23 @@ class GovernedMemoryToolService:
     def inspect_lineage(
         self,
         *,
-        layer: str,
-        key: str,
-        scope: str | None = None,
+        scope: str,
         organization_id: str = "",
         user_id: str = "",
         project_id: str = "",
         conversation_id: str = "",
     ) -> dict[str, Any]:
-        return self.compaction.analyze(
-            layer=layer,
-            key=key,
-            scope=scope,
-            context=self._context(organization_id, user_id, project_id, conversation_id),
-        )
+        try:
+            scope_id = ScopedMemory.scope_id(
+                MemoryScope(scope),
+                organization_id=organization_id.strip() or None,
+                user_id=user_id.strip() or None,
+                project_id=project_id.strip() or None,
+                conversation_id=conversation_id.strip() or None,
+            )
+            return {"ok": True, "report": self.compaction.analyze(scope_id).to_dict()}
+        except (TypeError, ValueError, MemoryCompactionError) as exc:
+            return {"ok": False, "error": str(exc), "report": None}
 
     async def supersede(
         self,
