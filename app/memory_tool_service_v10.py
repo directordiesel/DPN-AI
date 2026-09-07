@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from app.advanced_layered_memory_v10 import (
     AdvancedLayeredMemory,
@@ -14,19 +14,27 @@ from app.memory_scope import MemoryScope, ScopedMemory
 from app.memory_service import MemoryService
 
 
+ScopeAuthorizer = Callable[[MemoryScope, MemoryContext], bool]
+
+
 class GovernedMemoryToolService:
     """Bounded tool-facing adapter for v10 layered memory.
 
-    This service intentionally exposes no raw database, semantic-store, deletion,
-    compaction mutation, or approval override. Sensitive persistence is not accepted
-    through the tool surface; higher-trust internal callers must use the injected
-    approval guard on AdvancedLayeredMemory directly.
+    The model-visible tool surface may name scope identifiers, but those identifiers
+    are never trusted as authority. Every non-global scope must be approved by a
+    host-injected scope_authorizer. Without one, non-global access fails closed.
+
+    The service exposes no raw database, semantic-store, deletion, compaction
+    mutation, or approval override. Sensitive persistence is not accepted through
+    this tool surface; higher-trust internal callers must use an explicitly governed
+    AdvancedLayeredMemory integration.
     """
 
-    def __init__(self, db: Any, semantic: Any) -> None:
+    def __init__(self, db: Any, semantic: Any, *, scope_authorizer: ScopeAuthorizer | None = None) -> None:
         self.memory = AdvancedLayeredMemory(MemoryService(db, semantic))
         self.lineage = MemoryLineageService(self.memory)
         self.compaction = MemoryCompactionService(self.memory)
+        self.scope_authorizer = scope_authorizer
 
     @staticmethod
     def _context(
@@ -41,6 +49,47 @@ class GovernedMemoryToolService:
             project_id=project_id.strip() or None,
             conversation_id=conversation_id.strip() or None,
         )
+
+    @staticmethod
+    def _scope_for_identifier(name: str) -> MemoryScope:
+        return {
+            "organization_id": MemoryScope.ORGANIZATION,
+            "user_id": MemoryScope.USER,
+            "project_id": MemoryScope.PROJECT,
+            "conversation_id": MemoryScope.CONVERSATION,
+        }[name]
+
+    def _authorize_context(self, context: MemoryContext) -> tuple[bool, str]:
+        values = {
+            "organization_id": context.organization_id,
+            "user_id": context.user_id,
+            "project_id": context.project_id,
+            "conversation_id": context.conversation_id,
+        }
+        for name, value in values.items():
+            if not value:
+                continue
+            scope = self._scope_for_identifier(name)
+            if self.scope_authorizer is None:
+                return False, f"{scope.value} memory scope requires trusted host authorization"
+            try:
+                allowed = bool(self.scope_authorizer(scope, context))
+            except Exception:
+                allowed = False
+            if not allowed:
+                return False, f"{scope.value} memory scope authorization denied"
+        return True, ""
+
+    def _authorized_context(
+        self,
+        organization_id: str = "",
+        user_id: str = "",
+        project_id: str = "",
+        conversation_id: str = "",
+    ) -> tuple[MemoryContext | None, str]:
+        context = self._context(organization_id, user_id, project_id, conversation_id)
+        allowed, reason = self._authorize_context(context)
+        return (context, "") if allowed else (None, reason)
 
     async def remember(
         self,
@@ -61,6 +110,9 @@ class GovernedMemoryToolService:
         conversation_id: str = "",
         ttl_seconds: int | None = None,
     ) -> dict[str, Any]:
+        context, error = self._authorized_context(organization_id, user_id, project_id, conversation_id)
+        if context is None:
+            return {"ok": False, "error": error, "stored": False}
         request = MemoryWriteRequest(
             layer=layer,
             key=key,
@@ -73,7 +125,7 @@ class GovernedMemoryToolService:
                 confidence=confidence,
                 authority=authority,
             ),
-            context=self._context(organization_id, user_id, project_id, conversation_id),
+            context=context,
             scope=scope,
             ttl_seconds=ttl_seconds,
             sensitive=False,
@@ -91,12 +143,10 @@ class GovernedMemoryToolService:
         project_id: str = "",
         conversation_id: str = "",
     ) -> dict[str, Any]:
-        return await self.memory.recall(
-            query,
-            context=self._context(organization_id, user_id, project_id, conversation_id),
-            layers=layers,
-            limit=limit,
-        )
+        context, error = self._authorized_context(organization_id, user_id, project_id, conversation_id)
+        if context is None:
+            return {"ok": False, "error": error, "results": []}
+        return await self.memory.recall(query, context=context, layers=layers, limit=limit)
 
     def inspect_lineage(
         self,
@@ -107,13 +157,16 @@ class GovernedMemoryToolService:
         project_id: str = "",
         conversation_id: str = "",
     ) -> dict[str, Any]:
+        context, error = self._authorized_context(organization_id, user_id, project_id, conversation_id)
+        if context is None:
+            return {"ok": False, "error": error, "report": None}
         try:
             scope_id = ScopedMemory.scope_id(
                 MemoryScope(scope),
-                organization_id=organization_id.strip() or None,
-                user_id=user_id.strip() or None,
-                project_id=project_id.strip() or None,
-                conversation_id=conversation_id.strip() or None,
+                organization_id=context.organization_id,
+                user_id=context.user_id,
+                project_id=context.project_id,
+                conversation_id=context.conversation_id,
             )
             return {"ok": True, "report": self.compaction.analyze(scope_id).to_dict()}
         except (TypeError, ValueError, MemoryCompactionError) as exc:
@@ -139,6 +192,9 @@ class GovernedMemoryToolService:
         project_id: str = "",
         conversation_id: str = "",
     ) -> dict[str, Any]:
+        context, error = self._authorized_context(organization_id, user_id, project_id, conversation_id)
+        if context is None:
+            return {"ok": False, "error": error, "stored": False}
         replacement = MemoryWriteRequest(
             layer=layer,
             key=key,
@@ -151,7 +207,7 @@ class GovernedMemoryToolService:
                 confidence=confidence,
                 authority=authority,
             ),
-            context=self._context(organization_id, user_id, project_id, conversation_id),
+            context=context,
             scope=scope,
             sensitive=False,
         )
@@ -165,4 +221,4 @@ class GovernedMemoryToolService:
         )
 
 
-__all__ = ["GovernedMemoryToolService"]
+__all__ = ["GovernedMemoryToolService", "ScopeAuthorizer"]
