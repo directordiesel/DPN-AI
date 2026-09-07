@@ -1,60 +1,42 @@
 # DPN AI v10.0.0 — Batch 17 Performance + Benchmark Optimization
 
-Batch 17 begins the performance and benchmark optimization phase after the verified Batch 16 security/regression closure. This checkpoint adds a fail-closed optimization authority over the existing `BenchmarkLaboratory`; it does not create a second benchmark engine or a new execution authority.
+Batch 17 optimizes the integrated v10 platform without weakening correctness, security, benchmark coverage, or approval boundaries.
 
-## Performance optimization authority
+## Foundation
 
-`app/performance_optimization_v10.py` compares explicit baseline and candidate `BenchmarkRun` evidence for one model identity and a host-supplied mandatory family set.
+`app/performance_optimization_v10.py` evaluates explicit baseline and candidate `BenchmarkRun` evidence from the existing Benchmark Laboratory. It does not execute benchmarks, modify routing, apply code, merge changes, deploy software, or authorize tools.
 
-An optimization candidate must preserve the exact benchmark task IDs for every required family. Missing, added, or duplicate task IDs fail closed. This prevents a candidate from appearing faster by omitting difficult benchmark cases or substituting a smaller workload.
+A candidate must use the exact same task IDs for every required benchmark family. Missing, duplicate, substituted, or omitted tasks fail closed. Default policy preserves 100% success and quality, allows no latency/retry/token regression, and requires at least one measurable resource improvement.
 
-The default policy requires:
+## Durable evidence
 
-- candidate success rate of 1.0;
-- candidate quality score of 1.0;
-- zero success regression;
-- zero quality regression;
-- zero median-latency regression;
-- zero retry regression;
-- zero token-usage regression when complete token evidence is available;
-- at least one measurable improvement in median latency, retries, or token usage across the required families.
+`app/performance_evidence_v10.py` records append-only optimization receipts bound to the full normalized evaluation with SHA-256. Identical replay is idempotent. Corrupt state, conflicting evidence under the same candidate digest, or any receipt claiming `execution_authorized=true` fails closed.
 
-Token evidence must be complete for every task in a family or absent for every task. Baseline/candidate token-evidence availability must match. Zero-valued resource baselines are handled without non-finite ratios and any growth from a zero baseline fails closed under the default policy.
+## Governed performance profiles
 
-## Evidence binding
+`app/performance_profiles_v10.py` defines immutable host-owned optimization profiles:
 
-Each evaluation receives a deterministic SHA-256 candidate digest bound to:
+- `balanced_platform` — broad cross-capability optimization over model intelligence, autonomous coding, multimodal, memory, artifacts, voice, proactive intelligence, specialists, marketplace, and self-improvement.
+- `interactive_latency` — latency-sensitive model/multimodal/voice/proactive workloads.
+- `agent_efficiency` — autonomous coding, memory, specialist, and self-improvement efficiency with strict token controls.
 
-- candidate ID;
-- benchmark model identity;
-- the sorted mandatory family set;
-- exact task IDs;
-- baseline/candidate success and quality evidence;
-- latency, retry, and token evidence;
-- per-family pass/failure state.
+Unknown or malformed profile identities fail closed. Profiles do not grant execution authority and cannot waive correctness or quality requirements.
 
-JSON serialization rejects non-finite values through the underlying benchmark validation and `allow_nan=False` digest construction.
+## Security and anti-gaming boundary
 
-## Security boundary
+- exact baseline/candidate task-set parity is mandatory;
+- duplicate task IDs are rejected;
+- success and quality regression are independently gated;
+- token evidence must be complete for every task or absent for every task;
+- baseline/candidate token availability must match;
+- zero-resource baselines are handled with finite ratios;
+- candidate/model/family/profile identities are strict strings;
+- non-finite evidence is prohibited from durable JSON;
+- optimization evidence always carries `execution_authorized=false`;
+- no ToolRegistry `_invoke()` bypass, model-controlled benchmark pass flag, deployment, connector mutation, capability activation, self-merge, or routing mutation is introduced.
 
-Performance evidence is not authorization. Every evaluation reports `execution_authorized=false`. This checkpoint cannot change model routing, execute benchmarks, apply code, merge a pull request, deploy a release, mutate connectors, activate marketplace capabilities, or bypass ToolRegistry/ApprovalSecurity.
+## Verification
 
-A faster candidate that loses correctness, quality, reliability, or resource efficiency fails closed. Batch 17 optimization therefore narrows candidates to measurable improvements without weakening the Batch 16 security contract.
+Regression coverage includes genuine improvements, omitted-task gaming, duplicate evidence, correctness/quality tradeoffs, retry/token regressions, no-op candidates, incomplete token evidence, zero-resource baselines, malformed policies/identities, durable receipt replay, corrupt receipt handling, authorization-claim rejection, and profile validation.
 
-## Regression coverage
-
-`tests/test_performance_optimization_v10.py` covers:
-
-- real latency improvement with preserved success/quality;
-- benchmark task omission and duplicate-task rejection;
-- success/quality trade-off rejection;
-- retry regression rejection;
-- token regression rejection;
-- no-op candidate rejection;
-- incomplete token evidence rejection;
-- zero-baseline resource growth rejection;
-- strict policy validation.
-
-## Remaining Batch 17 work
-
-This is the Batch 17 foundation, not release closure. Remaining work includes broader cross-capability performance families, persistent baseline/candidate evidence, deterministic resource-budget profiles, end-to-end benchmark optimization, an immutable Batch 17 release manifest, dedicated CI readiness gate, and exact-head completion evidence.
+Batch 17 remains incomplete until cross-capability acceptance evidence, an immutable release manifest, executable release harness, dedicated CI gate, and exact-head completion evidence are green.
