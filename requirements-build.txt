@@ -1,2 +1,2 @@
 -r requirements-dev.txt
-pyinstaller>=6.16,<7
+pyinstaller>=6.22.2,<7
