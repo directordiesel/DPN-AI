@@ -1,13 +1,11 @@
 from pathlib import Path
 
+import json
 import pytest
 
 from app.benchmark_laboratory_v10 import BenchmarkRun
 from app.performance_evidence_v10 import PerformanceEvidenceStore
-from app.performance_optimization_v10 import (
-    PerformanceOptimizationError,
-    PerformanceOptimizationEvaluator,
-)
+from app.performance_optimization_v10 import PerformanceOptimizationError, PerformanceOptimizationEvaluator
 
 
 def _run(task_id: str, latency: int, *, tokens: int = 100) -> BenchmarkRun:
@@ -60,3 +58,15 @@ def test_authorizing_receipt_fails_closed(tmp_path: Path) -> None:
     )
     with pytest.raises(PerformanceOptimizationError):
         PerformanceEvidenceStore(path).load()
+
+
+def test_conflicting_duplicate_candidate_digest_fails_closed(tmp_path: Path) -> None:
+    path = tmp_path / "performance.jsonl"
+    store = PerformanceEvidenceStore(path)
+    receipt = store.record(_evaluation()).to_dict()
+    conflicting = dict(receipt)
+    conflicting["gate_passed"] = False
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(conflicting, sort_keys=True) + "\n")
+    with pytest.raises(PerformanceOptimizationError):
+        store.load()
