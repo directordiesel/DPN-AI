@@ -126,7 +126,7 @@ class PerformanceOptimizationEvaluator:
         for run in runs:
             try:
                 item = run.normalized()
-            except ModelRoutingError as exc:
+            except (ModelRoutingError, AttributeError) as exc:
                 raise PerformanceOptimizationError("invalid benchmark evidence") from exc
             if item.model_name == model_name:
                 normalized.append(item)
@@ -164,19 +164,30 @@ class PerformanceOptimizationEvaluator:
         baseline_runs: Iterable[BenchmarkRun],
         candidate_runs: Iterable[BenchmarkRun],
     ) -> PerformanceOptimizationEvaluation:
+        if not isinstance(candidate_id, str) or not candidate_id.strip():
+            raise PerformanceOptimizationError("candidate_id is required")
+        if not isinstance(model_name, str) or not model_name.strip():
+            raise PerformanceOptimizationError("model_name is required")
         candidate_id = candidate_id.strip()
         model_name = model_name.strip()
-        if not candidate_id:
-            raise PerformanceOptimizationError("candidate_id is required")
-        if not model_name:
-            raise PerformanceOptimizationError("model_name is required")
 
-        required = tuple(sorted({str(item).strip() for item in required_task_families if str(item).strip()}))
+        try:
+            family_items = tuple(required_task_families)
+        except TypeError as exc:
+            raise PerformanceOptimizationError("required_task_families must be iterable") from exc
+        if any(not isinstance(item, str) for item in family_items):
+            raise PerformanceOptimizationError("required benchmark family identifiers must be strings")
+        required = tuple(sorted({item.strip() for item in family_items if item.strip()}))
         if not required:
             raise PerformanceOptimizationError("at least one required benchmark family is required")
 
-        baseline = self._normalize_runs(tuple(baseline_runs), model_name=model_name)
-        candidate = self._normalize_runs(tuple(candidate_runs), model_name=model_name)
+        try:
+            baseline_items = tuple(baseline_runs)
+            candidate_items = tuple(candidate_runs)
+        except TypeError as exc:
+            raise PerformanceOptimizationError("benchmark evidence must be iterable") from exc
+        baseline = self._normalize_runs(baseline_items, model_name=model_name)
+        candidate = self._normalize_runs(candidate_items, model_name=model_name)
         family_evidence: list[PerformanceFamilyEvidence] = []
 
         for family in required:
