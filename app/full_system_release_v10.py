@@ -35,6 +35,22 @@ MANDATORY_FULL_SYSTEM_FAMILIES = (
         "non_executing_readiness_evidence",
         "tests/test_full_system_integration_v10.py::test_integration_evidence_cannot_claim_side_effects",
     ),
+    FullSystemReleaseCase(
+        "early_batch_verified_attestations",
+        "tests/test_full_system_acceptance_v10.py::test_early_batch_attestations_cover_batches_one_through_seven_without_side_effects",
+    ),
+    FullSystemReleaseCase(
+        "cross_batch_release_binding",
+        "tests/test_full_system_acceptance_v10.py::test_full_system_acceptance_combines_early_verified_merges_and_late_release_payloads",
+    ),
+    FullSystemReleaseCase(
+        "late_release_fail_closed",
+        "tests/test_full_system_acceptance_v10.py::test_full_system_acceptance_fails_when_one_late_release_is_not_ready",
+    ),
+    FullSystemReleaseCase(
+        "release_payload_non_authorization",
+        "tests/test_full_system_acceptance_v10.py::test_full_system_acceptance_fails_when_late_release_attempts_to_authorize_execution",
+    ),
 )
 
 
