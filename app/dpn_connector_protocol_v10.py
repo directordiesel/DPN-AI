@@ -49,17 +49,19 @@ WRITE_ACTIONS = {ConnectorAction.CREATE, ConnectorAction.UPDATE}
 DESTRUCTIVE_ACTIONS = {ConnectorAction.DELETE, ConnectorAction.REVOKE}
 
 
-def _required_risk(action: ConnectorAction) -> ConnectorRisk:
+def _allowed_risks(action: ConnectorAction) -> frozenset[ConnectorRisk]:
     if action in READ_ACTIONS:
-        return ConnectorRisk.READ_ONLY
+        return frozenset({ConnectorRisk.READ_ONLY})
     if action in WRITE_ACTIONS:
-        return ConnectorRisk.WRITE
+        # A host may deliberately classify a write as destructive. Conservative
+        # over-classification is safe; under-classification is not.
+        return frozenset({ConnectorRisk.WRITE, ConnectorRisk.DESTRUCTIVE})
     if action in DESTRUCTIVE_ACTIONS:
-        return ConnectorRisk.DESTRUCTIVE
+        return frozenset({ConnectorRisk.DESTRUCTIVE})
     if action == ConnectorAction.SUBSCRIBE:
-        return ConnectorRisk.SUBSCRIPTION
+        return frozenset({ConnectorRisk.SUBSCRIPTION, ConnectorRisk.DESTRUCTIVE})
     if action == ConnectorAction.AUTHENTICATE:
-        return ConnectorRisk.CREDENTIAL
+        return frozenset({ConnectorRisk.CREDENTIAL})
     raise ConnectorProtocolError("connector action has no recognized risk mapping")
 
 
@@ -80,10 +82,11 @@ class ConnectorCapability:
         if not isinstance(self.resource, str) or not self.resource.strip():
             raise ConnectorProtocolError("connector capability resource is required")
 
-        expected_risk = _required_risk(self.action)
-        if self.risk != expected_risk:
+        allowed_risks = _allowed_risks(self.action)
+        if self.risk not in allowed_risks:
+            expected = ", ".join(sorted(risk.value for risk in allowed_risks))
             raise ConnectorProtocolError(
-                f"connector capability risk drift: {self.action.value} requires {expected_risk.value} risk"
+                f"connector capability risk drift: {self.action.value} requires risk in {{{expected}}}"
             )
         if self.action in WRITE_ACTIONS | DESTRUCTIVE_ACTIONS | {ConnectorAction.SUBSCRIBE} and not self.approval_required:
             raise ConnectorProtocolError("state-changing connector capabilities must require approval")
