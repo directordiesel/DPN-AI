@@ -36,8 +36,9 @@ class FullSystemReleaseBinder:
     """
 
     def __init__(self, specs: Iterable[ReleaseBindingSpec] = BATCH_RELEASE_BINDINGS) -> None:
-        self._specs = {spec.subsystem_id: spec for spec in specs}
-        if len(self._specs) != len(tuple(specs)):
+        normalized_specs = tuple(specs)
+        self._specs = {spec.subsystem_id: spec for spec in normalized_specs}
+        if len(self._specs) != len(normalized_specs):
             raise IntegrationError("duplicate release binding subsystem")
 
     @staticmethod
