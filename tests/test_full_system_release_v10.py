@@ -12,7 +12,7 @@ def test_full_system_release_audit_requires_exact_manifest() -> None:
     manifest = full_system_release_manifest()
     ready = audit_full_system_release({family: True for family in manifest})
     assert ready["ready"] is True
-    assert ready["passed"] == ready["required"] == 6
+    assert ready["passed"] == ready["required"] == 10
 
     missing = {family: True for family in manifest}
     missing.pop("approval_boundary_preservation")
@@ -37,7 +37,7 @@ def test_full_system_release_ci_executes_only_exact_manifest(tmp_path) -> None:
     def runner(command, **kwargs):
         captured["command"] = command
         captured["cwd"] = kwargs["cwd"]
-        return subprocess.CompletedProcess(command, 0, stdout="6 passed", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="10 passed", stderr="")
 
     payload = run_full_system_release_ci(runner=runner, python_executable="python", repository_root=tmp_path)
     assert payload["ready"] is True
