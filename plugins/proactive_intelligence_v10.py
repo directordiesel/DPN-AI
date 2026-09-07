@@ -18,6 +18,22 @@ def register(registry):
         SourceContract("system.pending_approvals", max_age_seconds=30, trusted_for_dispatch=True),
         lambda: len(registry.db.list_approvals("pending", 1000)),
     )
+    sources.register_source(
+        SourceContract("system.active_missions", max_age_seconds=60, trusted_for_dispatch=True),
+        lambda: sum(
+            1
+            for mission in registry.db.list_missions(limit=1000)
+            if str(mission.get("status") or "").lower() not in {"completed", "failed", "cancelled"}
+        ),
+    )
+    sources.register_source(
+        SourceContract("system.enabled_connectors", max_age_seconds=60, trusted_for_dispatch=True),
+        lambda: sum(
+            1
+            for connector in (registry.connectors.list().get("connectors") or [])
+            if bool(connector.get("enabled", False))
+        ),
+    )
 
     def cache_proposal(evaluation, evidence):
         if evaluation.proposal is not None:
@@ -45,8 +61,8 @@ def register(registry):
         receipt = await dispatcher.dispatch(proposal, evidence, permissions=dict(permissions))
         return {"ok": receipt.result_ok, "receipt": receipt.to_dict()}
 
-    # Internal runtimes may call this bridge with host-resolved permissions. It is
-    # intentionally not registered as a model-visible tool in this checkpoint.
+    # Internal runtimes may call these bridges with host-resolved permissions/state.
+    # They are intentionally not registered as model-visible tools.
     registry.dispatch_cached_proactive_proposal_v10 = dispatch_cached_proposal
     registry.evaluate_due_proactive_conditions_v10 = lifecycle.evaluate_due
 
