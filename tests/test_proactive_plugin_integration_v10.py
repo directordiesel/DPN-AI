@@ -53,7 +53,10 @@ def test_plugin_registers_host_owned_source_and_keeps_dispatch_internal(tmp_path
     assert "dispatch_proactive_proposal" not in registry.registered
     status = registry.registered["proactive_v10_status"]["function"]()
     assert status["sources"] == [{"source_id": "system.pending_approvals", "max_age_seconds": 30, "trusted_for_dispatch": True}]
+    assert status["lifecycle"]["scheduler_owned"] is False
+    assert status["lifecycle"]["dispatch_capability"] is False
     assert callable(registry.dispatch_cached_proactive_proposal_v10)
+    assert callable(registry.evaluate_due_proactive_conditions_v10)
 
 
 @pytest.mark.asyncio
@@ -105,3 +108,47 @@ def test_manual_evaluation_stays_untrusted(tmp_path):
     assert result["trusted_source"] is False
     assert result["proposal"]["trusted_source"] is False
     assert result["proposal"]["source_id"] == "manual"
+
+
+def test_persistent_condition_registers_disabled_and_due_evaluation_only_caches(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+    register_condition = registry.registered["register_proactive_condition_v10"]["function"]
+    set_enabled = registry.registered["set_proactive_condition_enabled_v10"]["function"]
+
+    created = register_condition(
+        condition_id="pending-approval-watch",
+        source_id="system.pending_approvals",
+        operator="gte",
+        threshold=2,
+        action_tool="notify",
+        action_args={"message": "review approvals"},
+        interval_seconds=30,
+        cooldown_seconds=0,
+        edge_triggered=False,
+    )
+    assert created["enabled"] is False
+    assert created["dispatch_performed"] is False
+    assert registry.proactive_lifecycle_v10.status()["enabled"] == 0
+
+    enabled = set_enabled("pending-approval-watch", True)
+    assert enabled["definition"]["enabled"] is True
+    assert enabled["dispatch_performed"] is False
+
+    runs = registry.evaluate_due_proactive_conditions_v10()
+    assert len(runs) == 1
+    assert runs[0].evaluation is not None
+    assert runs[0].evaluation.proposed is True
+    proposal_id = runs[0].evaluation.proposal.proposal_id
+    assert proposal_id in registry.proactive_proposals_v10
+    assert registry.execute_calls == []
+
+
+def test_lifecycle_tools_have_no_execute_or_external_risk(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+
+    assert registry.registered["list_proactive_conditions_v10"]["risk"] == "read"
+    assert registry.registered["register_proactive_condition_v10"]["risk"] == "write"
+    assert registry.registered["set_proactive_condition_enabled_v10"]["risk"] == "write"
+    assert "evaluate_due_proactive_conditions_v10" not in registry.registered
