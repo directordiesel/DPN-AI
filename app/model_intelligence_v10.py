@@ -29,12 +29,16 @@ class BenchmarkProfile:
     sample_count: int
     median_latency_ms: int | None = None
     quality_score: float | None = None
+    provider: str = ""
 
     def validate(self) -> None:
         if not self.model_name.strip():
             raise ModelRoutingError("benchmark model name is required")
         if not self.task_family.strip():
             raise ModelRoutingError("benchmark task family is required")
+        provider = self.provider.strip()
+        if provider and provider not in {"ollama", "compatible"}:
+            raise ModelRoutingError("unsupported benchmark provider")
         if isinstance(self.success_rate, bool) or not isinstance(self.success_rate, (int, float)):
             raise ModelRoutingError("benchmark success rate must be numeric")
         if not math.isfinite(float(self.success_rate)) or not 0.0 <= float(self.success_rate) <= 1.0:
@@ -103,6 +107,11 @@ class ModelIntelligenceEngine:
     The engine does not probe providers, bypass network policy, or invent benchmark
     evidence. It only ranks candidates that already satisfy discovered capability,
     health, privacy, latency, cost and benchmark requirements.
+
+    Benchmark evidence is provider-bound when a provider is supplied. Legacy
+    provider-unbound evidence may only be used when the candidate model name maps
+    to exactly one provider identity, preventing same-name cross-provider evidence
+    reuse.
     """
 
     _difficulty_weight = {
@@ -120,17 +129,24 @@ class ModelIntelligenceEngine:
     ) -> IntelligenceDecision:
         request.validate()
 
-        benchmark_map: dict[str, BenchmarkProfile] = {}
+        discovered = list(candidates)
+        providers_by_name: dict[str, set[str]] = {}
+        for candidate in discovered:
+            candidate.validate()
+            providers_by_name.setdefault(candidate.name, set()).add(candidate.provider)
+
+        benchmark_map: dict[tuple[str, str], BenchmarkProfile] = {}
         for benchmark in benchmarks:
             benchmark.validate()
-            if benchmark.task_family == request.task_family:
-                existing = benchmark_map.get(benchmark.model_name)
-                if existing is None or benchmark.sample_count > existing.sample_count:
-                    benchmark_map[benchmark.model_name] = benchmark
+            if benchmark.task_family != request.task_family:
+                continue
+            key = (benchmark.provider.strip(), benchmark.model_name)
+            existing = benchmark_map.get(key)
+            if existing is None or benchmark.sample_count > existing.sample_count:
+                benchmark_map[key] = benchmark
 
         eligible: list[tuple[ModelCandidate, BenchmarkProfile]] = []
-        for candidate in candidates:
-            candidate.validate()
+        for candidate in discovered:
             if not candidate.healthy:
                 continue
             if not request.required_capabilities.issubset(candidate.capabilities):
@@ -143,8 +159,13 @@ class ModelIntelligenceEngine:
                 continue
             if request.max_cost_weight is not None and float(candidate.cost_weight) > float(request.max_cost_weight):
                 continue
-            benchmark = benchmark_map.get(candidate.name)
+
+            benchmark = benchmark_map.get((candidate.provider, candidate.name))
+            if benchmark is None and len(providers_by_name.get(candidate.name, set())) == 1:
+                benchmark = benchmark_map.get(("", candidate.name))
             if benchmark is None:
+                continue
+            if benchmark.provider and benchmark.provider != candidate.provider:
                 continue
             if benchmark.sample_count < request.minimum_samples:
                 continue
@@ -155,7 +176,7 @@ class ModelIntelligenceEngine:
         if not eligible:
             raise ModelRoutingError("no model satisfies v10 intelligence and benchmark requirements")
 
-        def score(item: tuple[ModelCandidate, BenchmarkProfile]) -> tuple[float, int, str]:
+        def score(item: tuple[ModelCandidate, BenchmarkProfile]) -> tuple[float, int, str, str]:
             candidate, benchmark = item
             quality = benchmark.quality_score if benchmark.quality_score is not None else candidate.quality_score
             difficulty_target = self._difficulty_weight[request.difficulty]
@@ -180,7 +201,7 @@ class ModelIntelligenceEngine:
             )
             if float(benchmark.success_rate) < difficulty_target:
                 combined -= (difficulty_target - float(benchmark.success_rate)) * 0.35
-            return (-combined, candidate.priority, candidate.name.lower())
+            return (-combined, candidate.priority, candidate.provider, candidate.name.lower())
 
         ordered = sorted(eligible, key=score)
         selected, benchmark = ordered[0]
@@ -188,7 +209,7 @@ class ModelIntelligenceEngine:
         reason = (
             f"selected by v10 benchmark-backed intelligence routing for {request.task_family}; "
             f"difficulty={request.difficulty.value}, privacy={request.privacy_mode.value}, "
-            f"success_rate={benchmark.success_rate:.3f}, samples={benchmark.sample_count}"
+            f"provider={selected.provider}, success_rate={benchmark.success_rate:.3f}, samples={benchmark.sample_count}"
         )
         return IntelligenceDecision(selected=selected, benchmark=benchmark, score=final_score, reason=reason)
 
