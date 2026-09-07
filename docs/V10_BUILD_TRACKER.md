@@ -53,7 +53,8 @@ Batches 8–14 are complete and merged. Their dedicated release-readiness gates 
 - Missing, blocked, unavailable, duplicate, unexpected, approval-boundary-violating, or side-effect-claiming evidence blocks integrated readiness.
 - Added an immutable ten-family Batch 15 release manifest, executable CI harness, repository-root-safe GitHub Actions entrypoint, and dedicated Ubuntu/Python 3.11 release gate.
 - Cross-system acceptance proves early-batch attestation coverage, late release binding, fail-closed late-release behavior, and rejection of release payloads that attempt to authorize execution.
-- Exact final head `e80ed3745d99e26dfd403bf57de2b75dfc8b52ed` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
+- Exact functional head `16334059372ef70a89f0e2e708c7c0ab44a0c872` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate.
+- Exact documentation-finalization head `d64a4138a6f38ce084ebdf7574a0373bd3c8819f` also passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
 
 ## Batch 16 Goals
 
