@@ -84,15 +84,24 @@ def test_write_capability_cannot_claim_read_only_risk():
     ("action", "risk"),
     [
         (ConnectorAction.READ, ConnectorRisk.WRITE),
-        (ConnectorAction.CREATE, ConnectorRisk.DESTRUCTIVE),
+        (ConnectorAction.CREATE, ConnectorRisk.READ_ONLY),
         (ConnectorAction.DELETE, ConnectorRisk.WRITE),
         (ConnectorAction.SUBSCRIBE, ConnectorRisk.WRITE),
         (ConnectorAction.AUTHENTICATE, ConnectorRisk.READ_ONLY),
     ],
 )
-def test_capability_risk_drift_is_rejected(action, risk):
+def test_capability_risk_underclassification_or_mismatch_is_rejected(action, risk):
     with pytest.raises(ConnectorProtocolError, match="risk drift"):
         ConnectorCapability(action, "item", risk, approval_required=True).validate()
+
+
+def test_conservative_write_overclassification_is_allowed():
+    ConnectorCapability(
+        ConnectorAction.CREATE,
+        "item",
+        ConnectorRisk.DESTRUCTIVE,
+        approval_required=True,
+    ).validate()
 
 
 def test_state_changing_capabilities_must_require_approval():
