@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Iterable, Mapping
+from typing import Iterable
 
 
 class CodingRepositoryError(ValueError):
@@ -27,6 +27,12 @@ def _normalize_repository_path(path: str) -> str:
         raise CodingRepositoryError("repository path must remain inside the repository")
     # Reject Windows drive-absolute and drive-relative forms (for example C:/x or C:x).
     if len(raw) >= 2 and raw[1] == ":" and raw[0].isalpha():
+        raise CodingRepositoryError("repository path must remain inside the repository")
+
+    # Inspect raw segments before PurePosixPath can normalize away `.` or collapse
+    # redundant separators. Ambiguous spellings must never alias a trusted path.
+    raw_parts = raw.split("/")
+    if any(part in {"", ".", ".."} for part in raw_parts):
         raise CodingRepositoryError("repository path must remain inside the repository")
 
     candidate = PurePosixPath(raw)
@@ -238,8 +244,14 @@ class RepositoryIntelligence:
         for path in paths:
             lower = path.lower()
             if any(marker in lower for marker in cls._critical_names):
-                finding = RiskFinding("sensitive-path", DiffRisk.HIGH, path, "change touches security, release, installer, permissions, or workflow surface")
-                findings.append(finding)
+                findings.append(
+                    RiskFinding(
+                        "sensitive-path",
+                        DiffRisk.HIGH,
+                        path,
+                        "change touches security, release, installer, permissions, or workflow surface",
+                    )
+                )
             elif path.endswith(("requirements.txt", "requirements-dev.txt", "pyproject.toml")):
                 findings.append(RiskFinding("dependency-surface", DiffRisk.MEDIUM, path, "dependency or build metadata changed"))
 
