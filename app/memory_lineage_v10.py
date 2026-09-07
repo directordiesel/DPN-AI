@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-from typing import Any, Iterable
+from typing import Any
 
 from app.advanced_layered_memory_v10 import (
     AdvancedLayeredMemory,
     KnowledgeClass,
-    MemoryContext,
     MemoryLayer,
     MemoryProvenance,
     MemoryWriteRequest,
@@ -93,7 +92,7 @@ class MemoryLineageService:
 
         replacement = request.replacement
         try:
-            layer, knowledge_class, scope, scope_id, content = self.memory._validate_request(replacement)
+            layer, _knowledge_class, scope, scope_id, content = self.memory._validate_request(replacement)
         except (TypeError, ValueError) as exc:
             return {"ok": False, "error": str(exc), "stored": False}
         if layer == MemoryLayer.WORKING:
@@ -123,6 +122,22 @@ class MemoryLineageService:
                 "required_authority": target_authority,
             }
 
+        # The lineage receipt is a derived memory and therefore carries every source
+        # evidence ID plus the old/new memory identities. Validate its evidence bound
+        # before writing the replacement so an oversized receipt cannot create avoidable
+        # partial persistence.
+        predicted_replacement_id = self.memory._memory_id(
+            scope_id,
+            layer,
+            logical_key,
+            self.memory._content_hash(replacement_content),
+        )
+        lineage_evidence = tuple(
+            dict.fromkeys((*replacement.provenance.evidence_ids, predicted_replacement_id, *sorted(targets)))
+        )
+        if len(lineage_evidence) > self.memory.MAX_EVIDENCE_IDS:
+            return {"ok": False, "error": "supersession lineage evidence id limit exceeded", "stored": False}
+
         replacement_sensitive = bool(request.sensitive or replacement.sensitive)
         if replacement_sensitive != bool(replacement.sensitive):
             replacement = MemoryWriteRequest(
@@ -150,6 +165,14 @@ class MemoryLineageService:
             return {"ok": False, "error": "replacement memory id is missing", "stored": False, "phase": "replacement"}
         if replacement_id in targets:
             return {"ok": False, "error": "replacement cannot supersede itself", "stored": False, "phase": "replacement"}
+        if replacement_id != predicted_replacement_id:
+            return {
+                "ok": False,
+                "error": "replacement memory identity disagrees with deterministic lineage identity",
+                "stored": False,
+                "phase": "replacement",
+                "partial_persistence": True,
+            }
 
         receipt_payload = {
             "schema_version": 1,
@@ -161,7 +184,6 @@ class MemoryLineageService:
             "reason": reason,
         }
         receipt_content = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        lineage_evidence = tuple(dict.fromkeys((*replacement.provenance.evidence_ids, replacement_id, *sorted(targets))))
         receipt = MemoryWriteRequest(
             layer=MemoryLayer.PROCEDURAL,
             key=f"supersession:{layer.value}:{logical_key}:{replacement_id}",
