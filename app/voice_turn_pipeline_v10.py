@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
@@ -52,6 +51,18 @@ class VoiceTurnPipeline:
         self.reasoner = reasoner
         self.max_response_characters = max_response_characters
 
+    @staticmethod
+    def _transcript_text(payload: Any) -> str:
+        if not isinstance(payload, dict):
+            raise ValueError("transcription payload must be a structured mapping")
+        value = payload.get("text")
+        if not isinstance(value, str):
+            raise ValueError("transcription payload does not contain string text")
+        text = value.strip()
+        if not text:
+            raise ValueError("transcription payload contains empty text")
+        return text
+
     async def _reason(self, transcript: str) -> str:
         result = self.reasoner(transcript)
         if inspect.isawaitable(result):
@@ -74,7 +85,17 @@ class VoiceTurnPipeline:
                 error=transcription.error or "transcription did not produce an active transcript",
             )
 
-        transcript = transcription.transcript.strip()
+        try:
+            transcript = self._transcript_text(transcription.transcript)
+        except ValueError as exc:
+            return VoiceTurnPipelineResult(
+                ok=False,
+                transcript=None,
+                response_text=None,
+                synthesis=None,
+                error=str(exc),
+            )
+
         try:
             response = await self._reason(transcript)
         except Exception as exc:
