@@ -8,6 +8,14 @@ This checkpoint converts executed test evidence into the strict eight-family mem
 
 A required test that is missing from executed-test evidence fails closed. A required test reported failed blocks release even if it also appears in the passed set. Unrelated test failures do not fabricate a memory-specific failure, although the repository-wide CI gate must still pass separately before Batch 8 can be merge-ready.
 
+## Executable CI evidence
+
+`app/memory_release_ci_v10.py` and `.github/scripts/memory_release_readiness_v10.py` close the gap between the immutable manifest and GitHub Actions. The harness obtains the required node IDs only from `required_memory_release_test_ids()`, executes exactly those tests through pytest, and accepts exit code zero as the trusted indication that every selected manifest test passed.
+
+The caller cannot substitute arbitrary test IDs or self-assert successful cases. If pytest returns non-zero, the harness raises `MemoryReleaseCIError` and emits no ready evidence. If pytest succeeds, the exact selected IDs are supplied to `audit_memory_release_evidence`; the harness then requires the strict benchmark result to be ready before it emits a machine-readable JSON payload.
+
+The main CI workflow executes this dedicated gate on the Ubuntu / Python 3.11 lane after the complete repository test suite. The normal cross-platform CI suite continues to run on Ubuntu and Windows for Python 3.11 and 3.12.
+
 ## Required benchmark families
 
 The manifest covers:
