@@ -13,7 +13,7 @@ class SelfImprovementReleaseFamily:
 MANDATORY_SELF_IMPROVEMENT_FAMILIES = (
     SelfImprovementReleaseFamily(
         "benchmark_gate",
-        "tests/test_self_improvement_v10.py::test_self_improvement_candidate_passes_strict_gate_and_requests_human_approval",
+        "tests/test_self_improvement_v10.py::test_candidate_passes_only_with_complete_non_regressing_benchmark_evidence",
     ),
     SelfImprovementReleaseFamily(
         "commit_binding",
