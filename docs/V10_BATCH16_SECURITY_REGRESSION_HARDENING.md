@@ -43,6 +43,21 @@ The following no longer count as successful execution evidence:
 
 Skipped/neutral jobs may still be useful diagnostic information, but they cannot prove that a required validation actually ran. When supplied to the coding orchestrator they produce a fail-closed CI analysis and cannot mark a pull request ready.
 
+## Checkpoint 4 — Provider/model provenance binding
+
+The v10 Model Intelligence Engine previously indexed benchmark profiles by model name alone. Two candidates exposed by different providers could therefore share a name and accidentally consume the same benchmark record.
+
+Batch 16 adds provider-aware benchmark identity:
+
+- `BenchmarkProfile.provider` may explicitly bind evidence to `ollama` or `compatible`;
+- provider-bound evidence can only match a candidate from the same provider;
+- unsupported benchmark-provider identifiers are rejected;
+- provider-unbound legacy evidence remains compatible only when the candidate model name resolves to exactly one provider identity;
+- when the same model name is exposed by multiple providers, unbound benchmark evidence is ambiguous and is rejected instead of cross-binding;
+- deterministic tie-breaking now includes provider identity.
+
+This preserves existing benchmark producers for unique model identities while failing closed on the exact same-name cross-provider ambiguity that can corrupt routing evidence.
+
 ## Security boundary
 
 These changes do not grant new tool, repository, provider, connector, deployment, or approval capabilities. They only narrow what evidence can be accepted as valid.
@@ -55,17 +70,17 @@ The Batch 16 checkpoint expands:
 
 - `tests/test_benchmark_laboratory_v10.py`;
 - `tests/test_coding_repository_intelligence_v10.py`;
-- `tests/test_coding_ci_orchestrator_v10.py`.
+- `tests/test_coding_ci_orchestrator_v10.py`;
+- `tests/test_model_intelligence_v10.py`.
 
-Mandatory negative paths include malformed boolean/timestamp benchmark evidence, zero regression thresholds, absolute/traversal repository paths, out-of-repository security findings, skipped/neutral CI results, and unrecognized CI conclusion types.
+Mandatory negative paths include malformed boolean/timestamp benchmark evidence, zero regression thresholds, absolute/traversal repository paths, out-of-repository security findings, skipped/neutral CI results, unrecognized CI conclusion types, unsupported benchmark providers, and ambiguous same-name cross-provider model evidence.
 
 ## Remaining Batch 16 work
 
 After exact-head CI/security/recovery verification, continue hardening:
 
-1. provider/model provenance and identity drift;
-2. connector permission/risk drift;
-3. approval-boundary tampering and stale approval evidence;
-4. recovery/checkpoint integrity under malformed or replayed state;
-5. cross-system adversarial negative-path release cases;
-6. dedicated Batch 16 immutable hardening/readiness gate and completion evidence.
+1. connector permission/risk drift;
+2. approval-boundary tampering and stale approval evidence;
+3. recovery/checkpoint integrity under malformed or replayed state;
+4. cross-system adversarial negative-path release cases;
+5. dedicated Batch 16 immutable hardening/readiness gate and completion evidence.
