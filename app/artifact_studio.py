@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from openpyxl import load_workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
+from app.artifact_acceptance_v10 import inspect_artifact_acceptance
 from app.artifact_quality_v10 import inspect_artifact_quality
 from app.artifact_validation import validate_artifact
 from app.tools.documents import DocumentFactory
@@ -18,28 +19,36 @@ class ArtifactStudio:
         self.workspace = workspace.resolve()
         self.factory = DocumentFactory(self.workspace)
 
-    def _finalize(self, result: dict[str, Any]) -> dict[str, Any]:
+    def _finalize(self, result: dict[str, Any], *, required_items: Iterable[str]) -> dict[str, Any]:
         if not result.get("ok") or not result.get("path"):
             return result
         target = self.workspace / str(result["path"])
         validation = validate_artifact(target, self.workspace)
         quality = inspect_artifact_quality(target, self.workspace)
-        professional_ready = bool(validation.valid and quality.professional_ready)
+        acceptance = inspect_artifact_acceptance(target, self.workspace, required_items=required_items)
+        professional_ready = bool(validation.valid and quality.professional_ready and acceptance.accepted)
         return {
             **result,
             "validation": validation.to_dict(),
             "quality": quality.to_dict(),
+            "acceptance": acceptance.to_dict(),
             "professional_ready": professional_ready,
         }
 
     def create_document(self, filename: str, title: str, sections: list[dict[str, Any]], author: str = "DPN AI") -> dict[str, Any]:
-        return self._finalize(self.factory.create_docx(filename, title, sections, author=author))
+        required = [title, *(str(section.get("heading", "")).strip() for section in sections)]
+        return self._finalize(
+            self.factory.create_docx(filename, title, sections, author=author),
+            required_items=required,
+        )
 
     def create_pdf(self, filename: str, title: str, sections: list[dict[str, Any]]) -> dict[str, Any]:
-        return self._finalize(self.factory.create_pdf(filename, title, sections))
+        required = [title, *(str(section.get("heading", "")).strip() for section in sections)]
+        return self._finalize(self.factory.create_pdf(filename, title, sections), required_items=required)
 
     def create_presentation(self, filename: str, title: str, slides: list[dict[str, Any]]) -> dict[str, Any]:
-        return self._finalize(self.factory.create_pptx(filename, title, slides))
+        required = [title, *(str(slide.get("title", "")).strip() for slide in slides)]
+        return self._finalize(self.factory.create_pptx(filename, title, slides), required_items=required)
 
     def create_spreadsheet(self, filename: str, title: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
         result = self.factory.create_xlsx(filename, title, sheets)
@@ -91,4 +100,14 @@ class ArtifactStudio:
                 ws.add_chart(chart, str(chart_spec.get("anchor", "H2")))
 
         workbook.save(target)
-        return self._finalize(result)
+
+        required: list[str] = []
+        for sheet in sheets:
+            name = str(sheet.get("name", "")).strip()
+            if name:
+                required.append(name[:31])
+            rows = sheet.get("rows", [])
+            if isinstance(rows, list) and rows:
+                header = rows[0] if isinstance(rows[0], list) else [rows[0]]
+                required.extend(str(value).strip() for value in header if str(value).strip())
+        return self._finalize(result, required_items=required)
