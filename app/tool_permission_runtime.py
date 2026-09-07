@@ -87,7 +87,9 @@ class ToolPermissionRuntime:
         profile: ToolRiskProfile,
     ) -> PermissionDecision:
         if tool_name in {"dpn_connector_write", "dpn_connector_mcp_call", "dpn_connector_profile_install", "dpn_memory_supersede"}:
-            if not decision.allowed:
+            # Dedicated approval boundaries may narrow an allow decision or annotate an
+            # existing ask-every-time decision. They must never override a hard deny.
+            if not decision.allowed and not decision.approval_required:
                 return decision
             if tool_name == "dpn_connector_profile_install":
                 reason = "DPN Connector Protocol profile installation requires explicit human approval"
