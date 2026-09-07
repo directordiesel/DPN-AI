@@ -18,6 +18,7 @@ class FakeRegistry:
         self.settings = SimpleNamespace(data_dir=tmp_path)
         self.db = FakeDB()
         self.registered = {}
+        self.execute_calls = []
         self._catalog = [
             {"name": "read_file", "risk": "read", "gate": None, "description": "read"},
             {"name": "search_web", "risk": "external", "gate": "network", "description": "search"},
@@ -38,6 +39,10 @@ class FakeRegistry:
             "risk": risk,
         }
 
+    async def execute(self, name, arguments, permissions):
+        self.execute_calls.append((name, arguments, permissions))
+        return {"ok": True, "tool": name, "result": "fake-host-execution"}
+
 
 def test_plugin_registers_persistent_nonexecuting_governed_surface(tmp_path):
     registry = FakeRegistry(tmp_path)
@@ -45,12 +50,14 @@ def test_plugin_registers_persistent_nonexecuting_governed_surface(tmp_path):
 
     assert hasattr(registry, "specialist_organization_v10")
     assert hasattr(registry, "resolve_specialist_assignment_v10")
+    assert hasattr(registry, "execute_specialist_assignment_v10")
     assert registry.registered["specialist_organization_v10_status"]["risk"] == "read"
     assert registry.registered["list_specialists_v10"]["risk"] == "read"
     assert registry.registered["register_specialist_v10"]["risk"] == "write"
     assert registry.registered["assign_specialist_v10"]["risk"] == "write"
     assert registry.registered["handoff_specialist_assignment_v10"]["risk"] == "write"
     assert "execute_specialist_v10" not in registry.registered
+    assert registry.execute_calls == []
 
 
 def test_plugin_flow_binds_mission_and_never_authorizes_execution(tmp_path):
@@ -73,6 +80,7 @@ def test_plugin_flow_binds_mission_and_never_authorizes_execution(tmp_path):
     context = inspect("a1")
     assert context["execution_authorized"] is False
     assert {item["name"] for item in context["allowed_tool_catalog"]} == {"read_file", "search_web"}
+    assert registry.execute_calls == []
 
 
 def test_plugin_handoff_records_digest_without_storing_raw_context(tmp_path):
@@ -93,3 +101,4 @@ def test_plugin_handoff_records_digest_without_storing_raw_context(tmp_path):
     assert len(result["handoff"]["context_digest"]) == 64
     state_text = (tmp_path / "specialist_organization_v10.json").read_text(encoding="utf-8")
     assert "do-not-persist-raw" not in state_text
+    assert registry.execute_calls == []
