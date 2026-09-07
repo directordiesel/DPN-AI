@@ -54,7 +54,7 @@ jobs:
         run: python .github/scripts/ci_repository_guard.py
 
       - name: Compile Python sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/ci_repository_guard.py .github/scripts/memory_release_readiness_v10.py .github/scripts/artifact_release_readiness_v10.py .github/scripts/voice_release_readiness_v10.py .github/scripts/proactive_release_readiness_v10.py .github/scripts/specialist_release_readiness_v10.py .github/scripts/marketplace_release_readiness_v10.py .github/scripts/self_improvement_release_readiness_v10.py .github/scripts/full_system_release_readiness_v10.py
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/ci_repository_guard.py .github/scripts/memory_release_readiness_v10.py .github/scripts/artifact_release_readiness_v10.py .github/scripts/voice_release_readiness_v10.py .github/scripts/proactive_release_readiness_v10.py .github/scripts/specialist_release_readiness_v10.py .github/scripts/marketplace_release_readiness_v10.py .github/scripts/self_improvement_release_readiness_v10.py .github/scripts/full_system_release_readiness_v10.py .github/scripts/security_regression_release_readiness_v10.py
 
       - name: Run test suite
         run: python -m pytest -q
@@ -91,6 +91,10 @@ jobs:
         if: matrix.os_name == 'Ubuntu' && matrix.python == '3.11'
         run: python .github/scripts/full_system_release_readiness_v10.py
 
+      - name: Run Batch 16 security regression release readiness gate
+        if: matrix.os_name == 'Ubuntu' && matrix.python == '3.11'
+        run: python .github/scripts/security_regression_release_readiness_v10.py
+
       - name: Hosted runner summary
         if: always()
         shell: python
@@ -114,5 +118,6 @@ jobs:
                   handle.write("- Batch 13 marketplace release readiness: executed\n")
                   handle.write("- Batch 14 self-improvement release readiness: executed\n")
                   handle.write("- Batch 15 full-system integration release readiness: executed\n")
+                  handle.write("- Batch 16 security regression release readiness: executed\n")
         env:
           MATRIX_PYTHON: ${{ matrix.python }}
