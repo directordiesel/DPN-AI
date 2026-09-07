@@ -1,0 +1,193 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+from plugins import proactive_intelligence_v10
+
+
+@dataclass
+class FakeTool:
+    risk: str
+    gate: str | None = None
+
+
+class FakeDB:
+    def list_approvals(self, status="pending", limit=1000):
+        assert status == "pending"
+        return [{"id": "a1"}, {"id": "a2"}]
+
+    def list_missions(self, limit=1000, status=None):
+        assert limit == 1000
+        return [
+            {"id": "m1", "status": "running"},
+            {"id": "m2", "status": "paused"},
+            {"id": "m3", "status": "completed"},
+        ]
+
+
+class FakeConnectors:
+    def list(self):
+        return {
+            "ok": True,
+            "connectors": [
+                {"id": "c1", "enabled": True},
+                {"id": "c2", "enabled": False},
+                {"id": "c3", "enabled": True},
+            ],
+        }
+
+
+class FakeSettings:
+    def __init__(self, data_dir: Path):
+        self.data_dir = data_dir
+
+
+class FakeRegistry:
+    def __init__(self, tmp_path):
+        self.settings = FakeSettings(tmp_path)
+        self.db = FakeDB()
+        self.connectors = FakeConnectors()
+        self.tools = {"notify": FakeTool("external", "connectors")}
+        self.registered = {}
+        self.execute_calls = []
+
+    def register(self, name, description, parameters, function, gate=None, risk="read"):
+        self.registered[name] = {"function": function, "risk": risk, "gate": gate, "parameters": parameters}
+        self.tools[name] = FakeTool(risk, gate)
+
+    def catalog(self):
+        return [{"name": name, "description": "test", "risk": tool.risk, "gate": tool.gate} for name, tool in self.tools.items()]
+
+    async def execute(self, name, arguments, permissions):
+        self.execute_calls.append((name, arguments, permissions))
+        return {"ok": False, "approval_required": True, "approval_id": "approval-9", "risk": "external"}
+
+
+def test_plugin_registers_host_owned_sources_and_keeps_dispatch_internal(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+
+    assert "evaluate_trusted_proactive_source" in registry.registered
+    assert "dispatch_proactive_proposal" not in registry.registered
+    status = registry.registered["proactive_v10_status"]["function"]()
+    assert status["sources"] == [
+        {"source_id": "system.pending_approvals", "max_age_seconds": 30, "trusted_for_dispatch": True},
+        {"source_id": "system.active_missions", "max_age_seconds": 60, "trusted_for_dispatch": True},
+        {"source_id": "system.enabled_connectors", "max_age_seconds": 60, "trusted_for_dispatch": True},
+    ]
+    assert status["lifecycle"]["scheduler_owned"] is False
+    assert status["lifecycle"]["dispatch_capability"] is False
+    assert callable(registry.dispatch_cached_proactive_proposal_v10)
+    assert callable(registry.evaluate_due_proactive_conditions_v10)
+
+
+def test_mission_and_connector_sources_are_read_models(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+
+    missions = registry.proactive_sources_v10.collect("system.active_missions")
+    connectors = registry.proactive_sources_v10.collect("system.enabled_connectors")
+
+    assert missions.value == 2
+    assert connectors.value == 2
+    assert missions.trusted_for_dispatch is True
+    assert connectors.trusted_for_dispatch is True
+    assert registry.execute_calls == []
+
+
+@pytest.mark.asyncio
+async def test_trusted_source_evaluation_caches_bound_proposal_and_dispatch_reenters_registry(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+    evaluate = registry.registered["evaluate_trusted_proactive_source"]["function"]
+
+    result = evaluate(
+        condition_id="pending-approval-alert",
+        source_id="system.pending_approvals",
+        operator="gte",
+        threshold=2,
+        action_tool="notify",
+        action_args={"message": "Pending approvals require review"},
+        cooldown_seconds=0,
+        edge_triggered=False,
+    )
+
+    assert result["matched"] is True
+    assert result["proposed"] is True
+    assert result["trusted_source"] is True
+    proposal_id = result["proposal"]["proposal_id"]
+    assert proposal_id in registry.proactive_proposals_v10
+
+    dispatched = await registry.dispatch_cached_proactive_proposal_v10(
+        proposal_id,
+        {"allow_connectors": True, "approval_mode": "standard"},
+    )
+    replay = await registry.dispatch_cached_proactive_proposal_v10(
+        proposal_id,
+        {"allow_connectors": True, "approval_mode": "standard"},
+    )
+
+    assert dispatched["receipt"]["status"] == "approval_pending"
+    assert dispatched["receipt"]["approval_id"] == "approval-9"
+    assert replay["receipt"] == dispatched["receipt"]
+    assert len(registry.execute_calls) == 1
+
+
+def test_manual_evaluation_stays_untrusted(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+    evaluate = registry.registered["evaluate_proactive_condition"]["function"]
+
+    result = evaluate("manual", "eq", 1, 1, "notify", {"message": "x"}, 0, False)
+
+    assert result["proposed"] is True
+    assert result["trusted_source"] is False
+    assert result["proposal"]["trusted_source"] is False
+    assert result["proposal"]["source_id"] == "manual"
+
+
+def test_persistent_condition_registers_disabled_and_due_evaluation_only_caches(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+    register_condition = registry.registered["register_proactive_condition_v10"]["function"]
+    set_enabled = registry.registered["set_proactive_condition_enabled_v10"]["function"]
+
+    created = register_condition(
+        condition_id="pending-approval-watch",
+        source_id="system.pending_approvals",
+        operator="gte",
+        threshold=2,
+        action_tool="notify",
+        action_args={"message": "review approvals"},
+        interval_seconds=30,
+        cooldown_seconds=0,
+        edge_triggered=False,
+    )
+    assert created["enabled"] is False
+    assert created["dispatch_performed"] is False
+    assert registry.proactive_lifecycle_v10.status()["enabled"] == 0
+
+    enabled = set_enabled("pending-approval-watch", True)
+    assert enabled["definition"]["enabled"] is True
+    assert enabled["dispatch_performed"] is False
+
+    runs = registry.evaluate_due_proactive_conditions_v10()
+    assert len(runs) == 1
+    assert runs[0].evaluation is not None
+    assert runs[0].evaluation.proposed is True
+    proposal_id = runs[0].evaluation.proposal.proposal_id
+    assert proposal_id in registry.proactive_proposals_v10
+    assert registry.execute_calls == []
+
+
+def test_lifecycle_tools_have_no_execute_or_external_risk(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+
+    assert registry.registered["list_proactive_conditions_v10"]["risk"] == "read"
+    assert registry.registered["register_proactive_condition_v10"]["risk"] == "write"
+    assert registry.registered["set_proactive_condition_enabled_v10"]["risk"] == "write"
+    assert "evaluate_due_proactive_conditions_v10" not in registry.registered
