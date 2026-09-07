@@ -19,6 +19,26 @@ class FakeDB:
         assert status == "pending"
         return [{"id": "a1"}, {"id": "a2"}]
 
+    def list_missions(self, limit=1000, status=None):
+        assert limit == 1000
+        return [
+            {"id": "m1", "status": "running"},
+            {"id": "m2", "status": "paused"},
+            {"id": "m3", "status": "completed"},
+        ]
+
+
+class FakeConnectors:
+    def list(self):
+        return {
+            "ok": True,
+            "connectors": [
+                {"id": "c1", "enabled": True},
+                {"id": "c2", "enabled": False},
+                {"id": "c3", "enabled": True},
+            ],
+        }
+
 
 class FakeSettings:
     def __init__(self, data_dir: Path):
@@ -29,6 +49,7 @@ class FakeRegistry:
     def __init__(self, tmp_path):
         self.settings = FakeSettings(tmp_path)
         self.db = FakeDB()
+        self.connectors = FakeConnectors()
         self.tools = {"notify": FakeTool("external", "connectors")}
         self.registered = {}
         self.execute_calls = []
@@ -45,18 +66,36 @@ class FakeRegistry:
         return {"ok": False, "approval_required": True, "approval_id": "approval-9", "risk": "external"}
 
 
-def test_plugin_registers_host_owned_source_and_keeps_dispatch_internal(tmp_path):
+def test_plugin_registers_host_owned_sources_and_keeps_dispatch_internal(tmp_path):
     registry = FakeRegistry(tmp_path)
     proactive_intelligence_v10.register(registry)
 
     assert "evaluate_trusted_proactive_source" in registry.registered
     assert "dispatch_proactive_proposal" not in registry.registered
     status = registry.registered["proactive_v10_status"]["function"]()
-    assert status["sources"] == [{"source_id": "system.pending_approvals", "max_age_seconds": 30, "trusted_for_dispatch": True}]
+    assert status["sources"] == [
+        {"source_id": "system.pending_approvals", "max_age_seconds": 30, "trusted_for_dispatch": True},
+        {"source_id": "system.active_missions", "max_age_seconds": 60, "trusted_for_dispatch": True},
+        {"source_id": "system.enabled_connectors", "max_age_seconds": 60, "trusted_for_dispatch": True},
+    ]
     assert status["lifecycle"]["scheduler_owned"] is False
     assert status["lifecycle"]["dispatch_capability"] is False
     assert callable(registry.dispatch_cached_proactive_proposal_v10)
     assert callable(registry.evaluate_due_proactive_conditions_v10)
+
+
+def test_mission_and_connector_sources_are_read_models(tmp_path):
+    registry = FakeRegistry(tmp_path)
+    proactive_intelligence_v10.register(registry)
+
+    missions = registry.proactive_sources_v10.collect("system.active_missions")
+    connectors = registry.proactive_sources_v10.collect("system.enabled_connectors")
+
+    assert missions.value == 2
+    assert connectors.value == 2
+    assert missions.trusted_for_dispatch is True
+    assert connectors.trusted_for_dispatch is True
+    assert registry.execute_calls == []
 
 
 @pytest.mark.asyncio
