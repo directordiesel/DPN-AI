@@ -11,6 +11,7 @@ from app.advanced_layered_memory_v10 import (
     MemoryProvenance,
     MemoryWriteRequest,
 )
+from app.memory_scope import ScopedMemory
 
 
 class MemoryLineageError(ValueError):
@@ -122,16 +123,18 @@ class MemoryLineageService:
                 "required_authority": target_authority,
             }
 
-        # The lineage receipt is a derived memory and therefore carries every source
-        # evidence ID plus the old/new memory identities. Validate its evidence bound
-        # before writing the replacement so an oversized receipt cannot create avoidable
-        # partial persistence.
-        predicted_replacement_id = self.memory._memory_id(
-            scope_id,
-            layer,
-            logical_key,
-            self.memory._content_hash(replacement_content),
-        )
+        # AdvancedLayeredMemory delegates durable storage to MemoryService. Predict
+        # the exact durable ID using that same ScopedMemory identity function so the
+        # lineage evidence bound can be checked before the replacement is written.
+        content_hash = self.memory._content_hash(replacement_content)
+        physical_key = f"v10:{layer.value}:{logical_key}:{content_hash[:16]}"
+        predicted_replacement_id = ScopedMemory.build(
+            physical_key,
+            replacement_content,
+            scope=scope,
+            source="lineage-preflight",
+            **self.memory._scope_kwargs(replacement.context),
+        ).memory_id
         lineage_evidence = tuple(
             dict.fromkeys((*replacement.provenance.evidence_ids, predicted_replacement_id, *sorted(targets)))
         )
