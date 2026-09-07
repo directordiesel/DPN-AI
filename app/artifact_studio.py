@@ -7,6 +7,7 @@ from openpyxl import load_workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
 from app.artifact_acceptance_v10 import inspect_artifact_acceptance
+from app.artifact_profiles_v10 import ArtifactProfileEvaluation, evaluate_artifact_profile_request
 from app.artifact_quality_v10 import inspect_artifact_quality
 from app.artifact_validation import validate_artifact
 from app.tools.documents import DocumentFactory
@@ -19,41 +20,127 @@ class ArtifactStudio:
         self.workspace = workspace.resolve()
         self.factory = DocumentFactory(self.workspace)
 
-    def _finalize(self, result: dict[str, Any], *, required_items: Iterable[str]) -> dict[str, Any]:
+    @staticmethod
+    def _profile_failure(artifact_type: str, evaluation: ArtifactProfileEvaluation) -> dict[str, Any]:
+        return {
+            "ok": False,
+            "type": artifact_type,
+            "error": "artifact profile preflight failed",
+            "profile": evaluation.to_dict(),
+            "professional_ready": False,
+        }
+
+    def _finalize(
+        self,
+        result: dict[str, Any],
+        *,
+        required_items: Iterable[str],
+        profile: ArtifactProfileEvaluation,
+    ) -> dict[str, Any]:
         if not result.get("ok") or not result.get("path"):
-            return result
+            return {**result, "profile": profile.to_dict(), "professional_ready": False}
         target = self.workspace / str(result["path"])
         validation = validate_artifact(target, self.workspace)
         quality = inspect_artifact_quality(target, self.workspace)
         acceptance = inspect_artifact_acceptance(target, self.workspace, required_items=required_items)
-        professional_ready = bool(validation.valid and quality.professional_ready and acceptance.accepted)
+        professional_ready = bool(
+            profile.ready and validation.valid and quality.professional_ready and acceptance.accepted
+        )
         return {
             **result,
+            "profile": profile.to_dict(),
             "validation": validation.to_dict(),
             "quality": quality.to_dict(),
             "acceptance": acceptance.to_dict(),
             "professional_ready": professional_ready,
         }
 
-    def create_document(self, filename: str, title: str, sections: list[dict[str, Any]], author: str = "DPN AI") -> dict[str, Any]:
+    def create_document(
+        self,
+        filename: str,
+        title: str,
+        sections: list[dict[str, Any]],
+        author: str = "DPN AI",
+        profile_id: str | None = None,
+    ) -> dict[str, Any]:
+        profile = evaluate_artifact_profile_request(
+            profile_id=profile_id,
+            artifact_type="docx",
+            title=title,
+            items=sections,
+        )
+        if not profile.ready:
+            return self._profile_failure("docx", profile)
         required = [title, *(str(section.get("heading", "")).strip() for section in sections)]
         return self._finalize(
             self.factory.create_docx(filename, title, sections, author=author),
             required_items=required,
+            profile=profile,
         )
 
-    def create_pdf(self, filename: str, title: str, sections: list[dict[str, Any]]) -> dict[str, Any]:
+    def create_pdf(
+        self,
+        filename: str,
+        title: str,
+        sections: list[dict[str, Any]],
+        profile_id: str | None = None,
+    ) -> dict[str, Any]:
+        profile = evaluate_artifact_profile_request(
+            profile_id=profile_id,
+            artifact_type="pdf",
+            title=title,
+            items=sections,
+        )
+        if not profile.ready:
+            return self._profile_failure("pdf", profile)
         required = [title, *(str(section.get("heading", "")).strip() for section in sections)]
-        return self._finalize(self.factory.create_pdf(filename, title, sections), required_items=required)
+        return self._finalize(
+            self.factory.create_pdf(filename, title, sections),
+            required_items=required,
+            profile=profile,
+        )
 
-    def create_presentation(self, filename: str, title: str, slides: list[dict[str, Any]]) -> dict[str, Any]:
+    def create_presentation(
+        self,
+        filename: str,
+        title: str,
+        slides: list[dict[str, Any]],
+        profile_id: str | None = None,
+    ) -> dict[str, Any]:
+        profile = evaluate_artifact_profile_request(
+            profile_id=profile_id,
+            artifact_type="pptx",
+            title=title,
+            items=slides,
+        )
+        if not profile.ready:
+            return self._profile_failure("pptx", profile)
         required = [title, *(str(slide.get("title", "")).strip() for slide in slides)]
-        return self._finalize(self.factory.create_pptx(filename, title, slides), required_items=required)
+        return self._finalize(
+            self.factory.create_pptx(filename, title, slides),
+            required_items=required,
+            profile=profile,
+        )
 
-    def create_spreadsheet(self, filename: str, title: str, sheets: list[dict[str, Any]]) -> dict[str, Any]:
+    def create_spreadsheet(
+        self,
+        filename: str,
+        title: str,
+        sheets: list[dict[str, Any]],
+        profile_id: str | None = None,
+    ) -> dict[str, Any]:
+        profile = evaluate_artifact_profile_request(
+            profile_id=profile_id,
+            artifact_type="xlsx",
+            title=title,
+            items=sheets,
+        )
+        if not profile.ready:
+            return self._profile_failure("xlsx", profile)
+
         result = self.factory.create_xlsx(filename, title, sheets)
         if not result.get("ok") or not result.get("path"):
-            return result
+            return {**result, "profile": profile.to_dict(), "professional_ready": False}
 
         target = (self.workspace / str(result["path"])).resolve()
         target.relative_to(self.workspace)
@@ -110,4 +197,4 @@ class ArtifactStudio:
             if isinstance(rows, list) and rows:
                 header = rows[0] if isinstance(rows[0], list) else [rows[0]]
                 required.extend(str(value).strip() for value in header if str(value).strip())
-        return self._finalize(result, required_items=required)
+        return self._finalize(result, required_items=required, profile=profile)
