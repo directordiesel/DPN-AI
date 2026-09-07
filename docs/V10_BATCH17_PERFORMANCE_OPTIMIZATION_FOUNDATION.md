@@ -1,42 +1,52 @@
 # DPN AI v10.0.0 — Batch 17 Performance + Benchmark Optimization
 
-Batch 17 optimizes the integrated v10 platform without weakening correctness, security, benchmark coverage, or approval boundaries.
+Batch 17 is the performance and benchmark optimization phase after the verified Batch 16 security/regression closure. It adds a fail-closed optimization authority over the existing `BenchmarkLaboratory`; it does not create a second benchmark engine or a new execution authority.
 
-## Foundation
+## Performance optimization authority
 
-`app/performance_optimization_v10.py` evaluates explicit baseline and candidate `BenchmarkRun` evidence from the existing Benchmark Laboratory. It does not execute benchmarks, modify routing, apply code, merge changes, deploy software, or authorize tools.
+`app/performance_optimization_v10.py` compares explicit baseline and candidate `BenchmarkRun` evidence for one model identity and a host-supplied mandatory family set.
 
-A candidate must use the exact same task IDs for every required benchmark family. Missing, duplicate, substituted, or omitted tasks fail closed. Default policy preserves 100% success and quality, allows no latency/retry/token regression, and requires at least one measurable resource improvement.
+An optimization candidate must preserve the exact benchmark task IDs for every required family. Missing, added, or duplicate task IDs fail closed. This prevents a candidate from appearing faster by omitting difficult benchmark cases or substituting a smaller workload.
+
+The default policy requires:
+
+- candidate success rate of 1.0;
+- candidate quality score of 1.0;
+- zero success regression;
+- zero quality regression;
+- zero median-latency regression;
+- zero retry regression;
+- zero token-usage regression when complete token evidence is available;
+- at least one measurable improvement in median latency, retries, or token usage across the required families.
+
+Token evidence must be complete for every task in a family or absent for every task. Baseline/candidate token-evidence availability must match. Zero-valued resource baselines are handled without non-finite ratios and any growth from a zero baseline fails closed under the default policy.
 
 ## Durable evidence
 
-`app/performance_evidence_v10.py` records append-only optimization receipts bound to the full normalized evaluation with SHA-256. Identical replay is idempotent. Corrupt state, conflicting evidence under the same candidate digest, or any receipt claiming `execution_authorized=true` fails closed.
+`app/performance_evidence_v10.py` persists append-only optimization receipts bound to each evaluation by SHA-256. Identical replay is idempotent. Corrupt JSON, malformed schema, conflicting duplicate evidence, or any receipt claiming `execution_authorized=true` fails closed.
 
 ## Governed performance profiles
 
-`app/performance_profiles_v10.py` defines immutable host-owned optimization profiles:
+`app/performance_profiles_v10.py` defines host-owned profiles rather than allowing a candidate to select arbitrary benchmark families:
 
-- `balanced_platform` — broad cross-capability optimization over model intelligence, autonomous coding, multimodal, memory, artifacts, voice, proactive intelligence, specialists, marketplace, and self-improvement.
-- `interactive_latency` — latency-sensitive model/multimodal/voice/proactive workloads.
-- `agent_efficiency` — autonomous coding, memory, specialist, and self-improvement efficiency with strict token controls.
+- `balanced_platform`
+- `interactive_latency`
+- `agent_efficiency`
 
-Unknown or malformed profile identities fail closed. Profiles do not grant execution authority and cannot waive correctness or quality requirements.
+Each profile binds a mandatory family set and explicit resource-regression policy. Unknown or malformed profile identities fail closed.
 
-## Security and anti-gaming boundary
+## Cross-profile acceptance
 
-- exact baseline/candidate task-set parity is mandatory;
-- duplicate task IDs are rejected;
-- success and quality regression are independently gated;
-- token evidence must be complete for every task or absent for every task;
-- baseline/candidate token availability must match;
-- zero-resource baselines are handled with finite ratios;
-- candidate/model/family/profile identities are strict strings;
-- non-finite evidence is prohibited from durable JSON;
-- optimization evidence always carries `execution_authorized=false`;
-- no ToolRegistry `_invoke()` bypass, model-controlled benchmark pass flag, deployment, connector mutation, capability activation, self-merge, or routing mutation is introduced.
+`app/performance_acceptance_v10.py` provides the Batch 17 cross-capability acceptance authority. A platform candidate is accepted only when all governed profiles are present, each profile evaluation passed, every evaluation is non-authorizing, each evaluation exactly matches the host-owned profile family set, and every profile binds to the same candidate ID and model identity.
 
-## Verification
+This prevents mixing results from different builds or models into one apparent optimized release.
 
-Regression coverage includes genuine improvements, omitted-task gaming, duplicate evidence, correctness/quality tradeoffs, retry/token regressions, no-op candidates, incomplete token evidence, zero-resource baselines, malformed policies/identities, durable receipt replay, corrupt receipt handling, authorization-claim rejection, and profile validation.
+## Release contract
 
-Batch 17 remains incomplete until cross-capability acceptance evidence, an immutable release manifest, executable release harness, dedicated CI gate, and exact-head completion evidence are green.
+`app/performance_release_v10.py` defines an immutable eight-family release manifest. `app/performance_release_ci_v10.py` executes only those exact pytest node IDs, and `.github/scripts/performance_release_readiness_v10.py` is the repository-root-safe CI entrypoint. GitHub Actions runs the Batch 17 release gate on Ubuntu/Python 3.11 after the Batch 8–16 release gates.
+
+## Security boundary
+
+Performance evidence is not authorization. Every evaluation, durable receipt, release audit, and cross-profile acceptance result reports `execution_authorized=false`. Batch 17 cannot change model routing, execute benchmarks, apply code, merge a pull request, deploy a release, mutate connectors, activate marketplace capabilities, or bypass ToolRegistry/ApprovalSecurity.
+
+A faster candidate that loses correctness, quality, reliability, identity integrity, benchmark coverage, or resource efficiency fails closed.
