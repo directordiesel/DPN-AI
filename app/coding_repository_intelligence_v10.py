@@ -10,6 +10,13 @@ class CodingRepositoryError(ValueError):
     """Raised when repository intelligence evidence is invalid or incomplete."""
 
 
+_WINDOWS_RESERVED_NAMES = {
+    "con", "prn", "aux", "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10)),
+}
+
+
 def _normalize_repository_path(path: str) -> str:
     if not isinstance(path, str):
         raise CodingRepositoryError("repository path must be a string")
@@ -26,10 +33,27 @@ def _normalize_repository_path(path: str) -> str:
     parts = candidate.parts
     if not parts or any(part in {"", ".", ".."} for part in parts):
         raise CodingRepositoryError("repository path must remain inside the repository")
+    for part in parts:
+        # DPN AI is cross-platform. Reject names that can alias another path or invoke
+        # Windows device/alternate-data-stream semantics even when authored on Unix.
+        if part.endswith((" ", ".")) or ":" in part:
+            raise CodingRepositoryError("repository path must be portable and unambiguous")
+        device_base = part.split(".", 1)[0].casefold()
+        if device_base in _WINDOWS_RESERVED_NAMES:
+            raise CodingRepositoryError("repository path uses a reserved Windows device name")
+        if any(ord(ch) < 32 for ch in part):
+            raise CodingRepositoryError("repository path must not contain control characters")
+
     normalized = str(candidate)
     if normalized in {"", "."} or normalized.startswith("../") or "/../" in normalized:
         raise CodingRepositoryError("repository path must remain inside the repository")
     return normalized
+
+
+def _require_bool(name: str, value: bool) -> bool:
+    if type(value) is not bool:
+        raise CodingRepositoryError(f"{name} must be a boolean")
+    return value
 
 
 class DiffRisk(str, Enum):
@@ -246,6 +270,10 @@ class RepositoryIntelligence:
         ci_passed: bool,
         unresolved_findings: Iterable[str] = (),
     ) -> PullRequestEvidence:
+        validation_passed = _require_bool("validation_passed", validation_passed)
+        self_review_passed = _require_bool("self_review_passed", self_review_passed)
+        security_review_passed = _require_bool("security_review_passed", security_review_passed)
+        ci_passed = _require_bool("ci_passed", ci_passed)
         if impact.missing_paths:
             unresolved = tuple(unresolved_findings) + tuple(f"missing:{path}" for path in impact.missing_paths)
         else:
@@ -254,10 +282,10 @@ class RepositoryIntelligence:
             repository_mapped=True,
             changed_files=impact.changed_files,
             selected_tests=impact.directly_affected_tests,
-            validation_passed=bool(validation_passed),
-            self_review_passed=bool(self_review_passed),
-            security_review_passed=bool(security_review_passed),
-            ci_passed=bool(ci_passed),
+            validation_passed=validation_passed,
+            self_review_passed=self_review_passed,
+            security_review_passed=security_review_passed,
+            ci_passed=ci_passed,
             diff_risk=risk.risk,
             unresolved_findings=unresolved,
         )
