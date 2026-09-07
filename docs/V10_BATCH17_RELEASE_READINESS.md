@@ -4,7 +4,7 @@ Batch 17 adds an executable, fail-closed release gate for performance and benchm
 
 ## Mandatory release families
 
-The immutable manifest in `app/performance_release_v10.py` binds Batch 17 readiness to seven exact pytest node IDs:
+The immutable manifest in `app/performance_release_v10.py` binds Batch 17 readiness to eight exact pytest node IDs:
 
 1. **measurable improvement integrity** — a candidate must demonstrate a real latency/resource improvement while preserving correctness and quality;
 2. **benchmark task-set integrity** — baseline and candidate benchmark task IDs must match exactly, preventing omission-based benchmark gaming;
@@ -12,7 +12,8 @@ The immutable manifest in `app/performance_release_v10.py` binds Batch 17 readin
 4. **resource regression integrity** — an apparent latency win cannot hide token/resource regression;
 5. **durable evidence integrity** — conflicting durable evidence under one candidate digest fails closed;
 6. **non-authorizing evidence** — any performance receipt claiming execution authorization is rejected;
-7. **governed profile integrity** — host-owned performance profiles must remain valid and require measurable improvement.
+7. **governed profile integrity** — host-owned performance profiles must remain valid and require measurable improvement;
+8. **cross-profile candidate binding** — all governed profiles must bind to the same candidate ID and model identity with exact profile-family coverage.
 
 ## Executable release gate
 
@@ -24,7 +25,7 @@ The audit rejects missing, failed, or unexpected evidence families. A successful
 
 - `checkpoint=v10.0.0-batch-17`;
 - `ready=true`;
-- all seven required families present and true;
+- all eight required families present and true;
 - no unexpected families;
 - `execution_authorized=false`.
 
@@ -32,7 +33,7 @@ The audit rejects missing, failed, or unexpected evidence families. A successful
 
 Performance optimization is not permission escalation. Benchmark or resource improvements cannot change model routing, apply code, merge a pull request, deploy software, invoke tools, mutate connectors, activate marketplace capabilities, or approve destructive actions. Those actions remain governed by their existing authorities and approval boundaries.
 
-Exact task parity, durable SHA-256-bound receipts, strict performance-profile identity, preserved correctness/quality, and bounded resource regressions remain required. Malformed, incomplete, ambiguous, conflicting, or authorizing performance evidence fails closed.
+Exact task parity, durable SHA-256-bound receipts, strict performance-profile identity, cross-profile same-candidate binding, preserved correctness/quality, and bounded resource regressions remain required. Malformed, incomplete, ambiguous, conflicting, cross-candidate, or authorizing performance evidence fails closed.
 
 ## Completion rule
 
