@@ -51,6 +51,7 @@ jobs:
           exact_replace("app/static/sw.js", "/styles.css?v=9.0.0", "/styles.css?v=10.0.0", 1)
           exact_replace("app/static/sw.js", "/app.js?v=9.0.0", "/app.js?v=10.0.0", 1)
           exact_replace("app/static/index.html", "DPN AI v9 — Control Center", "DPN AI v10 — Control Center", 1)
+          exact_replace("app/static/index.html", "STABLE CORE v9.0.0", "STABLE CORE v10.0.0", 1)
           exact_replace("app/static/index.html", "/styles.css?v=9.0.0", "/styles.css?v=10.0.0", 1)
           exact_replace("app/static/index.html", "/app.js?v=9.0.0", "/app.js?v=10.0.0", 1)
           exact_replace("app/static/app.js", "navigator.serviceWorker.register('/sw.js?v=9.0.0')", "navigator.serviceWorker.register('/sw.js?v=10.0.0')", 1)
