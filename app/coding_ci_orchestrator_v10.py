@@ -23,6 +23,9 @@ class CIJobConclusion(str, Enum):
     TIMED_OUT = "timed_out"
     SKIPPED = "skipped"
     NEUTRAL = "neutral"
+    ACTION_REQUIRED = "action_required"
+    STARTUP_FAILURE = "startup_failure"
+    STALE = "stale"
 
 
 @dataclass(frozen=True)
@@ -43,9 +46,8 @@ class CIJobEvidence:
 
     @property
     def passed(self) -> bool:
-        # Release/PR readiness requires explicit successful execution. Skipped and
-        # neutral results may be informational, but they are not proof that the
-        # required validation actually ran.
+        # Release/PR readiness requires explicit successful execution. Every other
+        # terminal GitHub conclusion is non-passing evidence.
         return self.conclusion == CIJobConclusion.SUCCESS
 
 
@@ -90,8 +92,15 @@ class CodingCIOrchestrator:
         affected: list[str] = []
         for job in failed:
             detail_parts = [part for part in (job.failed_step, job.log_excerpt) if part]
-            if job.conclusion in {CIJobConclusion.SKIPPED, CIJobConclusion.NEUTRAL}:
-                detail_parts.insert(0, f"CI conclusion {job.conclusion.value} does not prove required execution")
+            if job.conclusion in {
+                CIJobConclusion.SKIPPED,
+                CIJobConclusion.NEUTRAL,
+                CIJobConclusion.ACTION_REQUIRED,
+                CIJobConclusion.STALE,
+            }:
+                detail_parts.insert(0, f"CI conclusion {job.conclusion.value} does not prove required successful execution")
+            elif job.conclusion == CIJobConclusion.STARTUP_FAILURE:
+                detail_parts.insert(0, "CI job failed before required validation could execute")
             detail = "\n".join(detail_parts)
             validation_results.append(ValidationResult(name=f"ci:{job.name}", passed=False, output=detail))
             affected.extend(job.affected_paths)
@@ -132,6 +141,8 @@ class CodingCIOrchestrator:
         pr_evidence: PullRequestEvidence | None = None,
     ) -> CodingOrchestrationResult:
         mission.validate()
+        if type(approval_granted) is not bool:
+            raise CodingMissionError("approval_granted must be a boolean")
         ci = cls.analyze_jobs(jobs)
 
         if ci.passed:
