@@ -7,15 +7,15 @@
 <p align="center"><strong>Local-first autonomous AI operations platform by DPN Technology</strong></p>
 
 <p align="center">
-  <img alt="Stable" src="https://img.shields.io/badge/Stable-v9.0.0-6d28d9?style=for-the-badge">
-  <img alt="Release" src="https://img.shields.io/badge/Release-Published-16a34a?style=for-the-badge">
+  <img alt="Stable" src="https://img.shields.io/badge/Stable-v10.0.0-6d28d9?style=for-the-badge">
+  <img alt="Release" src="https://img.shields.io/badge/Release-Publication--Pending-16a34a?style=for-the-badge">
   <img alt="Repository" src="https://img.shields.io/badge/Repository-Public-111827?style=for-the-badge">
   <img alt="Architecture" src="https://img.shields.io/badge/Architecture-Local--First-7c3aed?style=for-the-badge">
   <a href="https://github.com/directordiesel/DPN-AI/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/badge/CI-Required-2563eb?style=for-the-badge"></a>
 </p>
 
 <p align="center">
-  <strong>Stable release:</strong> v9.0.0 &nbsp;•&nbsp;
+  <strong>Stable release:</strong> v10.0.0 &nbsp;•&nbsp;
   <strong>Publisher:</strong> DPN Technology &nbsp;•&nbsp;
   <strong>Primary stack:</strong> Python + Local AI + Desktop + Android + Agents + Tools
 </p>
@@ -30,9 +30,9 @@ The platform is built around a simple operating principle: **powerful AI actions
 
 DPN AI can plan multi-step work, route tasks to specialized agents, invoke approved tools, create artifacts, analyze repositories, perform research, retain scoped memory, schedule workflows, use local models, interact with reviewed integrations, record evidence, and recover from failures without pretending an unsupported or failed capability succeeded.
 
-## Download v9.0.0
+## v10.0.0 Release Candidate
 
-The current published stable release is **DPN AI v9.0.0**.
+DPN AI **v10.0.0** metadata is promoted and final publication is pending. The v9.0.0 GitHub Release remains the previously published stable artifact until v10 publication succeeds.
 
 | Release resource | Link |
 | --- | --- |
