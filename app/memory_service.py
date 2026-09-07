@@ -29,6 +29,8 @@ class MemoryService:
         value: str,
         *,
         scope: MemoryScope | str = MemoryScope.GLOBAL,
+        organization_id: str | None = None,
+        user_id: str | None = None,
         project_id: str | None = None,
         conversation_id: str | None = None,
         source: str = "manual",
@@ -38,6 +40,8 @@ class MemoryService:
             key,
             value,
             scope=scope,
+            organization_id=organization_id,
+            user_id=user_id,
             project_id=project_id,
             conversation_id=conversation_id,
             source=source,
@@ -78,11 +82,15 @@ class MemoryService:
         self,
         query: str,
         *,
+        organization_id: str | None = None,
+        user_id: str | None = None,
         project_id: str | None = None,
         conversation_id: str | None = None,
         limit: int = 8,
     ) -> dict[str, Any]:
         namespaces = ScopedMemory.visible_namespaces(
+            organization_id=organization_id,
+            user_id=user_id,
             project_id=project_id,
             conversation_id=conversation_id,
         )
