@@ -50,9 +50,9 @@ class ToolPermissionRuntime:
     Docker security boundary for ``run_python_sandbox`` is always approval-gated,
     even when the base sandbox tool is otherwise allowed for the session or by an
     Always Allow rule. DPN Connector Protocol writes, first-party profile installs,
-    and MCP tool calls are likewise always human-approval gated, including
-    autonomous/Always Allow modes, because they can create external authority or
-    side effects that cannot be assumed safe or idempotent.
+    MCP tool calls, and v10 durable-memory supersession are likewise always human-
+    approval gated because they create external authority, side effects, or durable
+    preference changes that must not be silently autonomous.
     """
 
     def __init__(self, engine: PermissionEngine | None = None):
@@ -86,20 +86,24 @@ class ToolPermissionRuntime:
         decision: PermissionDecision,
         profile: ToolRiskProfile,
     ) -> PermissionDecision:
-        if tool_name in {"dpn_connector_write", "dpn_connector_mcp_call", "dpn_connector_profile_install"}:
+        if tool_name in {"dpn_connector_write", "dpn_connector_mcp_call", "dpn_connector_profile_install", "dpn_memory_supersede"}:
             if not decision.allowed:
                 return decision
-            reason = (
-                "DPN Connector Protocol profile installation requires explicit human approval"
-                if tool_name == "dpn_connector_profile_install"
-                else "DPN Connector Protocol external writes require explicit human approval"
-            )
+            if tool_name == "dpn_connector_profile_install":
+                reason = "DPN Connector Protocol profile installation requires explicit human approval"
+                source = "connector_write_boundary"
+            elif tool_name == "dpn_memory_supersede":
+                reason = "Durable memory supersession changes preferred long-term knowledge and requires explicit human approval"
+                source = "memory_supersession_boundary"
+            else:
+                reason = "DPN Connector Protocol external writes require explicit human approval"
+                source = "connector_write_boundary"
             return PermissionDecision(
                 False,
                 True,
                 PermissionMode.ASK_EVERY_TIME,
                 reason,
-                "connector_write_boundary",
+                source,
                 profile.risk,
             )
 
