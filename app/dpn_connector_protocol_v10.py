@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Protocol
 
 
 class ConnectorProtocolError(ValueError):
@@ -49,6 +49,20 @@ WRITE_ACTIONS = {ConnectorAction.CREATE, ConnectorAction.UPDATE}
 DESTRUCTIVE_ACTIONS = {ConnectorAction.DELETE, ConnectorAction.REVOKE}
 
 
+def _required_risk(action: ConnectorAction) -> ConnectorRisk:
+    if action in READ_ACTIONS:
+        return ConnectorRisk.READ_ONLY
+    if action in WRITE_ACTIONS:
+        return ConnectorRisk.WRITE
+    if action in DESTRUCTIVE_ACTIONS:
+        return ConnectorRisk.DESTRUCTIVE
+    if action == ConnectorAction.SUBSCRIBE:
+        return ConnectorRisk.SUBSCRIPTION
+    if action == ConnectorAction.AUTHENTICATE:
+        return ConnectorRisk.CREDENTIAL
+    raise ConnectorProtocolError("connector action has no recognized risk mapping")
+
+
 @dataclass(frozen=True)
 class ConnectorCapability:
     action: ConnectorAction
@@ -57,12 +71,22 @@ class ConnectorCapability:
     approval_required: bool = False
 
     def validate(self) -> None:
-        if not self.resource.strip():
+        if not isinstance(self.action, ConnectorAction):
+            raise ConnectorProtocolError("connector capability action must be a recognized ConnectorAction")
+        if not isinstance(self.risk, ConnectorRisk):
+            raise ConnectorProtocolError("connector capability risk must be a recognized ConnectorRisk")
+        if not isinstance(self.approval_required, bool):
+            raise ConnectorProtocolError("connector capability approval requirement must be boolean")
+        if not isinstance(self.resource, str) or not self.resource.strip():
             raise ConnectorProtocolError("connector capability resource is required")
-        if self.action in DESTRUCTIVE_ACTIONS and not self.approval_required:
-            raise ConnectorProtocolError("destructive connector capabilities must require approval")
-        if self.action in WRITE_ACTIONS and self.risk == ConnectorRisk.READ_ONLY:
-            raise ConnectorProtocolError("write connector capabilities cannot be declared read-only")
+
+        expected_risk = _required_risk(self.action)
+        if self.risk != expected_risk:
+            raise ConnectorProtocolError(
+                f"connector capability risk drift: {self.action.value} requires {expected_risk.value} risk"
+            )
+        if self.action in WRITE_ACTIONS | DESTRUCTIVE_ACTIONS | {ConnectorAction.SUBSCRIBE} and not self.approval_required:
+            raise ConnectorProtocolError("state-changing connector capabilities must require approval")
 
 
 @dataclass(frozen=True)
@@ -82,6 +106,10 @@ class ConnectorManifest:
             raise ConnectorProtocolError("connector id, kind, and display name are required")
         if not self.version.strip():
             raise ConnectorProtocolError("connector manifest version is required")
+        if not all(isinstance(value, bool) for value in (self.configured, self.enabled, self.local)):
+            raise ConnectorProtocolError("connector manifest state flags must be boolean")
+        if not isinstance(self.metadata, dict):
+            raise ConnectorProtocolError("connector manifest metadata must be an object")
         if len({(item.action, item.resource) for item in self.capabilities}) != len(self.capabilities):
             raise ConnectorProtocolError("connector capabilities must be unique by action and resource")
         for capability in self.capabilities:
@@ -105,12 +133,18 @@ class ConnectorRequest:
     user_scope: str = ""
 
     def validate(self) -> None:
-        if not self.connector_id.strip():
+        if not isinstance(self.connector_id, str) or not self.connector_id.strip():
             raise ConnectorProtocolError("connector id is required")
-        if not self.resource.strip():
+        if not isinstance(self.action, ConnectorAction):
+            raise ConnectorProtocolError("connector request action must be a recognized ConnectorAction")
+        if not isinstance(self.resource, str) or not self.resource.strip():
             raise ConnectorProtocolError("connector resource is required")
         if not isinstance(self.payload, dict):
             raise ConnectorProtocolError("connector payload must be an object")
+        if not isinstance(self.approval_granted, bool):
+            raise ConnectorProtocolError("connector approval must be boolean")
+        if not isinstance(self.project_id, str) or not isinstance(self.user_scope, str):
+            raise ConnectorProtocolError("connector scope identifiers must be strings")
 
 
 @dataclass(frozen=True)
@@ -153,7 +187,7 @@ class ConnectorPolicy:
         capability = manifest.capability_for(request.action, request.resource)
         if capability is None:
             return ConnectorAuthorization(False, "requested connector action/resource is not declared")
-        if capability.approval_required and not request.approval_granted:
+        if capability.approval_required and request.approval_granted is not True:
             return ConnectorAuthorization(False, "connector action requires explicit approval", capability)
         return ConnectorAuthorization(True, "connector action is explicitly authorized", capability)
 
@@ -218,6 +252,12 @@ class DPNConnectorRegistry:
             raise ConnectorProtocolError(f"connector execution failed: {type(exc).__name__}: {exc}") from exc
         if not isinstance(evidence, ConnectorEvidence):
             raise ConnectorProtocolError("connector adapter returned an invalid evidence contract")
+        if not isinstance(evidence.ok, bool):
+            raise ConnectorProtocolError("connector evidence success flag must be boolean")
+        if not isinstance(evidence.health, ConnectorHealth):
+            raise ConnectorProtocolError("connector evidence health must be a recognized ConnectorHealth")
+        if not isinstance(evidence.provenance, dict):
+            raise ConnectorProtocolError("connector evidence provenance must be an object")
         if evidence.connector_id != request.connector_id or evidence.action != request.action or evidence.resource != request.resource:
             raise ConnectorProtocolError("connector evidence identity does not match the authorized request")
         if evidence.provider_kind != manifest.kind:
