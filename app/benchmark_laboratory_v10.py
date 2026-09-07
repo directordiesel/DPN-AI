@@ -31,6 +31,8 @@ class BenchmarkRun:
             raise ModelRoutingError("benchmark run task family is required")
         if not self.task_id.strip():
             raise ModelRoutingError("benchmark run task id is required")
+        if not isinstance(self.passed, bool):
+            raise ModelRoutingError("benchmark run passed must be a boolean")
         if isinstance(self.quality_score, bool) or not isinstance(self.quality_score, (int, float)):
             raise ModelRoutingError("benchmark run quality score must be numeric")
         if not math.isfinite(float(self.quality_score)) or not 0.0 <= float(self.quality_score) <= 1.0:
@@ -43,19 +45,31 @@ class BenchmarkRun:
             isinstance(self.token_usage, bool) or not isinstance(self.token_usage, int) or self.token_usage < 0
         ):
             raise ModelRoutingError("benchmark run token usage must be a non-negative integer")
+        if self.created_at:
+            if not isinstance(self.created_at, str):
+                raise ModelRoutingError("benchmark run created_at must be an ISO-8601 string")
+            try:
+                parsed = datetime.fromisoformat(self.created_at.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ModelRoutingError("benchmark run created_at must be valid ISO-8601") from exc
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ModelRoutingError("benchmark run created_at must include a timezone offset")
 
     def normalized(self) -> "BenchmarkRun":
         self.validate()
+        created_at = self.created_at or datetime.now(timezone.utc).isoformat()
+        if self.created_at:
+            created_at = datetime.fromisoformat(self.created_at.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat()
         return BenchmarkRun(
             model_name=self.model_name.strip(),
             task_family=self.task_family.strip(),
             task_id=self.task_id.strip(),
-            passed=bool(self.passed),
+            passed=self.passed,
             quality_score=float(self.quality_score),
             latency_ms=self.latency_ms,
             retries=self.retries,
             token_usage=self.token_usage,
-            created_at=self.created_at or datetime.now(timezone.utc).isoformat(),
+            created_at=created_at,
         )
 
 
@@ -169,8 +183,8 @@ class BenchmarkLaboratory:
     ) -> list[RegressionSignal]:
         if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
             raise ModelRoutingError("regression threshold must be numeric")
-        if not math.isfinite(float(threshold)) or not 0.0 <= float(threshold) <= 1.0:
-            raise ModelRoutingError("regression threshold must be between 0 and 1")
+        if not math.isfinite(float(threshold)) or not 0.0 < float(threshold) <= 1.0:
+            raise ModelRoutingError("regression threshold must be greater than 0 and at most 1")
 
         baseline_map = {(item.model_name, item.task_family): item for item in baseline}
         signals: list[RegressionSignal] = []
