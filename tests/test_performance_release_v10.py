@@ -13,7 +13,7 @@ from app.performance_release_v10 import (
 )
 
 
-def test_manifest_is_immutable_seven_family_release_contract() -> None:
+def test_manifest_is_immutable_eight_family_release_contract() -> None:
     manifest = performance_release_manifest()
     assert list(manifest) == [
         "measurable_improvement_integrity",
@@ -23,8 +23,9 @@ def test_manifest_is_immutable_seven_family_release_contract() -> None:
         "durable_evidence_integrity",
         "non_authorizing_evidence",
         "governed_profile_integrity",
+        "cross_profile_candidate_binding",
     ]
-    assert len(set(manifest.values())) == 7
+    assert len(set(manifest.values())) == 8
 
 
 def test_complete_release_evidence_is_ready_but_never_authorizing() -> None:
@@ -50,13 +51,20 @@ def test_missing_failed_or_unexpected_release_evidence_fails_closed() -> None:
         require_performance_release(evidence)
 
 
+def test_truthy_non_boolean_release_evidence_fails_closed() -> None:
+    manifest = performance_release_manifest()
+    evidence = {family: True for family in manifest}
+    evidence[next(iter(manifest))] = 1
+    assert audit_performance_release(evidence)["ready"] is False
+
+
 def test_ci_harness_runs_only_manifest_node_ids_and_returns_non_authorizing_audit(tmp_path) -> None:
     captured = {}
 
     def runner(command, **kwargs):
         captured["command"] = command
         captured["cwd"] = kwargs["cwd"]
-        return subprocess.CompletedProcess(command, 0, stdout="7 passed", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="8 passed", stderr="")
 
     payload = run_performance_release_ci(runner=runner, python_executable="python-test", repository_root=tmp_path)
     manifest = performance_release_manifest()
