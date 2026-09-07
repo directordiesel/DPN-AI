@@ -51,6 +51,11 @@ _REQUIRED_FAMILIES: tuple[PerformanceReleaseFamily, ...] = (
         "tests/test_performance_profiles_v10.py::test_profiles_are_valid_and_non_authorizing_policies",
         "Host-owned performance profiles must remain valid, explicit, and require measurable improvement.",
     ),
+    PerformanceReleaseFamily(
+        "cross_profile_candidate_binding",
+        "tests/test_performance_acceptance_v10.py::test_cross_profile_acceptance_binds_all_profiles_to_one_candidate_and_model",
+        "All governed performance profiles must bind to one candidate and one model identity before release readiness can pass.",
+    ),
 )
 
 
