@@ -1,13 +1,65 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import PurePosixPath
-from typing import Iterable, Mapping
+from typing import Iterable
 
 
 class CodingRepositoryError(ValueError):
     """Raised when repository intelligence evidence is invalid or incomplete."""
+
+
+_WINDOWS_RESERVED_NAMES = {
+    "con", "prn", "aux", "nul",
+    *(f"com{i}" for i in range(1, 10)),
+    *(f"lpt{i}" for i in range(1, 10)),
+}
+
+
+def _normalize_repository_path(path: str) -> str:
+    if not isinstance(path, str):
+        raise CodingRepositoryError("repository path must be a string")
+    raw = path.replace("\\", "/").strip()
+    if not raw or "\x00" in raw:
+        raise CodingRepositoryError("repository path must be non-empty and contain no NUL bytes")
+    if raw.startswith("/") or raw.startswith("//"):
+        raise CodingRepositoryError("repository path must remain inside the repository")
+    # Reject Windows drive-absolute and drive-relative forms (for example C:/x or C:x).
+    if len(raw) >= 2 and raw[1] == ":" and raw[0].isalpha():
+        raise CodingRepositoryError("repository path must remain inside the repository")
+
+    # Inspect raw segments before PurePosixPath can normalize away `.` or collapse
+    # redundant separators. Ambiguous spellings must never alias a trusted path.
+    raw_parts = raw.split("/")
+    if any(part in {"", ".", ".."} for part in raw_parts):
+        raise CodingRepositoryError("repository path must remain inside the repository")
+
+    candidate = PurePosixPath(raw)
+    parts = candidate.parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise CodingRepositoryError("repository path must remain inside the repository")
+    for part in parts:
+        # DPN AI is cross-platform. Reject names that can alias another path or invoke
+        # Windows device/alternate-data-stream semantics even when authored on Unix.
+        if part.endswith((" ", ".")) or ":" in part:
+            raise CodingRepositoryError("repository path must be portable and unambiguous")
+        device_base = part.split(".", 1)[0].casefold()
+        if device_base in _WINDOWS_RESERVED_NAMES:
+            raise CodingRepositoryError("repository path uses a reserved Windows device name")
+        if any(ord(ch) < 32 for ch in part):
+            raise CodingRepositoryError("repository path must not contain control characters")
+
+    normalized = str(candidate)
+    if normalized in {"", "."} or normalized.startswith("../") or "/../" in normalized:
+        raise CodingRepositoryError("repository path must remain inside the repository")
+    return normalized
+
+
+def _require_bool(name: str, value: bool) -> bool:
+    if type(value) is not bool:
+        raise CodingRepositoryError(f"{name} must be a boolean")
+    return value
 
 
 class DiffRisk(str, Enum):
@@ -25,12 +77,10 @@ class RepositoryFile:
     imports: tuple[str, ...] = ()
 
     def normalized_path(self) -> str:
-        raw = self.path.replace("\\", "/").strip("/")
-        if not raw or raw.startswith("../") or "/../" in raw:
-            raise CodingRepositoryError("repository path must remain inside the repository")
+        normalized = _normalize_repository_path(self.path)
         if self.size < 0:
             raise CodingRepositoryError("repository file size must be non-negative")
-        return str(PurePosixPath(raw))
+        return normalized
 
 
 @dataclass(frozen=True)
@@ -52,7 +102,7 @@ class RepositoryMap:
         return tuple(file.path for file in self.files)
 
     def contains(self, path: str) -> bool:
-        normalized = str(PurePosixPath(path.replace("\\", "/").strip("/")))
+        normalized = _normalize_repository_path(path)
         return normalized in set(self.paths)
 
 
@@ -125,7 +175,14 @@ class RepositoryIntelligence:
 
     @staticmethod
     def analyze_change_impact(repo: RepositoryMap, changed_files: Iterable[str]) -> ChangeImpact:
-        requested = tuple(dict.fromkeys(str(PurePosixPath(p.replace("\\", "/").strip("/"))) for p in changed_files if p.strip()))
+        requested_list: list[str] = []
+        for path in changed_files:
+            if not isinstance(path, str) or not path.strip():
+                continue
+            normalized = _normalize_repository_path(path)
+            if normalized not in requested_list:
+                requested_list.append(normalized)
+        requested = tuple(requested_list)
         if not requested:
             raise CodingRepositoryError("at least one changed file is required")
 
@@ -166,19 +223,35 @@ class RepositoryIntelligence:
         if added_lines < 0 or deleted_lines < 0:
             raise CodingRepositoryError("diff line counts must be non-negative")
 
-        paths = tuple(dict.fromkeys(p.replace("\\", "/").strip("/") for p in changed_files if p.strip()))
+        paths_list: list[str] = []
+        for path in changed_files:
+            if not isinstance(path, str) or not path.strip():
+                continue
+            normalized = _normalize_repository_path(path)
+            if normalized not in paths_list:
+                paths_list.append(normalized)
+        paths = tuple(paths_list)
         if not paths:
             raise CodingRepositoryError("at least one changed file is required for risk classification")
 
         findings = list(security_findings)
+        for finding in findings:
+            if finding.path != "*":
+                _normalize_repository_path(finding.path)
         highest = DiffRisk.LOW
         order = {DiffRisk.LOW: 0, DiffRisk.MEDIUM: 1, DiffRisk.HIGH: 2, DiffRisk.CRITICAL: 3}
 
         for path in paths:
             lower = path.lower()
             if any(marker in lower for marker in cls._critical_names):
-                finding = RiskFinding("sensitive-path", DiffRisk.HIGH, path, "change touches security, release, installer, permissions, or workflow surface")
-                findings.append(finding)
+                findings.append(
+                    RiskFinding(
+                        "sensitive-path",
+                        DiffRisk.HIGH,
+                        path,
+                        "change touches security, release, installer, permissions, or workflow surface",
+                    )
+                )
             elif path.endswith(("requirements.txt", "requirements-dev.txt", "pyproject.toml")):
                 findings.append(RiskFinding("dependency-surface", DiffRisk.MEDIUM, path, "dependency or build metadata changed"))
 
@@ -209,6 +282,10 @@ class RepositoryIntelligence:
         ci_passed: bool,
         unresolved_findings: Iterable[str] = (),
     ) -> PullRequestEvidence:
+        validation_passed = _require_bool("validation_passed", validation_passed)
+        self_review_passed = _require_bool("self_review_passed", self_review_passed)
+        security_review_passed = _require_bool("security_review_passed", security_review_passed)
+        ci_passed = _require_bool("ci_passed", ci_passed)
         if impact.missing_paths:
             unresolved = tuple(unresolved_findings) + tuple(f"missing:{path}" for path in impact.missing_paths)
         else:
@@ -217,10 +294,10 @@ class RepositoryIntelligence:
             repository_mapped=True,
             changed_files=impact.changed_files,
             selected_tests=impact.directly_affected_tests,
-            validation_passed=bool(validation_passed),
-            self_review_passed=bool(self_review_passed),
-            security_review_passed=bool(security_review_passed),
-            ci_passed=bool(ci_passed),
+            validation_passed=validation_passed,
+            self_review_passed=self_review_passed,
+            security_review_passed=security_review_passed,
+            ci_passed=ci_passed,
             diff_risk=risk.risk,
             unresolved_findings=unresolved,
         )

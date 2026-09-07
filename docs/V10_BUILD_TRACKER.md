@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 16 — Security + Regression Hardening**
+Current active batch: **Batch 17 — Performance + Benchmark Optimization**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -33,8 +33,8 @@ Overall program state: **IN DEVELOPMENT**
 13. ✅ Controlled Capability Marketplace
 14. ✅ Benchmark-Gated Controlled Self-Improvement
 15. ✅ Full-System Integration
-16. 🟣 Security + Regression Hardening
-17. ⏳ Performance + Benchmark Optimization
+16. ✅ Security + Regression Hardening
+17. 🟣 Performance + Benchmark Optimization
 18. ⏳ Production Readiness + Stable Release
 
 ## Batch 1–7 Completion
@@ -56,13 +56,29 @@ Batches 8–14 are complete and merged. Their dedicated release-readiness gates 
 - Exact functional head `16334059372ef70a89f0e2e708c7c0ab44a0c872` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate.
 - Exact documentation-finalization head `d64a4138a6f38ce084ebdf7574a0373bd3c8819f` also passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
 
-## Batch 16 Goals
+## Batch 16 Completion Evidence
 
-- Perform security and regression hardening across the integrated v10 platform.
-- Audit approval boundaries, path containment, strict type validation, provider/model provenance, connector permissions, prompt-injection boundaries, secrets handling, recovery integrity, and fail-closed behavior.
-- Convert known deferred hardening notes from earlier batches into regression tests and repairs.
-- Add cross-subsystem adversarial and negative-path tests so one capability cannot weaken another subsystem's security contract.
-- Preserve existing release gates and require exact-head CI/Security/Runtime evidence before Batch 16 completion.
+- Benchmark evidence now requires strict booleans, timezone-aware normalized timestamps, finite bounded scores, and strictly positive regression thresholds.
+- Autonomous coding repository containment rejects traversal, raw dot/empty segments, absolute/drive paths, NUL/control characters, Windows reserved device names, alternate-data-stream syntax, and cross-platform aliases before normalization.
+- CI readiness requires explicit success; all other recognized terminal states fail closed and approval flags must be real booleans.
+- Model benchmark evidence is provider-aware so same-name models across providers cannot consume ambiguous unbound evidence.
+- Connector manifests, requests, and evidence use strict typed state and approval contracts; action risk may be conservatively over-classified but cannot be dangerously under-classified.
+- Approval execution stores a SHA-256 binding over the exact tool/risk/gate/payload contract, rejects reserved binding-field injection, denies missing or tampered bindings, reauthorizes exact decrypted arguments, atomically claims approvals, and blocks interrupted/double replay.
+- Added immutable seven-family Batch 16 release manifest, executable CI harness, repository-root-safe readiness script, dedicated Ubuntu/Python 3.11 CI gate, regression tests, and `docs/V10_BATCH16_RELEASE_READINESS.md`.
+- Exact functional/release head `89b4db2fbcfba59c7a67ab94c4bc174ba6ba8e0c` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 16 security regression release gate. Windows Desktop Package remained an expected skip.
+- This tracker-only completion commit must also pass exact-head verification before PR #114 may merge.
+
+## Batch 17 Goals
+
+- Benchmark integrated v10 hot paths using recorded evidence rather than synthetic success claims.
+- Identify and reduce unnecessary latency, retries, repeated validation, duplicate serialization, avoidable disk I/O, and redundant model/tool routing work without weakening security gates.
+- Add deterministic performance-budget and regression evidence for representative model routing, benchmark summarization, memory retrieval, connector authorization, artifact orchestration, mission control, and release-gate paths where practical.
+- Preserve functional behavior and all Batch 8–16 release/security gates while optimizing.
+- Add an immutable Batch 17 performance-readiness gate before merge.
+
+## Batch 18 Goals
+
+- Production readiness, packaging, installation, operator documentation, final release verification, stable versioning, SBOM/checksum evidence, and v10.0.0 stable release declaration.
 
 ## Verification Rules
 

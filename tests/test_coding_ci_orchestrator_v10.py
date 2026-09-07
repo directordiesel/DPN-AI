@@ -28,6 +28,31 @@ def test_all_ci_jobs_pass_without_inventing_failure():
     assert result.diagnosis is None
 
 
+@pytest.mark.parametrize(
+    "conclusion",
+    [
+        CIJobConclusion.SKIPPED,
+        CIJobConclusion.NEUTRAL,
+        CIJobConclusion.ACTION_REQUIRED,
+        CIJobConclusion.STARTUP_FAILURE,
+        CIJobConclusion.STALE,
+        CIJobConclusion.CANCELLED,
+        CIJobConclusion.TIMED_OUT,
+    ],
+)
+def test_every_non_success_terminal_ci_conclusion_fails_closed(conclusion):
+    result = CodingCIOrchestrator.analyze_jobs([CIJobEvidence("required-gate", conclusion)])
+    assert result.passed is False
+    assert result.failed_jobs == ("required-gate",)
+    assert result.diagnosis is not None
+    assert result.diagnosis.kind == FailureKind.CI
+
+
+def test_unrecognized_ci_conclusion_type_fails_closed():
+    with pytest.raises(Exception, match="recognized CIJobConclusion"):
+        CodingCIOrchestrator.analyze_jobs([CIJobEvidence("required-gate", "success")])  # type: ignore[arg-type]
+
+
 def test_specific_test_failure_is_classified_from_ci_logs():
     result = CodingCIOrchestrator.analyze_jobs([
         CIJobEvidence(
@@ -80,6 +105,16 @@ def test_high_risk_ci_failure_requires_approval():
     assert item.repair_attempts == 0
 
 
+def test_truthy_non_boolean_approval_is_rejected() -> None:
+    with pytest.raises(Exception, match="approval_granted must be a boolean"):
+        CodingCIOrchestrator.route(
+            mission(),
+            [CIJobEvidence("tests", CIJobConclusion.FAILURE, log_excerpt="pytest assert failed")],
+            diff_risk=DiffRisk.HIGH,
+            approval_granted="true",  # type: ignore[arg-type]
+        )
+
+
 def test_security_failure_escalates_even_at_low_diff_risk():
     item = mission()
     result = CodingCIOrchestrator.route(
@@ -113,6 +148,28 @@ def test_ci_pass_only_marks_pr_ready_with_complete_evidence():
     assert result.next_stage == CodingStage.READY
     assert result.pr_ready is True
     assert item.ci_passed is True
+
+
+def test_skipped_ci_cannot_mark_pr_ready_even_with_complete_pr_evidence():
+    item = mission()
+    evidence = PullRequestEvidence(
+        repository_mapped=True,
+        changed_files=("app/example.py",),
+        selected_tests=("tests/test_example.py",),
+        validation_passed=True,
+        self_review_passed=True,
+        security_review_passed=True,
+        ci_passed=True,
+        diff_risk=DiffRisk.LOW,
+    )
+    result = CodingCIOrchestrator.route(
+        item,
+        [CIJobEvidence("ci", CIJobConclusion.SKIPPED)],
+        diff_risk=DiffRisk.LOW,
+        pr_evidence=evidence,
+    )
+    assert result.pr_ready is False
+    assert item.ci_passed is False
 
 
 def test_ci_pass_without_review_security_evidence_does_not_claim_pr_ready():

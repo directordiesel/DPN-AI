@@ -32,6 +32,63 @@ def test_repository_map_rejects_escape_paths() -> None:
         RepositoryMap.build([RepositoryFile("../escape.py")])
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/etc/passwd",
+        "C:/Windows/System32/config/SAM",
+        "C:relative.txt",
+        "app/../../escape.py",
+        "app/../escape.py",
+        "app/./alpha.py",
+        "app/alpha.py\x00suffix",
+    ],
+)
+def test_repository_map_rejects_absolute_traversal_and_ambiguous_paths(path: str) -> None:
+    with pytest.raises(CodingRepositoryError):
+        RepositoryMap.build([RepositoryFile(path)])
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "app/config:secret",
+        "app/name. ",
+        "app/name.",
+        "CON",
+        "aux.txt",
+        "folder/LPT1.log",
+        "app/bad\x1fname.py",
+    ],
+)
+def test_repository_map_rejects_cross_platform_alias_and_device_paths(path: str) -> None:
+    with pytest.raises(CodingRepositoryError):
+        RepositoryMap.build([RepositoryFile(path)])
+
+
+def test_repository_map_contains_rejects_escape_instead_of_normalizing_it() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        repo().contains("/app/alpha.py")
+
+
+def test_change_impact_rejects_untrusted_escape_path() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.analyze_change_impact(repo(), ["../../app/alpha.py"])
+
+
+def test_risk_classification_rejects_absolute_path_evidence() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.classify_diff_risk(["/etc/passwd"])
+
+
+def test_security_finding_rejects_out_of_repository_path() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.classify_diff_risk(
+            ["app/alpha.py"],
+            security_findings=[RiskFinding("bad-path", DiffRisk.HIGH, "../secret", "untrusted path")],
+        )
+
+
 def test_change_impact_selects_existing_related_tests() -> None:
     impact = RepositoryIntelligence.analyze_change_impact(repo(), ["app/alpha.py"])
     assert impact.changed_files == ("app/alpha.py",)
@@ -108,3 +165,18 @@ def test_pr_evidence_fails_when_ci_or_review_is_not_green() -> None:
         ci_passed=False,
     )
     assert evidence.ready is False
+
+
+@pytest.mark.parametrize("field", ["validation_passed", "self_review_passed", "security_review_passed", "ci_passed"])
+def test_pr_evidence_rejects_truthy_non_boolean_verification(field: str) -> None:
+    impact = RepositoryIntelligence.analyze_change_impact(repo(), ["app/alpha.py"])
+    risk = RepositoryIntelligence.classify_diff_risk(["app/alpha.py"])
+    kwargs = {
+        "validation_passed": True,
+        "self_review_passed": True,
+        "security_review_passed": True,
+        "ci_passed": True,
+    }
+    kwargs[field] = "true"
+    with pytest.raises(CodingRepositoryError, match="boolean"):
+        RepositoryIntelligence.build_pr_evidence(impact=impact, risk=risk, **kwargs)  # type: ignore[arg-type]

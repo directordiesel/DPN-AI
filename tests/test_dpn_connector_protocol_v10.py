@@ -80,6 +80,69 @@ def test_write_capability_cannot_claim_read_only_risk():
         ).validate()
 
 
+@pytest.mark.parametrize(
+    ("action", "risk"),
+    [
+        (ConnectorAction.READ, ConnectorRisk.WRITE),
+        (ConnectorAction.CREATE, ConnectorRisk.READ_ONLY),
+        (ConnectorAction.DELETE, ConnectorRisk.WRITE),
+        (ConnectorAction.SUBSCRIBE, ConnectorRisk.WRITE),
+        (ConnectorAction.AUTHENTICATE, ConnectorRisk.READ_ONLY),
+    ],
+)
+def test_capability_risk_underclassification_or_mismatch_is_rejected(action, risk):
+    with pytest.raises(ConnectorProtocolError, match="risk drift"):
+        ConnectorCapability(action, "item", risk, approval_required=True).validate()
+
+
+def test_conservative_write_overclassification_is_allowed():
+    ConnectorCapability(
+        ConnectorAction.CREATE,
+        "item",
+        ConnectorRisk.DESTRUCTIVE,
+        approval_required=True,
+    ).validate()
+
+
+def test_state_changing_capabilities_must_require_approval():
+    for action, risk in (
+        (ConnectorAction.CREATE, ConnectorRisk.WRITE),
+        (ConnectorAction.UPDATE, ConnectorRisk.WRITE),
+        (ConnectorAction.DELETE, ConnectorRisk.DESTRUCTIVE),
+        (ConnectorAction.REVOKE, ConnectorRisk.DESTRUCTIVE),
+        (ConnectorAction.SUBSCRIBE, ConnectorRisk.SUBSCRIPTION),
+    ):
+        with pytest.raises(ConnectorProtocolError, match="must require approval"):
+            ConnectorCapability(action, "item", risk, approval_required=False).validate()
+
+
+def test_connector_boolean_state_and_approval_fields_are_strict():
+    with pytest.raises(ConnectorProtocolError, match="state flags"):
+        ConnectorManifest(
+            "bad",
+            "test",
+            "Bad",
+            (ConnectorCapability(ConnectorAction.READ),),
+            configured="true",  # type: ignore[arg-type]
+        ).validate()
+
+    with pytest.raises(ConnectorProtocolError, match="approval requirement"):
+        ConnectorCapability(
+            ConnectorAction.CREATE,
+            "item",
+            ConnectorRisk.WRITE,
+            approval_required=1,  # type: ignore[arg-type]
+        ).validate()
+
+    with pytest.raises(ConnectorProtocolError, match="connector approval must be boolean"):
+        ConnectorRequest(
+            "github-primary",
+            ConnectorAction.CREATE,
+            "issue",
+            approval_granted="true",  # type: ignore[arg-type]
+        ).validate()
+
+
 def test_registry_discovery_is_deterministic():
     registry = DPNConnectorRegistry()
     registry.register(_manifest(), _Adapter())
@@ -146,6 +209,18 @@ def test_success_requires_provider_identity_and_provenance():
     registry.register(_manifest(), _Adapter(provenance=False))
     with pytest.raises(ConnectorProtocolError, match="requires provenance"):
         asyncio.run(registry.execute(request))
+
+
+def test_connector_evidence_success_and_health_types_are_strict():
+    registry = DPNConnectorRegistry()
+    registry.register(_manifest(), _Adapter(ok="yes"))  # type: ignore[arg-type]
+    with pytest.raises(ConnectorProtocolError, match="success flag"):
+        asyncio.run(registry.execute(ConnectorRequest("github-primary", ConnectorAction.READ, "repository")))
+
+    registry = DPNConnectorRegistry()
+    registry.register(_manifest(), _Adapter(health="healthy"))  # type: ignore[arg-type]
+    with pytest.raises(ConnectorProtocolError, match="not executable"):
+        asyncio.run(registry.execute(ConnectorRequest("github-primary", ConnectorAction.READ, "repository")))
 
 
 def test_matching_read_evidence_is_accepted():
