@@ -63,6 +63,23 @@ def test_supersession_forces_human_approval_even_when_policy_allows():
     assert "requires explicit human approval" in authorization.reason
 
 
+def test_supersession_boundary_never_overrides_a_hard_deny():
+    engine = PermissionEngine(PermissionMode.DENY)
+    runtime = ToolPermissionRuntime(engine)
+    authorization = runtime.authorize(
+        tool_name="dpn_memory_supersede",
+        declared_risk="destructive",
+        gate=None,
+        permissions={"approval_mode": "autonomous"},
+        use_v9_policy=True,
+        arguments={"key": "release_target"},
+    )
+    assert authorization.allowed is False
+    assert authorization.approval_required is False
+    assert authorization.decision.mode == PermissionMode.DENY
+    assert authorization.decision.source != "memory_supersession_boundary"
+
+
 def test_non_global_scope_fails_closed_without_host_authorizer():
     service = GovernedMemoryToolService(object(), object())
     result = service.inspect_lineage(scope="project", project_id="p1")
