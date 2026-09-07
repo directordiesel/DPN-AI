@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 8 — Advanced Layered Memory Architecture**
+Current active batch: **Batch 16 — Security + Regression Hardening**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -25,142 +25,44 @@ Overall program state: **IN DEVELOPMENT**
 5. ✅ Long-Horizon Mission Runtime
 6. ✅ DPN Connector Protocol + Connector Ecosystem
 7. ✅ Deep Research Engine
-8. 🟣 Advanced Layered Memory Architecture
-9. ⏳ Professional Artifact Studio
-10. ⏳ Advanced Low-Latency Voice Runtime
-11. ⏳ Proactive Intelligence + Condition-Driven Operations
-12. ⏳ Persistent Specialist-Agent Organization
-13. ⏳ Controlled Capability Marketplace
-14. ⏳ Benchmark-Gated Controlled Self-Improvement
-15. ⏳ Full-System Integration
-16. ⏳ Security + Regression Hardening
+8. ✅ Advanced Layered Memory Architecture
+9. ✅ Professional Artifact Studio
+10. ✅ Advanced Low-Latency Voice Runtime
+11. ✅ Proactive Intelligence + Condition-Driven Operations
+12. ✅ Persistent Specialist-Agent Organization
+13. ✅ Controlled Capability Marketplace
+14. ✅ Benchmark-Gated Controlled Self-Improvement
+15. ✅ Full-System Integration
+16. 🟣 Security + Regression Hardening
 17. ⏳ Performance + Benchmark Optimization
 18. ⏳ Production Readiness + Stable Release
 
-## Batch 1 Completion Evidence
+## Batch 1–7 Completion
 
-- Model Intelligence Engine implemented with difficulty, privacy, capability, latency, cost, health, and benchmark-aware selection.
-- Benchmark Laboratory implemented with persistent evidence, summaries, regressions, leaderboards, and readiness gates.
-- CI passed across Ubuntu and Windows on Python 3.11 and 3.12.
-- DPN Security Gate v2 passed.
-- Runtime & Recovery Assurance passed.
-- PR #86 merged from the exact tested head.
+Batches 1–7 are complete and merged. Their exact historical implementation and verification evidence remains preserved in Git history and the batch-specific v10 documentation. Batch 15 additionally binds these early batches through verified merge attestations rather than inventing new runtime success evidence.
 
-## Batch 2 Completion Evidence
+## Batch 8–14 Completion
 
-- Autonomous coding mission state machine implemented: inspect → plan → isolate → edit → validate → diagnose → repair → review → CI → ready.
-- Repository mapping, change impact, affected-test selection, diff risk, structured change planning, failure diagnosis, bounded repair routing, CI analysis, and end-to-end coordination implemented.
-- Full validation, review, security, and CI evidence are required before PR-ready status.
-- High-risk and security-sensitive repairs preserve approval boundaries and fail closed when evidence is insufficient.
-- CI passed across Ubuntu and Windows on Python 3.11 and 3.12.
-- DPN Security Gate v2 passed.
-- Runtime & Recovery Assurance passed.
-- PR #87 merged from exact verified head `385d750fc229b76fdb9ea6cd8ccfe5426ddbb443`; squash merge commit `47312f3b11cace3e6b35f0757e32d72847054364`.
+Batches 8–14 are complete and merged. Their dedicated release-readiness gates remain part of the Ubuntu/Python 3.11 CI lane and execute before the Batch 15 integration gate. The completed capability families are layered memory, professional artifacts, low-latency voice, proactive intelligence, persistent specialist agents, controlled capability marketplace, and benchmark-gated controlled self-improvement.
 
-## Batch 3 Completion Evidence
+## Batch 15 Completion Evidence
 
-- Governed computer/browser observe → act → verify → correct runtime implemented.
-- Typed browser/desktop observations, UI targets, action risks, driver sessions, verification expectations, platform capability/health policy gates, execution receipts, and bounded recovery are integrated.
-- Accepted actions require concrete fresh post-action evidence before success can be claimed.
-- Acceptance testing found and fixed an action-receipt ordering defect before merge.
-- CI passed on Ubuntu and Windows with Python 3.11 and 3.12.
-- DPN Security Gate v2 passed.
-- Runtime & Recovery Assurance passed.
-- PR #88 merged from exact verified head `f7079b0b5fba04ac1447b6a0b92d3fb7c6192196`; squash merge commit `279f739379aaf7c4eb12da6cf3da29d002f2ba3c`.
+- Added `app/full_system_integration_v10.py`, an evidence-only fail-closed integration authority covering all 15 completed v10 capability families.
+- Added `app/full_system_release_binding_v10.py` to bind trusted Batch 8–14 release payloads to canonical SHA-256 evidence without granting execution authority.
+- Added `app/full_system_acceptance_v10.py` to combine verified Batch 1–7 merge attestations with concrete Batch 8–14 release evidence and evaluate cumulative v10 readiness.
+- Missing, blocked, unavailable, duplicate, unexpected, approval-boundary-violating, or side-effect-claiming evidence blocks integrated readiness.
+- Added an immutable ten-family Batch 15 release manifest, executable CI harness, repository-root-safe GitHub Actions entrypoint, and dedicated Ubuntu/Python 3.11 release gate.
+- Cross-system acceptance proves early-batch attestation coverage, late release binding, fail-closed late-release behavior, and rejection of release payloads that attempt to authorize execution.
+- Exact functional head `16334059372ef70a89f0e2e708c7c0ab44a0c872` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate.
+- Exact documentation-finalization head `d64a4138a6f38ce084ebdf7574a0373bd3c8819f` also passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
 
-## Batch 4 Completion Evidence
+## Batch 16 Goals
 
-- Unified multimodal runtime contracts cover text, images, screenshots, PDF/document, spreadsheet, presentation, code, audio, video, and transcript assets.
-- Native-first extraction preserves file hash plus page/document/table/code provenance and inventories binary media without fabricating interpretation.
-- Fusion context preserves source/page/frame/timestamp evidence references and blocks verified completion when structured evidence conflicts remain unresolved.
-- Provider execution coordinator routes required vision/transcription work, records provider-backed evidence, and feeds results through readiness plus fusion gates.
-- Provider execution is transactional: a later provider failure cannot leave partially committed provider evidence in the session.
-- Provider/model provenance must be explicitly reported by the backend and match the selected route; silent fallback is rejected.
-- Matching provider-backed evidence can be reused on repeat execution without generating duplicate evidence.
-- Concrete `ConfigurableVisionProvider` and local `VoiceAdapter.transcribe`/faster-whisper adapters implement the coordinator runner contracts without duplicating provider code.
-- faster-whisper execution is moved off the async mission loop through `asyncio.to_thread`, while transcript/model/language/confidence/segment metadata remain preserved.
-- Exact final head `b74dbd05f2044b365c18a81e60af5f6d5d68bb34` passed CI across Ubuntu/Windows Python 3.11/3.12, DPN Security Gate v2, and Runtime & Recovery Assurance.
-- PR #89 merged from exact verified head `b74dbd05f2044b365c18a81e60af5f6d5d68bb34`; squash merge commit `c5c3d3d832a38adc4a3f9d4a72f1e56de3809b9a`.
-
-## Batch 5 Completion Evidence
-
-- Added `app/long_horizon_mission_runtime_v10.py` with typed lifecycle, cursor, budget snapshot, checkpoint codec, SHA-256 integrity verification, recovery decisions, and persistent store integration.
-- The runtime reuses existing missions, mission steps, and mission checkpoints instead of creating a duplicate persistence subsystem.
-- Latest verified checkpoint selection skips corrupt newer records and falls back only to a valid older checkpoint.
-- Resume decisions distinguish resume, repair, replan, and stop; terminal missions, exhausted budgets, and unresolved approvals fail closed.
-- Added `app/mission_resume_coordinator_v10.py` to execute the unfinished portion of an existing mission through the current `MissionOrchestrator._execute_step` and reviewer contracts instead of creating a duplicate tool/provider execution path.
-- Resume execution cross-checks checkpoint-completed steps against live database state before trusting them, preserves cumulative elapsed/tool-call budgets, skips already-completed steps, validates dependency completion, performs bounded retries, and advances the integrity-protected cursor after each resumed step.
-- Final resumed completion requires deterministic evidence verification plus an independent security review; failed verification remains blocked instead of being mislabeled complete.
-- Added `app/mission_control_api_v10.py` with recovery, latest-checkpoint, pause, and resume HTTP contracts plus idempotent live-router mounting.
-- Live startup integration mounts Batch 5 mission controls during the existing FastAPI lifespan through `JobSupervisor.start()` without duplicating routes.
-- Cooperative pause is enforced at the pre-step execution boundary. It never interrupts an already-running side effect, writes a verified v10 PAUSED checkpoint, preserves the next-step cursor, and uses a cancellation-style signal so the mature retry loop does not misclassify operator pause as step failure.
-- Added restart/resume tests proving completed work is not replayed, checkpoint/database disagreement fails closed, terminal missions cannot resume, cumulative budget exhaustion remains enforced across restart boundaries, and pause-boundary checkpoints contain trusted cursor/budget evidence.
-- Added full acceptance coverage using a real on-disk SQLite database: process 1 pauses and checkpoints; process 2 opens the same database with a fresh orchestrator; resume executes only the unfinished step; completed work is not replayed; final deterministic/security verification completes the mission.
-- FastAPI 0.141 nested included-router behavior was accounted for by verifying the public OpenAPI path contract rather than relying on private route object structure.
-- Exact final head `e2b719cb8bbd68d5f18ac81d60251f420c654d79` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
-- PR #90 squash-merged from that exact verified head; merge commit `0a6821f8388a763c8ea360d068e70300a9b522b0`.
-
-## Batch 6 Goals
-
-- Define the DPN Connector Protocol lifecycle: discover, authenticate, declare capabilities, health-check, read, search, create, update, delete, subscribe, and revoke.
-- Build a least-privilege connector registry with explicit capability manifests, per-action authorization, health state, provenance, retries, and audit evidence.
-- Integrate first-party adapters for GitHub, Gmail, Outlook, Calendar, Drive, OneDrive, Discord, Slack, Reddit, SQL, DPN ECS, WatchTower, HR, Aqua Labs, SSH, and Windows where credentials/configuration are available.
-- Keep unavailable or unconfigured services fail-closed and never fabricate connector success.
-- Preserve project/user scope, approval boundaries, secrets isolation, and evidence provenance across connector operations.
-
-## Batch 6 Completion Evidence
-
-- Added `app/dpn_connector_protocol_v10.py` with typed connector lifecycle actions, health/risk states, capability/resource manifests, least-privilege authorization, configured/enabled gates, deterministic registry discovery, provider identity verification, and provenance-required successful evidence.
-- Destructive connector capabilities cannot be declared without explicit approval requirements; write actions cannot be mislabeled read-only.
-- Added hardened HTTP ConnectorHub integration with method-derived capabilities, SSRF/host/method enforcement, bounded read retries, provenance evidence, and metadata-only auditing.
-- Added MCPBridge integration with live allowlist revalidation, tool discovery without process startup during cataloging, and explicit approval for arbitrary MCP execution.
-- Added unified ecosystem catalog, health, readiness, and release-evidence gates that execute no external mutations during inventory and fail closed on unsafe or unavailable states.
-- Added curated first-party HTTP profiles for GitHub, Google APIs (Gmail/Calendar/Drive), Microsoft Graph (Outlook/Calendar/OneDrive), Slack, Discord, and Reddit with secret-name-only readiness checks and bounded authentication probes.
-- Added a read-only SQLite connector using `mode=ro`, `PRAGMA query_only=ON`, an explicit operational-table allowlist, parameterized filters, schema validation, and a 500-row hard cap; raw SQL and direct writes are refused.
-- Added native protocol identities for DPN ECS, DPN WatchTower, DPN HR, DPN Aqua Labs, SSH, and Windows through trusted injected adapters. Unavailable adapters remain unconfigured/disabled; SSH does not infer arbitrary shell execution; Windows mutations require approval.
-- Added `dpn_connector_native_catalog` and wired native identities into live ecosystem catalog, health, readiness, and release evidence.
-- Added approval-bridge and regression coverage proving autonomous modes cannot bypass connector-write or MCP-call approval boundaries.
-- Fixed two final CI regressions introduced by native catalog exposure: plugin registration expectations now include `dpn_connector_native_catalog`, and the release-evidence test now exercises the release gate without constructing an invalid manifest that protocol validation already rejects earlier.
-- README branding was repaired to use a GitHub-safe raw image source for `assets/branding/dpn-ai-logo.jpg`; the real JPEG remains tracked and verified on `main`.
-- Removed obsolete branding placeholders: `README_FIX_PENDING.txt`, `STOP.txt`, `dpn-ai-logo-clean-note.txt`, `dpn-ai-logo-clean.b64`, and `test.txt`.
-- Exact code/branding head `b9da14ace8e2fd55bee3fb72e7ed51a5099d12fe` passed Ubuntu Python 3.11/3.12 and Windows Python 3.11/3.12 CI, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
-- PR #91 was squash-merged; merge commit `b2627a57de9b18ede9e7b54a1cf05b9720e1ae28`.
-
-## Batch 7 Goals
-
-- Upgrade the existing research runtime into a coordinated Deep Research Engine without duplicating mature web/research foundations.
-- Implement a Research Director that decomposes complex investigations into web, document, and data research workstreams.
-- Build an evidence graph that preserves claim-to-source provenance, source quality, freshness, confidence, and cross-source relationships.
-- Add deterministic conflict detection and explicit unresolved-conflict state instead of silently choosing one source.
-- Add fact-checking and claim verification gates that distinguish verified, disputed, unsupported, and stale claims.
-- Add a research writer that synthesizes only from admitted evidence and a citation validator that rejects unsupported or mismatched citations.
-- Preserve prompt-injection defenses, network permissions, connector boundaries, bounded concurrency, and fail-closed provider behavior.
-
-## Batch 7 Completion Evidence
-
-- Added `app/deep_research_engine_v10.py` with bounded research planning, typed Evidence Graph, deterministic fact checking, conflict detection, citation validation, and fail-closed synthesis readiness.
-- Added `app/deep_research_web_worker_v10.py`, reusing the existing bounded `WebResearchRuntime`; WEB evidence admission requires source identity, URL/domain provenance, bounded evidence, valid quality/freshness values, and collision-safe transactional graph admission.
-- Added `app/deep_research_document_worker_v10.py`, reusing scoped `RAGEngine` retrieval and independently revalidating project/knowledge-base namespace plus source provenance before evidence admission.
-- Added `app/deep_research_data_worker_v10.py`, reusing governed `SQLiteConnectorProtocolService`; DATA research requires explicit bounded `DataQuerySpec`, exposes no raw SQL or natural-language-to-SQL path, and independently revalidates read-only/parameterized/provider/table/row-count provenance.
-- Added `app/deep_research_claim_orchestrator_v10.py`; untrusted extractor output cannot invent provenance, all claim→evidence references must already exist in the graph, mutation is transactional, and claims flow through deterministic fact checking, conflict detection, citation validation, and readiness gating.
-- Added `app/deep_research_writer_v10.py`; writer execution is blocked on disputed, unsupported, stale, or conflict-bearing claims, and final citations are reconstructed from trusted graph relationships rather than authored by the writer/model.
-- Added `app/deep_research_mission_v10.py` integrating Research Director → WEB/DOCUMENTS/DATA workers → Evidence Graph → claim assessment → grounded writer → release-readiness evidence.
-- Mission readiness requires exact planned required task IDs to complete; optional workstream failures remain explicit and cannot be upgraded to `release_ready=true`.
-- Added focused regression suites for web/document/data provenance, namespace isolation, read-only data access, transactional admission, claim grounding, citation acceptance, conflict handling, writer coverage, task completion, and end-to-end WEB + DOCUMENTS + DATA missions.
-- Added Deep Research implementation and security documentation, including `docs/V10_DEEP_RESEARCH_WEB_WORKER.md`, `docs/V10_DEEP_RESEARCH_DOCUMENT_WORKER.md`, `docs/V10_DEEP_RESEARCH_DATA_WORKER.md`, `docs/V10_DEEP_RESEARCH_CLAIM_ORCHESTRATION.md`, `docs/V10_DEEP_RESEARCH_WRITER.md`, `docs/V10_DEEP_RESEARCH_MISSION.md`, and `docs/V10_DEEP_RESEARCH_SECURITY_AUDIT.md`.
-- Security audit confirmed no arbitrary SQL generation, no destructive connector path, no writer-controlled citation authority, no unsupported claim admission, no silent conflict resolution, and no optional-failure promotion to release-ready success.
-- Exact audited code head `409d2fc84a744d89e8bd8e20a47c6d234321ccb6` passed CI across Ubuntu/Windows Python 3.11/3.12, DPN Security Gate v2, and Runtime & Recovery Assurance. Windows Desktop Package remained an expected skip.
-- Batch 7 completion is subject only to verification of this tracker-only completion-evidence commit; no functional code changed after the audited head.
-
-## Batch 8 Goals
-
-- Implement advanced layered memory spanning working, conversation, project, organization, user, procedural, episodic, and semantic layers without duplicating mature persistence primitives.
-- Preserve provenance, scope isolation, retention/expiry policy, conflict detection, supersession history, and deterministic source identity across all persistent memory writes.
-- Separate observation/fact storage from derived summaries and inferred semantic memory; never silently convert low-confidence inference into trusted fact.
-- Add bounded retrieval/ranking across memory layers with freshness, relevance, confidence, authority, and privacy-aware selection.
-- Add explicit promotion/demotion rules between volatile and persistent layers, with approval gates for sensitive cross-scope or destructive mutations.
-- Integrate mission/deep-research evidence into memory through typed provenance instead of copying ungrounded model prose.
-- Build recovery, compaction, deduplication, conflict, and audit evidence so long-horizon missions can resume with trustworthy contextual state.
+- Perform security and regression hardening across the integrated v10 platform.
+- Audit approval boundaries, path containment, strict type validation, provider/model provenance, connector permissions, prompt-injection boundaries, secrets handling, recovery integrity, and fail-closed behavior.
+- Convert known deferred hardening notes from earlier batches into regression tests and repairs.
+- Add cross-subsystem adversarial and negative-path tests so one capability cannot weaken another subsystem's security contract.
+- Preserve existing release gates and require exact-head CI/Security/Runtime evidence before Batch 16 completion.
 
 ## Verification Rules
 
