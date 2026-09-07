@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.approval_security import ApprovalSecurity
 from app.db import Database
+from app.tool_permission_runtime import ToolPermissionRuntime
 from app.vault import SecretVault
 
 
@@ -52,6 +54,9 @@ def test_approval_sqlite_contains_only_redacted_preview(tmp_path):
     assert approval["arguments"]["password"] == "[redacted]"
     assert approval["arguments"]["nested"]["authorization"] == "[redacted]"
     assert approval["arguments"]["message"] == "safe"
+    binding = approval["arguments"]["__dpn_approval_binding_v10"]
+    assert binding["schema_version"] == 1
+    assert len(binding["sha256"]) == 64
     assert registry.vault.get_value(f"approval_payload.{approval_id}")
 
 
@@ -96,6 +101,82 @@ def test_missing_payload_fails_closed_without_execution(tmp_path):
     assert result["ok"] is False
     assert registry.invocations == []
     assert registry.db.get_approval(approval_id)["status"] == "failed"
+
+
+def test_tampered_encrypted_payload_is_denied_before_execution(tmp_path):
+    registry = DummyRegistry(tmp_path)
+    requested = asyncio.run(registry.execute(
+        "send",
+        {"token": "abc", "message": "approved message"},
+        {"approval_mode": "standard"},
+    ))
+    approval_id = requested["approval_id"]
+    registry.db.resolve_approval(approval_id, "approved")
+    registry.vault.set(
+        f"approval_payload.{approval_id}",
+        json.dumps({"token": "abc", "message": "tampered message"}),
+    )
+
+    result = asyncio.run(registry.execute_approval(approval_id))
+    assert result["ok"] is False
+    assert "binding" in result["error"].lower()
+    assert registry.invocations == []
+    assert registry.db.get_approval(approval_id)["status"] == "denied"
+
+
+def test_missing_binding_is_denied_before_execution(tmp_path):
+    registry = DummyRegistry(tmp_path)
+    requested = asyncio.run(registry.execute("send", {"token": "abc"}, {"approval_mode": "standard"}))
+    approval_id = requested["approval_id"]
+    with registry.db.connect() as connection:
+        row = connection.execute("SELECT arguments_json FROM approval_requests WHERE id=?", (approval_id,)).fetchone()
+        arguments = json.loads(row["arguments_json"])
+        arguments.pop("__dpn_approval_binding_v10", None)
+        connection.execute(
+            "UPDATE approval_requests SET arguments_json=?,status='approved' WHERE id=?",
+            (json.dumps(arguments), approval_id),
+        )
+
+    result = asyncio.run(registry.execute_approval(approval_id))
+    assert result["ok"] is False
+    assert "binding" in result["error"].lower()
+    assert registry.invocations == []
+    assert registry.db.get_approval(approval_id)["status"] == "denied"
+
+
+def test_execution_reauthorizes_exact_decrypted_arguments(tmp_path):
+    class RecordingRuntime:
+        def __init__(self):
+            self.delegate = ToolPermissionRuntime()
+            self.seen = []
+
+        def authorize(self, **kwargs):
+            self.seen.append(kwargs.get("arguments"))
+            return self.delegate.authorize(**kwargs)
+
+    registry = DummyRegistry(tmp_path)
+    runtime = RecordingRuntime()
+    registry.approval_security.permission_runtime = runtime
+    arguments = {"token": "abc", "message": "exact payload"}
+    requested = asyncio.run(registry.execute("send", arguments, {"approval_mode": "standard"}))
+    approval_id = requested["approval_id"]
+    registry.db.resolve_approval(approval_id, "approved")
+
+    result = asyncio.run(registry.execute_approval(approval_id))
+    assert result["ok"] is True
+    assert runtime.seen == [arguments, arguments]
+
+
+def test_reserved_binding_argument_is_rejected(tmp_path):
+    registry = DummyRegistry(tmp_path)
+    result = asyncio.run(registry.execute(
+        "send",
+        {"__dpn_approval_binding_v10": {"sha256": "attacker"}},
+        {"approval_mode": "standard"},
+    ))
+    assert result["ok"] is False
+    assert "reserved" in result["error"].lower()
+    assert registry.db.list_approvals() == []
 
 
 def test_legacy_plaintext_approval_is_scrubbed_on_registration(tmp_path):
