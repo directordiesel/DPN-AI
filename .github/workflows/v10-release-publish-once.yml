@@ -1,0 +1,130 @@
+name: V10 Release Publish Once
+
+on:
+  push:
+    branches:
+      - v10/release-publish-bridge
+    paths:
+      - .github/workflows/v10-release-publish-once.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: v10-release-publish-once
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ARTIFACT_BASENAME: DPN-AI
+      VERSION: v10.0.0
+      PRERELEASE: "false"
+      RELEASE_SHA: 43811b3dd2afb77b6b5a803eb158c8515f82a4b5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact main release target
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
+      - name: Validate exact release request
+        shell: bash
+        run: |
+          repository_version="$(tr -d '\r\n ' < VERSION)"
+          python .github/scripts/validate_release_request.py \
+            --version "$repository_version" \
+            --tag "$VERSION" \
+            --prerelease "$PRERELEASE"
+
+      - name: Run repository and version guard
+        run: python .github/scripts/ci_repository_guard.py
+
+      - name: Reject tracked runtime secrets and private state
+        shell: bash
+        run: |
+          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)FIRST_RUN_LOGIN\.txt$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)backups/|(^|/)runtime_logs/|(^|/)install_logs/|(^|/)workspace/generated/|(^|/)workspace/uploads/' || true)"
+          test -z "$sensitive" || { echo "::error::Sensitive/runtime files are tracked:"; echo "$sensitive"; exit 1; }
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Compile sources
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py
+
+      - name: Run release tests
+        run: pytest -q
+
+      - name: Ensure tag and release do not already exist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists. Existing releases must not be overwritten."
+            exit 1
+          fi
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Release $VERSION already exists. Existing releases must not be overwritten."
+            exit 1
+          fi
+
+      - name: Generate release SBOM and source manifest
+        env:
+          DPN_VERSION: ${{ env.VERSION }}
+        run: python .github/scripts/generate_supply_chain.py
+
+      - name: Build source archive and checksums
+        shell: bash
+        run: |
+          archive="${ARTIFACT_BASENAME}-${VERSION}-source.zip"
+          git archive --format=zip --output "$archive" HEAD
+          sha256sum "$archive" > SHA256SUMS.txt
+          {
+            echo "Repository: ${GITHUB_REPOSITORY}"
+            echo "Version: ${VERSION}"
+            echo "Commit: ${RELEASE_SHA}"
+            echo "Workflow run: ${GITHUB_RUN_ID}"
+            echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > RELEASE_MANIFEST.txt
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="${ARTIFACT_BASENAME}-${VERSION}-source.zip"
+          gh release create "$VERSION" \
+            --target "$RELEASE_SHA" \
+            --title "${ARTIFACT_BASENAME} ${VERSION}" \
+            --generate-notes \
+            "$archive" \
+            "SHA256SUMS.txt" \
+            "RELEASE_MANIFEST.txt" \
+            "SBOM.spdx.json" \
+            "SOURCE_SHA256SUMS.txt" \
+            "DEPENDENCY_INVENTORY.txt"
+
+      - name: Verify published release target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$VERSION" --json tagName,isPrerelease,targetCommitish,url
+          test "$(git rev-list -n 1 "$VERSION")" = "$RELEASE_SHA"
