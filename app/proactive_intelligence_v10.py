@@ -62,6 +62,10 @@ class ActionProposal:
     gate: str | None
     approval_required: bool
     execution_authorized: bool = False
+    source_id: str = "manual"
+    source_digest: str | None = None
+    observation_digest: str = ""
+    trusted_source: bool = False
 
 
 @dataclass(frozen=True)
@@ -73,19 +77,16 @@ class ConditionEvaluation:
     proposal: ActionProposal | None
     observed_at: float
     observation_digest: str
+    source_id: str = "manual"
+    source_digest: str | None = None
+    trusted_source: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        return payload
+        return asdict(self)
 
 
 class ProactiveConditionEngine:
-    """Deterministic condition evaluator that can propose but never execute actions.
-
-    The engine intentionally has no callable tool-dispatch dependency. It receives a
-    read-only tool catalog snapshot and returns proposals carrying the existing tool
-    risk/gate metadata. Execution authority stays with ToolRegistry/ApprovalSecurity.
-    """
+    """Deterministic condition evaluator that can propose but never execute actions."""
 
     def __init__(self, state_path: str | Path, *, clock=time.time) -> None:
         self.state_path = Path(state_path)
@@ -109,12 +110,9 @@ class ProactiveConditionEngine:
         if operator in {"gt", "gte", "lt", "lte"}:
             if not isinstance(left, float) or not isinstance(right, float):
                 raise ProactiveIntelligenceError("ordered comparisons require numeric values")
-            if operator == "gt":
-                return left > right
-            if operator == "gte":
-                return left >= right
-            if operator == "lt":
-                return left < right
+            if operator == "gt": return left > right
+            if operator == "gte": return left >= right
+            if operator == "lt": return left < right
             return left <= right
         if type(left) is not type(right):
             return operator == "ne"
@@ -149,13 +147,41 @@ class ProactiveConditionEngine:
         gate = exact[0].get("gate")
         return risk, str(gate) if gate is not None else None
 
-    def evaluate(self, spec: ConditionSpec, observed_value: Any, *, tool_catalog: list[dict[str, Any]]) -> ConditionEvaluation:
+    def evaluate(
+        self,
+        spec: ConditionSpec,
+        observed_value: Any,
+        *,
+        tool_catalog: list[dict[str, Any]],
+        source_id: str = "manual",
+        source_digest: str | None = None,
+        trusted_source: bool = False,
+        observed_at: float | None = None,
+    ) -> ConditionEvaluation:
         spec.validate()
         observed = self._comparable(observed_value)
         now = float(self._clock())
         if not math.isfinite(now) or now < 0:
             raise ProactiveIntelligenceError("clock returned an invalid timestamp")
+        evidence_time = now if observed_at is None else float(observed_at)
+        if not math.isfinite(evidence_time) or evidence_time < 0 or evidence_time > now + 5:
+            raise ProactiveIntelligenceError("observation timestamp is invalid")
+        source_id = str(source_id).strip() or "manual"
         matched = self._matches(spec.operator, observed, spec.threshold)
+        observation_digest = hashlib.sha256(
+            json.dumps(
+                {
+                    "condition_id": spec.condition_id,
+                    "observed": observed,
+                    "matched": matched,
+                    "source_id": source_id,
+                    "source_digest": source_digest,
+                    "observed_at": evidence_time,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
         state = self._load_state()
         conditions = state["conditions"]
         previous = conditions.get(spec.condition_id, {})
@@ -174,7 +200,12 @@ class ProactiveConditionEngine:
                 risk, gate = self._tool_metadata(tool_catalog, spec.action_tool.strip())
                 args = json.loads(json.dumps(dict(spec.action_args), allow_nan=False))
                 seed = json.dumps(
-                    {"condition_id": spec.condition_id, "tool": spec.action_tool.strip(), "args": args, "observed": observed, "time": now},
+                    {
+                        "condition_id": spec.condition_id,
+                        "tool": spec.action_tool.strip(),
+                        "args": args,
+                        "observation_digest": observation_digest,
+                    },
                     sort_keys=True,
                     separators=(",", ":"),
                 )
@@ -188,17 +219,20 @@ class ProactiveConditionEngine:
                     gate=gate,
                     approval_required=risk in {"execute", "external", "destructive"},
                     execution_authorized=False,
+                    source_id=source_id,
+                    source_digest=source_digest,
+                    observation_digest=observation_digest,
+                    trusted_source=bool(trusted_source),
                 )
                 proposed = True
                 last_proposed_at = now
 
-        observation_digest = hashlib.sha256(
-            json.dumps({"condition_id": spec.condition_id, "observed": observed, "matched": matched}, sort_keys=True).encode("utf-8")
-        ).hexdigest()
         conditions[spec.condition_id] = {
             "matched": matched,
-            "last_observed_at": now,
+            "last_observed_at": evidence_time,
             "last_observation_digest": observation_digest,
+            "last_source_id": source_id,
+            "last_source_digest": source_digest,
             "last_proposed_at": last_proposed_at,
         }
         self._save_state(state)
@@ -208,25 +242,29 @@ class ProactiveConditionEngine:
             proposed=proposed,
             suppressed_reason=suppression,
             proposal=proposal,
-            observed_at=now,
+            observed_at=evidence_time,
             observation_digest=observation_digest,
+            source_id=source_id,
+            source_digest=source_digest,
+            trusted_source=bool(trusted_source),
+        )
+
+    def evaluate_evidence(self, spec: ConditionSpec, evidence: Any, *, tool_catalog: list[dict[str, Any]]) -> ConditionEvaluation:
+        now = float(self._clock())
+        evidence.require_fresh(now)
+        return self.evaluate(
+            spec,
+            evidence.value,
+            tool_catalog=tool_catalog,
+            source_id=evidence.source_id,
+            source_digest=evidence.source_digest,
+            trusted_source=evidence.trusted_for_dispatch,
+            observed_at=evidence.observed_at,
         )
 
     def status(self) -> dict[str, Any]:
         state = self._load_state()
-        return {
-            "ok": True,
-            "schema_version": state["schema_version"],
-            "tracked_conditions": len(state["conditions"]),
-            "execution_capability": False,
-            "dispatch_boundary": "ToolRegistry/ApprovalSecurity",
-        }
+        return {"ok": True, "schema_version": state["schema_version"], "tracked_conditions": len(state["conditions"]), "execution_capability": False, "dispatch_boundary": "ToolRegistry/ApprovalSecurity", "source_binding": True}
 
 
-__all__ = [
-    "ActionProposal",
-    "ConditionEvaluation",
-    "ConditionSpec",
-    "ProactiveConditionEngine",
-    "ProactiveIntelligenceError",
-]
+__all__ = ["ActionProposal", "ConditionEvaluation", "ConditionSpec", "ProactiveConditionEngine", "ProactiveIntelligenceError"]
