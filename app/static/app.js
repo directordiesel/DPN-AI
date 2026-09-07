@@ -1132,5 +1132,5 @@ async function boot() {
   await Promise.all([loadModels(), loadProfiles(), loadSkills(), loadProjects(), loadConversations(), loadVoiceProfiles()]);
   newConversation();
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=9.0.0').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=10.0.0').catch(() => {});
 boot().catch(error => toast(error.message, true));

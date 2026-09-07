@@ -1,7 +1,7 @@
 # DPN AI Engineering Roadmap
 
-> Current stable baseline: **v9.0.0**  
-> Active engineering direction: **v9.1 hardening, capability expansion, and production refinement**
+> Current stable baseline: **v10.0.0**
+> Active engineering direction: **v10.0.0 stable-release validation and production refinement**
 
 DPN AI v9.0.0 established the current stable architecture across intelligence, coding, tools, permissions, memory/RAG, research, artifacts, image generation, automation, voice, desktop, Android, model routing, security, recovery, integrations, evaluations, and release engineering.
 
