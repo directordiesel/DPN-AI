@@ -28,8 +28,19 @@ def test_all_ci_jobs_pass_without_inventing_failure():
     assert result.diagnosis is None
 
 
-@pytest.mark.parametrize("conclusion", [CIJobConclusion.SKIPPED, CIJobConclusion.NEUTRAL])
-def test_nonexecuted_or_ambiguous_ci_conclusions_do_not_count_as_success(conclusion):
+@pytest.mark.parametrize(
+    "conclusion",
+    [
+        CIJobConclusion.SKIPPED,
+        CIJobConclusion.NEUTRAL,
+        CIJobConclusion.ACTION_REQUIRED,
+        CIJobConclusion.STARTUP_FAILURE,
+        CIJobConclusion.STALE,
+        CIJobConclusion.CANCELLED,
+        CIJobConclusion.TIMED_OUT,
+    ],
+)
+def test_every_non_success_terminal_ci_conclusion_fails_closed(conclusion):
     result = CodingCIOrchestrator.analyze_jobs([CIJobEvidence("required-gate", conclusion)])
     assert result.passed is False
     assert result.failed_jobs == ("required-gate",)
@@ -92,6 +103,16 @@ def test_high_risk_ci_failure_requires_approval():
     assert result.repair is not None
     assert result.repair.disposition == RepairDisposition.ESCALATE
     assert item.repair_attempts == 0
+
+
+def test_truthy_non_boolean_approval_is_rejected() -> None:
+    with pytest.raises(Exception, match="approval_granted must be a boolean"):
+        CodingCIOrchestrator.route(
+            mission(),
+            [CIJobEvidence("tests", CIJobConclusion.FAILURE, log_excerpt="pytest assert failed")],
+            diff_risk=DiffRisk.HIGH,
+            approval_granted="true",  # type: ignore[arg-type]
+        )
 
 
 def test_security_failure_escalates_even_at_low_diff_risk():
