@@ -69,3 +69,30 @@ def test_invalid_jsonl_record_fails_closed(tmp_path: Path) -> None:
 def test_invalid_threshold_is_rejected() -> None:
     with pytest.raises(ModelRoutingError, match="threshold"):
         BenchmarkLaboratory.regressions([], [], threshold=1.1)
+    with pytest.raises(ModelRoutingError, match="threshold"):
+        BenchmarkLaboratory.regressions([], [], threshold=0)
+
+
+def test_passed_requires_real_boolean() -> None:
+    with pytest.raises(ModelRoutingError, match="passed must be a boolean"):
+        BenchmarkRun("a", "code", "task", "false", 0.8, 100).normalized()
+    with pytest.raises(ModelRoutingError, match="passed must be a boolean"):
+        BenchmarkRun("a", "code", "task", 1, 0.8, 100).normalized()
+
+
+def test_created_at_requires_timezone_aware_iso8601_and_normalizes_to_utc() -> None:
+    with pytest.raises(ModelRoutingError, match="valid ISO-8601"):
+        BenchmarkRun("a", "code", "task", True, 0.8, 100, created_at="not-a-date").normalized()
+    with pytest.raises(ModelRoutingError, match="timezone offset"):
+        BenchmarkRun("a", "code", "task", True, 0.8, 100, created_at="2026-09-07T12:00:00").normalized()
+
+    normalized = BenchmarkRun(
+        "a",
+        "code",
+        "task",
+        True,
+        0.8,
+        100,
+        created_at="2026-09-07T12:00:00-04:00",
+    ).normalized()
+    assert normalized.created_at == "2026-09-07T16:00:00+00:00"
