@@ -13,15 +13,35 @@ class MarketplaceReleaseCIError(RuntimeError):
     """Raised when trusted Batch 13 marketplace verification cannot complete."""
 
 
+def _bounded_process_output(completed: subprocess.CompletedProcess[str], *, limit: int = 6000) -> str:
+    parts: list[str] = []
+    stdout = (completed.stdout or "").strip()
+    stderr = (completed.stderr or "").strip()
+    if stdout:
+        parts.append(f"stdout:\n{stdout}")
+    if stderr:
+        parts.append(f"stderr:\n{stderr}")
+    rendered = "\n\n".join(parts) or "no pytest output was captured"
+    if len(rendered) > limit:
+        rendered = rendered[-limit:]
+        rendered = f"[truncated to final {limit} characters]\n{rendered}"
+    return rendered
+
+
 def run_marketplace_release_ci(*, runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run, python_executable: str | None = None, repository_root: str | Path | None = None) -> dict:
     test_ids: Sequence[str] = required_marketplace_release_test_ids()
     if not test_ids:
         raise MarketplaceReleaseCIError("marketplace release test manifest is empty")
     root = Path(repository_root or Path(__file__).resolve().parents[1]).resolve()
     executable = python_executable or sys.executable
-    completed = runner([executable, "-m", "pytest", "-q", *test_ids], cwd=str(root), text=True, capture_output=True, check=False)
+    command = [executable, "-m", "pytest", "-q", *test_ids]
+    completed = runner(command, cwd=str(root), text=True, capture_output=True, check=False)
     if completed.returncode != 0:
-        raise MarketplaceReleaseCIError("required marketplace release tests failed; release readiness remains blocked")
+        details = _bounded_process_output(completed)
+        raise MarketplaceReleaseCIError(
+            "required marketplace release tests failed; release readiness remains blocked\n"
+            f"command: {' '.join(command)}\n{details}"
+        )
     audit = audit_marketplace_release_evidence(passed_test_ids=test_ids)
     if not audit.ready:
         raise MarketplaceReleaseCIError(f"marketplace release audit did not pass: {audit.reason}")
