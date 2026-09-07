@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -10,6 +11,8 @@ from app.tool_permission_runtime import ToolPermissionRuntime
 
 
 _PREFIX = "approval_payload."
+_BINDING_KEY = "__dpn_approval_binding_v10"
+_BINDING_SCHEMA = 1
 _TERMINAL = {"denied", "executed", "failed"}
 _ACTIVE = {"pending", "approved"}
 _APPROVAL_TTL = timedelta(hours=24)
@@ -29,13 +32,43 @@ def _created_at(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _normalized_arguments(arguments: dict[str, Any]) -> str:
+    try:
+        return json.dumps(
+            arguments,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+            default=str,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("approval arguments cannot be normalized safely") from exc
+
+
+def _approval_binding(*, tool_name: str, arguments: dict[str, Any], risk: str, gate: str | None) -> dict[str, Any]:
+    payload = {
+        "schema_version": _BINDING_SCHEMA,
+        "tool_name": tool_name,
+        "risk": risk,
+        "gate": gate,
+        "arguments": json.loads(_normalized_arguments(arguments)),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return {
+        "schema_version": _BINDING_SCHEMA,
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
 class ApprovalSecurity:
     """Core approval execution boundary for DPN AI.
 
     Exact deferred tool arguments are stored only in SecretVault. SQLite keeps a
-    bounded/redacted preview. Approval execution is single-use, expires after 24
-    hours, revalidates current authorization immediately before invoke, and never
-    replays an ambiguous interrupted execution.
+    bounded/redacted preview plus a SHA-256 binding to the exact tool/risk/gate/
+    payload contract. Approval execution is single-use, expires after 24 hours,
+    revalidates current authorization over the exact decrypted arguments immediately
+    before invoke, and never replays an ambiguous interrupted execution.
     """
 
     def __init__(self, registry: Any):
@@ -158,6 +191,8 @@ class ApprovalSecurity:
         registered = self.registry.tools.get(name)
         if not registered:
             return {"ok": False, "error": f"Unknown tool: {name}"}
+        if _BINDING_KEY in arguments:
+            return {"ok": False, "error": "Tool arguments contain a reserved approval-security field"}
 
         authorization = self.permission_runtime.authorize(
             tool_name=name,
@@ -173,9 +208,16 @@ class ApprovalSecurity:
         if authorization.approval_required:
             preview = sanitize_for_persistence(arguments)
             effective_risk = authorization.profile.risk.value
+            preview_dict = dict(preview) if isinstance(preview, dict) else {"preview": preview}
+            preview_dict[_BINDING_KEY] = _approval_binding(
+                tool_name=name,
+                arguments=arguments,
+                risk=effective_risk,
+                gate=getattr(registered, "gate", None),
+            )
             approval = self.db.create_approval(
                 name,
-                preview if isinstance(preview, dict) else {"preview": preview},
+                preview_dict,
                 effective_risk,
                 authorization.reason,
                 permissions.get("run_id"),
@@ -183,7 +225,7 @@ class ApprovalSecurity:
             try:
                 stored = self.vault.set(
                     _payload_name(approval["id"]),
-                    json.dumps(arguments, ensure_ascii=False, default=str),
+                    _normalized_arguments(arguments),
                 )
                 if not stored.get("ok"):
                     raise RuntimeError(stored.get("error") or "vault write failed")
@@ -240,6 +282,27 @@ class ApprovalSecurity:
             self.db.resolve_approval(approval_id, "denied", {"error": "Approved tool is no longer registered"})
             return {"ok": False, "error": "Approved tool is no longer registered"}
 
+        try:
+            raw = self.vault.get_value(_payload_name(approval_id))
+            arguments = json.loads(raw)
+            if not isinstance(arguments, dict):
+                raise ValueError("approval payload must be an object")
+        except Exception as exc:
+            self.db.resolve_approval(approval_id, "failed", {"error": "Encrypted approval payload is missing or invalid"})
+            return {"ok": False, "error": f"Approval payload unavailable: {type(exc).__name__}"}
+
+        stored_arguments = approval.get("arguments")
+        stored_binding = stored_arguments.get(_BINDING_KEY) if isinstance(stored_arguments, dict) else None
+        expected_binding = _approval_binding(
+            tool_name=tool_name,
+            arguments=arguments,
+            risk=str(approval.get("risk") or ""),
+            gate=getattr(registered, "gate", None),
+        )
+        if stored_binding != expected_binding:
+            self.db.resolve_approval(approval_id, "denied", {"error": "Approval payload binding is missing or does not match"})
+            return {"ok": False, "error": "Approval payload binding is missing or does not match"}
+
         live = self._live_permissions()
         if live is not None:
             authorization = self.permission_runtime.authorize(
@@ -248,6 +311,7 @@ class ApprovalSecurity:
                 gate=getattr(registered, "gate", None),
                 permissions=live,
                 use_v9_policy=bool(live.get("use_v9_permissions", False)),
+                arguments=arguments,
             )
             current_risk = authorization.profile.risk.value
             if str(approval.get("risk")) != current_risk:
@@ -263,10 +327,14 @@ class ApprovalSecurity:
                 gate=None,
                 permissions={},
                 use_v9_policy=False,
+                arguments=arguments,
             )
             if str(approval.get("risk")) != current.profile.risk.value:
                 self.db.resolve_approval(approval_id, "denied", {"error": "Tool risk classification changed after approval"})
                 return {"ok": False, "error": "Tool risk classification changed after approval"}
+            if not current.allowed and not current.approval_required:
+                self.db.resolve_approval(approval_id, "denied", {"error": current.reason})
+                return {"ok": False, "error": current.reason}
 
         with self.db.connect() as connection:
             claimed = connection.execute(
@@ -275,15 +343,6 @@ class ApprovalSecurity:
             ).rowcount
         if claimed != 1:
             return {"ok": False, "error": "Approval was already claimed or is no longer executable"}
-
-        try:
-            raw = self.vault.get_value(_payload_name(approval_id))
-            arguments = json.loads(raw)
-            if not isinstance(arguments, dict):
-                raise ValueError("approval payload must be an object")
-        except Exception as exc:
-            self.db.resolve_approval(approval_id, "failed", {"error": "Encrypted approval payload is missing or invalid"})
-            return {"ok": False, "error": f"Approval payload unavailable: {type(exc).__name__}"}
 
         try:
             result = await self.registry._invoke(tool_name, arguments)
