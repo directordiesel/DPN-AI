@@ -12,7 +12,7 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 15 — Full-System Integration (final verification)**
+Current active batch: **Batch 16 — Security + Regression Hardening**
 
 Overall program state: **IN DEVELOPMENT**
 
@@ -32,8 +32,8 @@ Overall program state: **IN DEVELOPMENT**
 12. ✅ Persistent Specialist-Agent Organization
 13. ✅ Controlled Capability Marketplace
 14. ✅ Benchmark-Gated Controlled Self-Improvement
-15. 🧪 Full-System Integration
-16. ⏳ Security + Regression Hardening
+15. ✅ Full-System Integration
+16. 🟣 Security + Regression Hardening
 17. ⏳ Performance + Benchmark Optimization
 18. ⏳ Production Readiness + Stable Release
 
@@ -45,7 +45,7 @@ Batches 1–7 are complete and merged. Their exact historical implementation and
 
 Batches 8–14 are complete and merged. Their dedicated release-readiness gates remain part of the Ubuntu/Python 3.11 CI lane and execute before the Batch 15 integration gate. The completed capability families are layered memory, professional artifacts, low-latency voice, proactive intelligence, persistent specialist agents, controlled capability marketplace, and benchmark-gated controlled self-improvement.
 
-## Batch 15 Full-System Integration
+## Batch 15 Completion Evidence
 
 - Added `app/full_system_integration_v10.py`, an evidence-only fail-closed integration authority covering all 15 completed v10 capability families.
 - Added `app/full_system_release_binding_v10.py` to bind trusted Batch 8–14 release payloads to canonical SHA-256 evidence without granting execution authority.
@@ -53,8 +53,7 @@ Batches 8–14 are complete and merged. Their dedicated release-readiness gates 
 - Missing, blocked, unavailable, duplicate, unexpected, approval-boundary-violating, or side-effect-claiming evidence blocks integrated readiness.
 - Added an immutable ten-family Batch 15 release manifest, executable CI harness, repository-root-safe GitHub Actions entrypoint, and dedicated Ubuntu/Python 3.11 release gate.
 - Cross-system acceptance proves early-batch attestation coverage, late release binding, fail-closed late-release behavior, and rejection of release payloads that attempt to authorize execution.
-- Exact functional head `16334059372ef70a89f0e2e708c7c0ab44a0c872` passed the full Ubuntu/Windows Python 3.11/3.12 CI matrix, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
-- This tracker update is documentation-only and requires exact-head workflow verification before PR #113 may merge.
+- Exact final head `e80ed3745d99e26dfd403bf57de2b75dfc8b52ed` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 15 full-system integration release gate. Windows Desktop Package remained an expected skip.
 
 ## Batch 16 Goals
 
