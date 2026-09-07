@@ -6,6 +6,7 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
+from app.artifact_quality_v10 import inspect_artifact_quality
 from app.artifact_validation import validate_artifact
 from app.tools.documents import DocumentFactory
 
@@ -20,8 +21,16 @@ class ArtifactStudio:
     def _finalize(self, result: dict[str, Any]) -> dict[str, Any]:
         if not result.get("ok") or not result.get("path"):
             return result
-        validation = validate_artifact(self.workspace / str(result["path"]), self.workspace)
-        return {**result, "validation": validation.to_dict()}
+        target = self.workspace / str(result["path"])
+        validation = validate_artifact(target, self.workspace)
+        quality = inspect_artifact_quality(target, self.workspace)
+        professional_ready = bool(validation.valid and quality.professional_ready)
+        return {
+            **result,
+            "validation": validation.to_dict(),
+            "quality": quality.to_dict(),
+            "professional_ready": professional_ready,
+        }
 
     def create_document(self, filename: str, title: str, sections: list[dict[str, Any]], author: str = "DPN AI") -> dict[str, Any]:
         return self._finalize(self.factory.create_docx(filename, title, sections, author=author))
