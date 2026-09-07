@@ -36,12 +36,17 @@ class CIJobEvidence:
     def validate(self) -> None:
         if not self.name.strip():
             raise CodingMissionError("CI job name is required")
-        if any(not path.strip() for path in self.affected_paths):
-            raise CodingMissionError("CI affected paths must be non-empty")
+        if not isinstance(self.conclusion, CIJobConclusion):
+            raise CodingMissionError("CI job conclusion must be a recognized CIJobConclusion")
+        if any(not isinstance(path, str) or not path.strip() for path in self.affected_paths):
+            raise CodingMissionError("CI affected paths must be non-empty strings")
 
     @property
     def passed(self) -> bool:
-        return self.conclusion in {CIJobConclusion.SUCCESS, CIJobConclusion.SKIPPED, CIJobConclusion.NEUTRAL}
+        # Release/PR readiness requires explicit successful execution. Skipped and
+        # neutral results may be informational, but they are not proof that the
+        # required validation actually ran.
+        return self.conclusion == CIJobConclusion.SUCCESS
 
 
 @dataclass(frozen=True)
@@ -84,7 +89,10 @@ class CodingCIOrchestrator:
         validation_results = []
         affected: list[str] = []
         for job in failed:
-            detail = "\n".join(part for part in (job.failed_step, job.log_excerpt) if part)
+            detail_parts = [part for part in (job.failed_step, job.log_excerpt) if part]
+            if job.conclusion in {CIJobConclusion.SKIPPED, CIJobConclusion.NEUTRAL}:
+                detail_parts.insert(0, f"CI conclusion {job.conclusion.value} does not prove required execution")
+            detail = "\n".join(detail_parts)
             validation_results.append(ValidationResult(name=f"ci:{job.name}", passed=False, output=detail))
             affected.extend(job.affected_paths)
 
@@ -92,7 +100,7 @@ class CodingCIOrchestrator:
         if diagnosis.kind == FailureKind.UNKNOWN:
             diagnosis = FailureDiagnosis(
                 FailureKind.CI,
-                f"{len(failed)} CI job(s) failed without a more specific classifier",
+                f"{len(failed)} CI job(s) failed or did not produce explicit success",
                 True,
                 affected_paths=tuple(dict.fromkeys(affected)),
                 evidence=tuple(job.name for job in failed),
