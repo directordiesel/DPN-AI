@@ -11,14 +11,15 @@ class PipelineVoiceAdapter:
     def __init__(self) -> None:
         self.speak_calls: list[str] = []
         self.transcribe_calls: list[str] = []
+        self.transcript_text: object = "turn on the lights"
 
     def transcribe(self, path, model_size, language, initial_prompt, device, compute_type):
         self.transcribe_calls.append(path)
         return {
             "ok": True,
             "path": path,
-            "text": "turn on the lights",
-            "segments": [{"start": 0.0, "end": 0.6, "text": "turn on the lights"}],
+            "text": self.transcript_text,
+            "segments": [{"start": 0.0, "end": 0.6, "text": str(self.transcript_text)}],
             "language": language or "en",
             "model": model_size,
             "elapsed_ms": 8,
@@ -89,3 +90,18 @@ def test_voice_turn_pipeline_bounds_reasoner_output_before_tts(tmp_path):
     assert result.ok is False
     assert result.error == "reasoning failed: ValueError"
     assert adapter.speak_calls == []
+
+
+def test_voice_turn_pipeline_rejects_non_string_structured_transcript(tmp_path):
+    adapter, session, pipeline = _pipeline(tmp_path, lambda text: f"should not run: {text}")
+    adapter.transcript_text = {"unexpected": "mapping"}
+
+    result = asyncio.run(pipeline.run_audio_turn("uploads/voice/request.wav"))
+
+    assert result.ok is False
+    assert result.transcript is None
+    assert result.response_text is None
+    assert result.synthesis is None
+    assert result.error == "transcription payload does not contain string text"
+    assert adapter.speak_calls == []
+    assert session.state == VoiceSessionState.LISTENING
