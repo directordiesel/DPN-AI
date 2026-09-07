@@ -1,6 +1,6 @@
 # DPN AI v10.0.0 — Batch 18 Production Readiness + Stable Release
 
-Batch 18 is the final production-readiness and stable-release phase of the single DPN AI v10.0.0 major-version program. It begins from the verified Batch 17 closure head and intentionally separates release-readiness evidence from release execution.
+Batch 18 is the final production-readiness and stable-release phase of the single DPN AI v10.0.0 major-version program. It begins from the verified Batch 17 closure and intentionally separates release-readiness evidence from release execution.
 
 ## Production release authority
 
@@ -50,9 +50,9 @@ Whitespace normalization is not allowed for stable version or commit identity. R
 
 The governed active surfaces are repository `VERSION`, runtime `APP_VERSION`, README stable identity, service-worker cache identity, static index asset version token, static app service-worker version token, and ROADMAP current stable baseline.
 
-`app/version_surface_audit_v10.py` reads those identities from a real repository tree instead of trusting caller-supplied claims. It rejects unreadable files, missing or ambiguous recognized identities, noncanonical `VERSION` formatting, stale versions, and surface-order drift. `require_promoted_repository_versions()` then routes the collected values back through the same fail-closed promotion evaluator.
+`app/version_surface_audit_v10.py` reads those identities from a real repository tree instead of trusting caller-supplied claims. It rejects unreadable files, missing or ambiguous recognized identities, noncanonical `VERSION` formatting, stale versions, and surface-order drift. `require_promoted_repository_versions()` routes the collected values back through the same fail-closed promotion evaluator.
 
-This keeps three states distinct: readiness infrastructure verified; metadata promoted; and release published. Promotion must not falsely treat publication as complete. During the metadata-promoted but unpublished state, README release wording must say release candidate / publication pending rather than claiming that the v10 GitHub Release already exists.
+This keeps three states distinct: readiness infrastructure verified; metadata promoted; and release published. Promotion must not falsely treat publication as complete. During the metadata-promoted but unpublished state, README release wording says release candidate / publication pending rather than claiming that the v10 GitHub Release already exists.
 
 ## Non-authorizing boundary
 
@@ -78,8 +78,10 @@ Stable release publication remains an explicit external action through the exist
 
 `app/production_release_ci_v10.py` executes only the exact pytest node IDs in that manifest. `.github/scripts/production_release_readiness_v10.py` is the repository-root-safe entrypoint, and the normal CI workflow runs the Batch 18 gate on Ubuntu/Python 3.11 after the Batch 17 performance gate.
 
-The active-version family covers strict promotion-evidence semantics. Repository-backed collector tests independently verify extraction and ambiguity handling. The final promotion head will additionally run the repository-backed promoted-state audit against the real checkout before any publication eligibility is claimed.
+The active-version family covers strict promotion-evidence semantics. Repository-backed collector tests independently verify extraction and ambiguity handling. The final promotion head additionally runs the repository-backed promoted-state audit against the real checkout before any publication eligibility is claimed.
 
 ## Version promotion status
 
-Repository `VERSION` remains `9.0.0` during this readiness checkpoint by design. Batch 18 readiness infrastructure must be green on its own exact head before any stable-version mutation. The promotion checkpoint will update active repository version metadata coherently, rerun every required gate on the exact promotion head, and still must not auto-publish or overwrite a release.
+The governed active metadata has now been promoted to `10.0.0`. The guarded promotion validated the real repository surfaces and the focused version/UI regression suite before committing the change. The temporary write-capable promotion workflow removed itself from the promoted commit.
+
+This is still a release-candidate state, not a publication claim. The promoted exact head must pass the complete normal read-only CI, security, runtime/recovery, repository-health, and Batch 8–18 release-readiness chain before Batch 18 can be closed or the stable release can be prepared for explicit publication.
