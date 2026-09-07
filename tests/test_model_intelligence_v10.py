@@ -16,6 +16,7 @@ def candidate(
     name: str,
     *,
     provider_class: ProviderClass = ProviderClass.LOCAL,
+    provider: str | None = None,
     capabilities: frozenset[ModelCapability] = frozenset({ModelCapability.CHAT, ModelCapability.REASONING}),
     latency_ms: int | None = 500,
     cost_weight: float = 0.0,
@@ -24,7 +25,7 @@ def candidate(
 ) -> ModelCandidate:
     return ModelCandidate(
         name=name,
-        provider="ollama" if provider_class == ProviderClass.LOCAL else "compatible",
+        provider=provider or ("ollama" if provider_class == ProviderClass.LOCAL else "compatible"),
         provider_class=provider_class,
         capabilities=capabilities,
         latency_ms=latency_ms,
@@ -42,6 +43,7 @@ def benchmark(
     task_family: str = "reasoning",
     quality_score: float | None = 0.8,
     median_latency_ms: int | None = 500,
+    provider: str = "",
 ) -> BenchmarkProfile:
     return BenchmarkProfile(
         model_name=name,
@@ -50,6 +52,7 @@ def benchmark(
         sample_count=samples,
         quality_score=quality_score,
         median_latency_ms=median_latency_ms,
+        provider=provider,
     )
 
 
@@ -141,6 +144,53 @@ def test_prefers_larger_sample_record_for_same_model_and_task_family() -> None:
     )
     assert decision.benchmark.sample_count == 100
     assert decision.benchmark.success_rate == pytest.approx(0.92)
+
+
+def test_provider_bound_benchmark_matches_only_same_provider() -> None:
+    engine = ModelIntelligenceEngine()
+    decision = engine.decide(
+        [
+            candidate("shared", provider_class=ProviderClass.LOCAL, provider="ollama"),
+            candidate("shared", provider_class=ProviderClass.REMOTE, provider="compatible"),
+        ],
+        [benchmark("shared", success_rate=0.99, provider="compatible")],
+        IntelligenceRequest(task_family="reasoning", privacy_mode=PrivacyMode.REMOTE_ALLOWED),
+    )
+    assert decision.selected.provider == "compatible"
+    assert decision.benchmark.provider == "compatible"
+
+
+def test_unbound_benchmark_cannot_cross_bind_same_name_across_providers() -> None:
+    engine = ModelIntelligenceEngine()
+    with pytest.raises(ModelRoutingError, match="no model satisfies"):
+        engine.decide(
+            [
+                candidate("shared", provider_class=ProviderClass.LOCAL, provider="ollama"),
+                candidate("shared", provider_class=ProviderClass.REMOTE, provider="compatible"),
+            ],
+            [benchmark("shared", success_rate=0.99)],
+            IntelligenceRequest(task_family="reasoning", privacy_mode=PrivacyMode.REMOTE_ALLOWED),
+        )
+
+
+def test_unbound_benchmark_remains_compatible_for_unique_provider_identity() -> None:
+    engine = ModelIntelligenceEngine()
+    decision = engine.decide(
+        [candidate("unique", provider_class=ProviderClass.LOCAL, provider="ollama")],
+        [benchmark("unique", success_rate=0.95)],
+        IntelligenceRequest(task_family="reasoning"),
+    )
+    assert decision.selected.provider == "ollama"
+
+
+def test_invalid_benchmark_provider_is_rejected() -> None:
+    engine = ModelIntelligenceEngine()
+    with pytest.raises(ModelRoutingError, match="unsupported benchmark provider"):
+        engine.decide(
+            [candidate("local")],
+            [benchmark("local", success_rate=0.99, provider="unknown")],
+            IntelligenceRequest(task_family="reasoning"),
+        )
 
 
 def test_invalid_benchmark_is_rejected() -> None:
