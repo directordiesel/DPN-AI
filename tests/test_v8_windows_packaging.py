@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -9,7 +10,8 @@ BUILD_REQUIREMENTS = (ROOT / "requirements-build.txt").read_text(encoding="utf-8
 
 
 def test_windows_build_toolchain_is_explicit_and_bounded():
-    assert "pyinstaller>=6.16,<7" in BUILD_REQUIREMENTS.lower()
+    match = re.search(r"(?im)^pyinstaller>=(6\.\d+(?:\.\d+)?),<7$", BUILD_REQUIREMENTS)
+    assert match is not None
     assert "-r requirements-dev.txt" in BUILD_REQUIREMENTS
 
 
