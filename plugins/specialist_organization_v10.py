@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.specialist_execution_v10 import SpecialistExecutionFacade
 from app.specialist_organization_v10 import SpecialistOrganization
 
 
@@ -14,6 +15,28 @@ def register(registry):
     # Host-side runtimes may request a validated assignment context. The returned
     # context is capability-scoped metadata only and never authorizes execution.
     registry.resolve_specialist_assignment_v10 = organization.assignment_context
+
+    # The execution facade is intentionally host-only. It constrains execution to
+    # the live assignment allowlist and then re-enters ToolRegistry.execute, so the
+    # existing ApprovalSecurity path remains authoritative for every risky action.
+    execution = SpecialistExecutionFacade(
+        resolve_assignment=organization.assignment_context,
+        execute_tool=registry.execute,
+        mission_lookup=registry.db.get_mission,
+    )
+    registry.specialist_execution_v10 = execution
+
+    async def execute_specialist_assignment_v10(assignment_id, tool_name, arguments, permissions):
+        return (
+            await execution.execute(
+                assignment_id=assignment_id,
+                tool_name=tool_name,
+                arguments=arguments,
+                permissions=permissions,
+            )
+        ).to_dict()
+
+    registry.execute_specialist_assignment_v10 = execute_specialist_assignment_v10
 
     registry.register(
         name="specialist_organization_v10_status",
