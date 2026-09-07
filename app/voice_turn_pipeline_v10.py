@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from app.low_latency_voice_runtime_v10 import LowLatencyVoiceRuntime
-from app.voice_session_v9 import VoiceSessionRuntime
+from app.voice_session_v9 import VoiceSessionRuntime, VoiceSessionState
 
 
 Reasoner = Callable[[str], str | Awaitable[str]]
@@ -107,7 +107,7 @@ class VoiceTurnPipeline:
                 error=f"reasoning failed: {type(exc).__name__}",
             )
 
-        if not self.session.running:
+        if self.session.state == VoiceSessionState.STOPPED:
             return VoiceTurnPipelineResult(
                 ok=False,
                 transcript=transcript,
