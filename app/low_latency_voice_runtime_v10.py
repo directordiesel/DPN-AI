@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import re
-import threading
 import time
-import uuid
-from dataclasses import dataclass, field
-from typing import Any, Iterable
+from dataclasses import dataclass
+from typing import Any
+
+from app.voice_session_v9 import VoiceSessionRuntime, VoiceSessionState
 
 
 class VoiceRuntimeError(RuntimeError):
@@ -31,22 +31,10 @@ class VoiceRuntimePolicy:
             raise VoiceRuntimeError("target_first_audio_ms is outside the governed range")
 
 
-@dataclass
-class _VoiceSessionState:
-    session_id: str
-    generation: int = 0
-    closed: bool = False
-    created_monotonic: float = field(default_factory=time.monotonic)
-    turn_count: int = 0
-    interrupted_turns: int = 0
-    lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
-
-
 @dataclass(frozen=True)
 class VoiceTurnResult:
     ok: bool
-    session_id: str
-    generation: int
+    turn_id: str | None
     interrupted: bool
     stale: bool
     chunks_requested: int
@@ -61,8 +49,7 @@ class VoiceTurnResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
-            "session_id": self.session_id,
-            "generation": self.generation,
+            "turn_id": self.turn_id,
             "interrupted": self.interrupted,
             "stale": self.stale,
             "chunks_requested": self.chunks_requested,
@@ -79,8 +66,6 @@ class VoiceTurnResult:
 @dataclass(frozen=True)
 class VoiceTranscriptionResult:
     ok: bool
-    session_id: str
-    generation: int
     interrupted: bool
     stale: bool
     elapsed_ms: int
@@ -90,8 +75,6 @@ class VoiceTranscriptionResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "ok": self.ok,
-            "session_id": self.session_id,
-            "generation": self.generation,
             "interrupted": self.interrupted,
             "stale": self.stale,
             "elapsed_ms": self.elapsed_ms,
@@ -101,84 +84,40 @@ class VoiceTranscriptionResult:
 
 
 class LowLatencyVoiceRuntime:
-    """Interruptible turn orchestration over the existing VoiceAdapter.
+    """Interruptible audio transport over the existing v9 voice-session authority.
 
-    The mature adapter remains responsible for STT/TTS engines, filesystem containment,
-    model selection, and generated audio. This runtime adds short synthesis chunks,
-    generation-based barge-in cancellation, stale-result suppression, bounded work, and
-    turn-level latency evidence. It deliberately never kills worker threads mid-engine
-    call; interruption takes effect at the next safe chunk boundary.
+    `VoiceSessionRuntime` remains the single source of truth for hands-free lifecycle,
+    active-turn identity, and barge-in state. `VoiceAdapter` remains the single source
+    of truth for STT/TTS engines and workspace-scoped audio files. This v10 layer adds
+    bounded chunked synthesis, safe-boundary interruption, stale-result suppression,
+    and turn-level latency evidence without creating a competing session subsystem.
     """
 
-    def __init__(self, adapter: Any, *, policy: VoiceRuntimePolicy | None = None) -> None:
+    def __init__(
+        self,
+        adapter: Any,
+        session_runtime: VoiceSessionRuntime,
+        *,
+        policy: VoiceRuntimePolicy | None = None,
+    ) -> None:
         self.adapter = adapter
+        self.session_runtime = session_runtime
         self.policy = policy or VoiceRuntimePolicy()
         self.policy.validate()
-        self._sessions: dict[str, _VoiceSessionState] = {}
-        self._sessions_lock = threading.RLock()
 
-    def create_session(self) -> dict[str, Any]:
-        session_id = uuid.uuid4().hex
-        state = _VoiceSessionState(session_id=session_id)
-        with self._sessions_lock:
-            self._sessions[session_id] = state
+    def status(self) -> dict[str, Any]:
         return {
             "ok": True,
-            "session_id": session_id,
-            "generation": 0,
+            "session": self.session_runtime.status(),
             "policy": {
                 "max_input_characters": self.policy.max_input_characters,
                 "max_chunk_characters": self.policy.max_chunk_characters,
                 "max_chunks_per_turn": self.policy.max_chunks_per_turn,
                 "target_first_audio_ms": self.policy.target_first_audio_ms,
                 "interrupt_boundary": "between synthesis chunks",
+                "stale_result_suppression": True,
             },
         }
-
-    def _session(self, session_id: str) -> _VoiceSessionState:
-        key = str(session_id).strip()
-        with self._sessions_lock:
-            state = self._sessions.get(key)
-        if state is None:
-            raise VoiceRuntimeError("unknown voice session")
-        with state.lock:
-            if state.closed:
-                raise VoiceRuntimeError("voice session is closed")
-        return state
-
-    def interrupt(self, session_id: str) -> dict[str, Any]:
-        state = self._session(session_id)
-        with state.lock:
-            state.generation += 1
-            state.interrupted_turns += 1
-            generation = state.generation
-        return {
-            "ok": True,
-            "session_id": state.session_id,
-            "generation": generation,
-            "effect": "active work becomes stale and stops at the next safe boundary",
-        }
-
-    def close_session(self, session_id: str) -> dict[str, Any]:
-        state = self._session(session_id)
-        with state.lock:
-            state.generation += 1
-            state.closed = True
-            generation = state.generation
-        return {"ok": True, "session_id": state.session_id, "generation": generation, "closed": True}
-
-    def session_status(self, session_id: str) -> dict[str, Any]:
-        state = self._session(session_id)
-        with state.lock:
-            return {
-                "ok": True,
-                "session_id": state.session_id,
-                "generation": state.generation,
-                "closed": state.closed,
-                "turn_count": state.turn_count,
-                "interrupted_turns": state.interrupted_turns,
-                "age_ms": int((time.monotonic() - state.created_monotonic) * 1000),
-            }
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -217,22 +156,24 @@ class LowLatencyVoiceRuntime:
             raise VoiceRuntimeError("voice response exceeds the governed chunk bound")
         return tuple(output)
 
-    @staticmethod
-    def _is_current(state: _VoiceSessionState, generation: int) -> bool:
-        with state.lock:
-            return not state.closed and state.generation == generation
+    def _active_turn_id(self) -> str | None:
+        turn = self.session_runtime.active_turn
+        return turn.turn_id if turn is not None else None
 
-    def _begin_turn(self, state: _VoiceSessionState) -> int:
-        with state.lock:
-            if state.closed:
-                raise VoiceRuntimeError("voice session is closed")
-            state.generation += 1
-            state.turn_count += 1
-            return state.generation
+    def _turn_is_current_and_speaking(self, turn_id: str) -> bool:
+        turn = self.session_runtime.active_turn
+        return bool(
+            turn is not None
+            and turn.turn_id == turn_id
+            and not turn.interrupted
+            and self.session_runtime.state == VoiceSessionState.SPEAKING
+        )
 
-    async def synthesize_turn(
+    def interrupt(self, reason: str = "barge_in") -> dict[str, Any]:
+        return self.session_runtime.interrupt(reason)
+
+    async def synthesize_active_turn(
         self,
-        session_id: str,
         text: str,
         *,
         voice_id: str = "sentinel",
@@ -242,20 +183,28 @@ class LowLatencyVoiceRuntime:
         fallback: bool = True,
         use_cuda: bool = False,
     ) -> VoiceTurnResult:
-        state = self._session(session_id)
         chunks = self._chunks(text)
-        generation = self._begin_turn(state)
+        if self.session_runtime.active_turn is None:
+            raise VoiceRuntimeError("no active voice turn")
+        if self.session_runtime.state == VoiceSessionState.THINKING:
+            self.session_runtime.begin_speaking()
+        if self.session_runtime.state != VoiceSessionState.SPEAKING:
+            raise VoiceRuntimeError(f"cannot synthesize while voice session is {self.session_runtime.state.value}")
+
+        turn_id = self._active_turn_id()
+        if not turn_id:
+            raise VoiceRuntimeError("active voice turn identity is unavailable")
+
         started = time.monotonic()
         first_audio_ms: int | None = None
         audio: list[dict[str, Any]] = []
 
         for index, chunk in enumerate(chunks):
-            if not self._is_current(state, generation):
+            if not self._turn_is_current_and_speaking(turn_id):
                 elapsed = int((time.monotonic() - started) * 1000)
                 return VoiceTurnResult(
                     ok=False,
-                    session_id=state.session_id,
-                    generation=generation,
+                    turn_id=turn_id,
                     interrupted=True,
                     stale=True,
                     chunks_requested=len(chunks),
@@ -268,7 +217,7 @@ class LowLatencyVoiceRuntime:
                     error="voice turn was interrupted",
                 )
 
-            filename = f"v10-{state.session_id[:12]}-{generation:06d}-{index:03d}.wav"
+            filename = f"v10-{turn_id[:12]}-{index:03d}.wav"
             result = await asyncio.to_thread(
                 self.adapter.speak,
                 chunk,
@@ -282,12 +231,11 @@ class LowLatencyVoiceRuntime:
                 tone,
             )
 
-            if not self._is_current(state, generation):
+            if not self._turn_is_current_and_speaking(turn_id):
                 elapsed = int((time.monotonic() - started) * 1000)
                 return VoiceTurnResult(
                     ok=False,
-                    session_id=state.session_id,
-                    generation=generation,
+                    turn_id=turn_id,
                     interrupted=True,
                     stale=True,
                     chunks_requested=len(chunks),
@@ -301,11 +249,11 @@ class LowLatencyVoiceRuntime:
                 )
 
             if not isinstance(result, dict) or not result.get("ok") or not result.get("path"):
+                self.session_runtime.interrupt("synthesis_failed")
                 elapsed = int((time.monotonic() - started) * 1000)
                 return VoiceTurnResult(
                     ok=False,
-                    session_id=state.session_id,
-                    generation=generation,
+                    turn_id=turn_id,
                     interrupted=False,
                     stale=False,
                     chunks_requested=len(chunks),
@@ -333,10 +281,10 @@ class LowLatencyVoiceRuntime:
             )
 
         total_elapsed = int((time.monotonic() - started) * 1000)
+        self.session_runtime.complete_turn()
         return VoiceTurnResult(
             ok=True,
-            session_id=state.session_id,
-            generation=generation,
+            turn_id=turn_id,
             interrupted=False,
             stale=False,
             chunks_requested=len(chunks),
@@ -348,9 +296,8 @@ class LowLatencyVoiceRuntime:
             audio=tuple(audio),
         )
 
-    async def transcribe_turn(
+    async def transcribe_audio(
         self,
-        session_id: str,
         path: str,
         *,
         model_size: str = "base",
@@ -359,8 +306,9 @@ class LowLatencyVoiceRuntime:
         device: str = "auto",
         compute_type: str = "int8",
     ) -> VoiceTranscriptionResult:
-        state = self._session(session_id)
-        generation = self._begin_turn(state)
+        epoch = self.session_runtime.session_epoch
+        if self.session_runtime.state == VoiceSessionState.STOPPED:
+            raise VoiceRuntimeError("voice session is stopped")
         started = time.monotonic()
         result = await asyncio.to_thread(
             self.adapter.transcribe,
@@ -373,21 +321,21 @@ class LowLatencyVoiceRuntime:
         )
         elapsed = int((time.monotonic() - started) * 1000)
 
-        if not self._is_current(state, generation):
+        stale = bool(
+            self.session_runtime.session_epoch != epoch
+            or self.session_runtime.state == VoiceSessionState.STOPPED
+        )
+        if stale:
             return VoiceTranscriptionResult(
                 ok=False,
-                session_id=state.session_id,
-                generation=generation,
                 interrupted=True,
                 stale=True,
                 elapsed_ms=elapsed,
-                error="transcription result became stale after interruption",
+                error="transcription result became stale after session transition",
             )
         if not isinstance(result, dict) or not result.get("ok"):
             return VoiceTranscriptionResult(
                 ok=False,
-                session_id=state.session_id,
-                generation=generation,
                 interrupted=False,
                 stale=False,
                 elapsed_ms=elapsed,
@@ -395,8 +343,6 @@ class LowLatencyVoiceRuntime:
             )
         return VoiceTranscriptionResult(
             ok=True,
-            session_id=state.session_id,
-            generation=generation,
             interrupted=False,
             stale=False,
             elapsed_ms=elapsed,
