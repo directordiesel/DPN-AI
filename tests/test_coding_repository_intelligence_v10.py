@@ -32,6 +32,46 @@ def test_repository_map_rejects_escape_paths() -> None:
         RepositoryMap.build([RepositoryFile("../escape.py")])
 
 
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/etc/passwd",
+        "C:/Windows/System32/config/SAM",
+        "C:relative.txt",
+        "app/../../escape.py",
+        "app/../escape.py",
+        "app/./alpha.py",
+        "app/alpha.py\x00suffix",
+    ],
+)
+def test_repository_map_rejects_absolute_traversal_and_ambiguous_paths(path: str) -> None:
+    with pytest.raises(CodingRepositoryError):
+        RepositoryMap.build([RepositoryFile(path)])
+
+
+def test_repository_map_contains_rejects_escape_instead_of_normalizing_it() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        repo().contains("/app/alpha.py")
+
+
+def test_change_impact_rejects_untrusted_escape_path() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.analyze_change_impact(repo(), ["../../app/alpha.py"])
+
+
+def test_risk_classification_rejects_absolute_path_evidence() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.classify_diff_risk(["/etc/passwd"])
+
+
+def test_security_finding_rejects_out_of_repository_path() -> None:
+    with pytest.raises(CodingRepositoryError, match="inside"):
+        RepositoryIntelligence.classify_diff_risk(
+            ["app/alpha.py"],
+            security_findings=[RiskFinding("bad-path", DiffRisk.HIGH, "../secret", "untrusted path")],
+        )
+
+
 def test_change_impact_selects_existing_related_tests() -> None:
     impact = RepositoryIntelligence.analyze_change_impact(repo(), ["app/alpha.py"])
     assert impact.changed_files == ("app/alpha.py",)
