@@ -138,7 +138,7 @@ class SelfImprovementEvidenceStore:
         fd, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=str(self.path.parent))
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, sort_keys=True, separators=(",", ":"))
+                json.dump(payload, handle, sort_keys=True, separators=(",", ":"), allow_nan=False)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, self.path)
@@ -198,7 +198,7 @@ class BenchmarkGatedSelfImprovement:
             "required_families": list(required_families),
             "families": [asdict(item) for item in family_evidence],
         }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
         return hashlib.sha256(encoded).hexdigest()
 
     def evaluate(
@@ -249,7 +249,7 @@ class BenchmarkGatedSelfImprovement:
             if quality_delta < -self.policy.max_quality_regression:
                 failures.append("quality_regression")
             if before.median_latency_ms == 0:
-                latency_ratio = 1.0 if after.median_latency_ms == 0 else float("inf")
+                latency_ratio = 1.0 if after.median_latency_ms == 0 else 1.0 + self.policy.max_latency_regression_ratio + 1.0
             else:
                 latency_ratio = after.median_latency_ms / before.median_latency_ms
             if latency_ratio > 1.0 + self.policy.max_latency_regression_ratio:
