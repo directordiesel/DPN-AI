@@ -12,10 +12,16 @@ SCOPE_PROPERTIES = {
 
 
 def register(registry) -> None:
-    service = GovernedMemoryToolService(registry.db, registry.semantic)
+    # A host may inject a callable memory_scope_authorizer(scope, MemoryContext).
+    # Without it, the service deliberately permits only global memory access.
+    service = GovernedMemoryToolService(
+        registry.db,
+        registry.semantic,
+        scope_authorizer=getattr(registry, "memory_scope_authorizer", None),
+    )
     registry.register(
         name="dpn_memory_recall",
-        description="Recall v10 layered memory through privacy-scoped namespaces with provenance/conflict-aware ranking. Raw storage access is not exposed.",
+        description="Recall v10 layered memory through privacy-scoped namespaces with provenance/conflict-aware ranking. Non-global identifiers require host authorization; raw storage access is not exposed.",
         parameters={
             "type": "object",
             "properties": {
@@ -32,7 +38,7 @@ def register(registry) -> None:
     )
     registry.register(
         name="dpn_memory_remember",
-        description="Store one bounded non-sensitive v10 memory through typed provenance, scope isolation, evidence requirements, conflict preservation and retention validation.",
+        description="Store one bounded non-sensitive v10 memory through typed provenance, scope isolation, evidence requirements, conflict preservation and retention validation. Non-global scope identifiers require host authorization.",
         parameters={
             "type": "object",
             "properties": {
@@ -55,7 +61,7 @@ def register(registry) -> None:
     )
     registry.register(
         name="dpn_memory_lineage_inspect",
-        description="Inspect the non-destructive compacted memory view for one exact scope, including duplicates, preferred versions and recovery-required lineage findings.",
+        description="Inspect the non-destructive compacted memory view for one exact host-authorized scope, including duplicates, preferred versions and recovery-required lineage findings.",
         parameters={
             "type": "object",
             "properties": {
@@ -70,7 +76,7 @@ def register(registry) -> None:
     )
     registry.register(
         name="dpn_memory_supersede",
-        description="Create an evidence-backed replacement plus immutable lineage receipt. Prior versions remain stored. This preference-changing action always requires explicit human approval.",
+        description="Create an evidence-backed replacement plus immutable lineage receipt inside a host-authorized scope. Prior versions remain stored. This preference-changing action always requires explicit human approval.",
         parameters={
             "type": "object",
             "properties": {
