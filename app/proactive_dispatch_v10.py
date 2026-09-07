@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -27,16 +28,12 @@ class DispatchReceipt:
 
 
 class ProactiveProposalDispatcher:
-    """Idempotent bridge from trusted proposals back into ToolRegistry.execute().
+    """Idempotent bridge from trusted proposals back into ToolRegistry.execute()."""
 
-    The dispatcher has no private execution path. Every first-time proposal re-enters
-    ToolRegistry.execute(), so current gate/risk policy and ApprovalSecurity remain
-    authoritative. A durable receipt prevents replay after any dispatch attempt.
-    """
-
-    def __init__(self, registry: Any, receipt_path: str | Path) -> None:
+    def __init__(self, registry: Any, receipt_path: str | Path, *, clock=time.time) -> None:
         self.registry = registry
         self.receipt_path = Path(receipt_path)
+        self._clock = clock
 
     def _load(self) -> dict[str, Any]:
         if not self.receipt_path.exists():
@@ -60,7 +57,7 @@ class ProactiveProposalDispatcher:
     def _validate_binding(proposal: ActionProposal, evidence: ObservationEvidence) -> None:
         if proposal.execution_authorized:
             raise ProactiveIntelligenceError("proposal attempted to self-authorize execution")
-        if not evidence.trusted_for_dispatch:
+        if not proposal.trusted_source or not evidence.trusted_for_dispatch:
             raise ProactiveSourceError("untrusted condition evidence cannot be dispatched")
         if proposal.source_id != evidence.source_id:
             raise ProactiveSourceError("proposal source does not match evidence source")
@@ -78,15 +75,9 @@ class ProactiveProposalDispatcher:
         if current_risk != proposal.risk or current_gate != proposal.gate:
             raise ProactiveIntelligenceError("proposed tool risk/gate metadata changed after evaluation")
 
-    async def dispatch(
-        self,
-        proposal: ActionProposal,
-        evidence: ObservationEvidence,
-        *,
-        permissions: dict[str, Any],
-    ) -> DispatchReceipt:
+    async def dispatch(self, proposal: ActionProposal, evidence: ObservationEvidence, *, permissions: dict[str, Any]) -> DispatchReceipt:
         self._validate_binding(proposal, evidence)
-        evidence.require_fresh(evidence.collected_at)
+        evidence.require_fresh(float(self._clock()))
         self._validate_current_tool(proposal)
         state = self._load()
         existing = state["receipts"].get(proposal.proposal_id)
@@ -120,13 +111,7 @@ class ProactiveProposalDispatcher:
 
     def status(self) -> dict[str, Any]:
         state = self._load()
-        return {
-            "ok": True,
-            "schema_version": state["schema_version"],
-            "receipts": len(state["receipts"]),
-            "execution_path": "ToolRegistry.execute -> ApprovalSecurity",
-            "idempotent_replay_block": True,
-        }
+        return {"ok": True, "schema_version": state["schema_version"], "receipts": len(state["receipts"]), "execution_path": "ToolRegistry.execute -> ApprovalSecurity", "idempotent_replay_block": True}
 
 
 __all__ = ["DispatchReceipt", "ProactiveProposalDispatcher"]
