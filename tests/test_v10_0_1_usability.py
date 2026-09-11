@@ -486,3 +486,23 @@ def test_active_windows_surfaces_use_current_version_source():
     issue_template = (ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml").read_text(encoding="utf-8")
     assert 'placeholder: "v5.0.7"' not in issue_template
     assert "Version shown in DPN AI" in issue_template
+
+
+
+def test_active_documentation_does_not_claim_v5_is_current():
+    active_docs = (
+        ROOT / "SECURITY.md",
+        ROOT / "docs" / "SECURITY.md",
+        ROOT / "START_HERE.md",
+        ROOT / "SHOWCASE.md",
+    )
+    for path in active_docs:
+        text = path.read_text(encoding="utf-8")
+        assert "current DPN AI v5 release line" not in text
+        assert "# DPN AI v5 Security Guide" not in text
+        assert "# Start Here — DPN AI v5.0.7" not in text
+        assert "**Current release:** v5.0.7" not in text
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "live activity surfaces" not in readme
+    assert "Ed25519 public-key update manifest verification" in readme
