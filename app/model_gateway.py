@@ -99,6 +99,22 @@ class ModelGateway:
         except OllamaError:
             return False
 
+    def _ensure_ollama_allowed(self) -> str:
+        url = str(self.settings.ollama_url or "").rstrip("/")
+        if not url:
+            raise OllamaError("No Ollama endpoint is configured.")
+        try:
+            endpoint_class = self._classify_compatible_url(url)
+        except OllamaError as exc:
+            message = str(exc).replace("Compatible model endpoint", "Ollama endpoint")
+            raise OllamaError(message) from exc
+        if endpoint_class == "external":
+            if not self._config()["allow_external_models"]:
+                raise OllamaError("External Ollama endpoints are disabled. Enable external model endpoints explicitly in DPN AI Settings.")
+            if urlparse(url).scheme != "https":
+                raise OllamaError("External Ollama endpoints must use HTTPS to protect prompts and model traffic.")
+        return url
+
     @staticmethod
     def _api_root(url: str) -> str:
         value = url.rstrip("/")
@@ -213,11 +229,16 @@ class ModelGateway:
         provider, provider_model = self.resolve_model(model)
         if provider != "ollama":
             return {"ok": True, "model": model, "provider": provider, "warmed": False, "reason": "Provider manages its own model residency."}
+        self._ensure_ollama_allowed()
         result = await self.ollama.warm_model(provider_model)
         return {**result, "provider": "ollama", "warmed": True}
 
     async def health(self) -> dict[str, Any]:
-        ollama_health = await self.ollama.health()
+        try:
+            self._ensure_ollama_allowed()
+            ollama_health = await self.ollama.health()
+        except (OllamaError, OSError, ValueError) as exc:
+            ollama_health = {"ok": False, "error": str(sanitize_for_persistence(str(exc)))}
         compatible: dict[str, Any] = {"configured": bool(self._config()["compatible_api_url"]), "ok": False}
         if compatible["configured"]:
             try:
@@ -239,6 +260,7 @@ class ModelGateway:
     async def list_models(self) -> list[dict[str, Any]]:
         models: list[dict[str, Any]] = []
         try:
+            self._ensure_ollama_allowed()
             for item in await self.ollama.list_models():
                 models.append({**item, "name": item.get("name") or item.get("model"), "provider": "ollama"})
         except OllamaError:
@@ -321,6 +343,7 @@ class ModelGateway:
     ) -> dict[str, Any]:
         provider, provider_model = self.resolve_model(model)
         if provider == "ollama":
+            self._ensure_ollama_allowed()
             return await self.ollama.chat(model=provider_model, messages=messages, tools=tools, think=think)
         if provider != "compatible":
             raise OllamaError(f"Unsupported model provider: {provider}")
@@ -355,6 +378,7 @@ class ModelGateway:
     ) -> dict[str, Any]:
         provider, provider_model = self.resolve_model(model)
         if provider == "ollama":
+            self._ensure_ollama_allowed()
             return await self.ollama.chat_stream(
                 model=provider_model, messages=messages, tools=tools, think=think, on_token=on_token
             )
@@ -372,6 +396,7 @@ class ModelGateway:
     async def embed(self, model: str, inputs: list[str]) -> list[list[float]]:
         provider, provider_model = self.resolve_model(model)
         if provider == "ollama":
+            self._ensure_ollama_allowed()
             return await self.ollama.embed(provider_model, inputs)
         url = self._ensure_compatible_allowed()
         async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
@@ -390,4 +415,5 @@ class ModelGateway:
         provider, provider_model = self.resolve_model(model)
         if provider != "ollama":
             raise OllamaError("Only Ollama models can be pulled from inside DPN AI.")
+        self._ensure_ollama_allowed()
         return await self.ollama.pull_model(provider_model)
