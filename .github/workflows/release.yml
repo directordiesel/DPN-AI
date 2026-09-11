@@ -21,7 +21,57 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  security-preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      DISPATCH_VERSION: ${{ github.event.inputs.version }}
+      DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
+
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up security Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate exact release request
+        shell: bash
+        run: |
+          repository_version="$(tr -d '\r\n ' < VERSION)"
+          python .github/scripts/validate_release_request.py --version "$repository_version" --tag "$DISPATCH_VERSION" --prerelease "$DISPATCH_PRERELEASE"
+          if git rev-parse "$DISPATCH_VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $DISPATCH_VERSION already exists. Existing releases must not be overwritten."
+            exit 1
+          fi
+
+      - name: Run repository and source security guards
+        run: |
+          python .github/scripts/ci_repository_guard.py
+          python tools/dpn_security_gate.py --github
+
+      - name: Install locked dependency audit toolchain
+        run: python -m pip install --disable-pip-version-check -r .github/requirements-security.txt
+
+      - name: Audit all declared Python dependency surfaces
+        shell: bash
+        run: |
+          for requirements_file in requirements.txt requirements-build.txt requirements-browser.txt requirements-desktop.txt requirements-voice.txt; do
+            echo "Auditing $requirements_file"
+            python -m pip_audit -r "$requirements_file"
+          done
+
   windows-release-assets:
+    needs: security-preflight
     if: github.ref == 'refs/heads/main'
     runs-on: windows-latest
     timeout-minutes: 60
