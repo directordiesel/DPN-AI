@@ -45,18 +45,58 @@ class ModelGateway:
         }
 
     @staticmethod
-    def _is_local_url(url: str) -> bool:
+    def _classify_compatible_url(url: str) -> str:
+        """Return local/external after validating the model endpoint network boundary."""
         try:
-            parsed = urlparse(url)
-            host = parsed.hostname or ""
-            if host.lower() in {"localhost", "host.docker.internal"}:
-                return True
+            parsed = urlparse(str(url).strip())
+        except ValueError as exc:
+            raise OllamaError("Compatible model endpoint URL is invalid.") from exc
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise OllamaError("Compatible model endpoint must use HTTP or HTTPS.")
+        if parsed.username or parsed.password:
+            raise OllamaError("Compatible model endpoint must not contain embedded credentials.")
+        if parsed.query or parsed.fragment:
+            raise OllamaError("Compatible model endpoint must not contain a query string or URL fragment.")
+
+        host = parsed.hostname.rstrip(".").lower()
+        if host in {"localhost", "host.docker.internal"}:
+            return "local"
+
+        try:
+            literal = ipaddress.ip_address(host)
+            addresses = {literal}
+        except ValueError:
             try:
-                return ipaddress.ip_address(host).is_private or ipaddress.ip_address(host).is_loopback
-            except ValueError:
-                addresses = socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)
-                return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_private or ipaddress.ip_address(item[4][0]).is_loopback for item in addresses)
-        except (OSError, ValueError):
+                resolved = socket.getaddrinfo(
+                    host,
+                    parsed.port or (443 if parsed.scheme == "https" else 80),
+                    type=socket.SOCK_STREAM,
+                )
+            except OSError as exc:
+                raise OllamaError("Compatible model endpoint hostname could not be resolved.") from exc
+            addresses = set()
+            for item in resolved:
+                try:
+                    addresses.add(ipaddress.ip_address(item[4][0]))
+                except ValueError as exc:
+                    raise OllamaError("Compatible model endpoint resolved to an invalid network address.") from exc
+            if not addresses:
+                raise OllamaError("Compatible model endpoint hostname could not be resolved.")
+
+        local_flags: set[bool] = set()
+        for address in addresses:
+            if address.is_multicast or address.is_reserved or address.is_unspecified or address.is_link_local:
+                raise OllamaError("Compatible model endpoint resolved to a reserved or link-local network address.")
+            local_flags.add(bool(address.is_private or address.is_loopback))
+        if len(local_flags) != 1:
+            raise OllamaError("Compatible model endpoint returned mixed public/private DNS addresses and was blocked.")
+        return "local" if True in local_flags else "external"
+
+    @classmethod
+    def _is_local_url(cls, url: str) -> bool:
+        try:
+            return cls._classify_compatible_url(url) == "local"
+        except OllamaError:
             return False
 
     @staticmethod
@@ -80,8 +120,13 @@ class ModelGateway:
         url = config["compatible_api_url"]
         if not url:
             raise OllamaError("No OpenAI-compatible model endpoint is configured.")
-        if not self._is_local_url(url) and not config["allow_external_models"]:
-            raise OllamaError("External model endpoints are disabled. Enable them explicitly in DPN AI Settings.")
+        endpoint_class = self._classify_compatible_url(url)
+        parsed = urlparse(url)
+        if endpoint_class == "external":
+            if not config["allow_external_models"]:
+                raise OllamaError("External model endpoints are disabled. Enable them explicitly in DPN AI Settings.")
+            if parsed.scheme != "https":
+                raise OllamaError("External model endpoints must use HTTPS to protect prompts and API credentials.")
         return url
 
     @staticmethod
