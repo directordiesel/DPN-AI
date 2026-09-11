@@ -137,3 +137,22 @@ def test_service_worker_caches_only_allowlisted_ui_shell_requests():
     assert "if (!CACHEABLE_PATHS.has(url.pathname)) return;" in SERVICE_WORKER
     assert "if (url.pathname === '/' && url.search) return;" in SERVICE_WORKER
     assert "response.ok" in SERVICE_WORKER
+
+
+
+def test_core_http_clients_ignore_ambient_proxy_environment():
+    paths = (
+        ROOT / "app" / "tools" / "web_tools.py",
+        ROOT / "app" / "ollama_client.py",
+        ROOT / "app" / "model_gateway.py",
+        ROOT / "app" / "connectors.py",
+        ROOT / "app" / "tools" / "images.py",
+        ROOT / "app" / "tools" / "image_vision_providers.py",
+        ROOT / "plugins" / "examples" / "discord_webhook.py.example",
+    )
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
+        assert "httpx.AsyncClient(" in source
+        for line in source.splitlines():
+            if "httpx.AsyncClient(" in line:
+                assert "trust_env=False" in line
