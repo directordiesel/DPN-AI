@@ -26,7 +26,7 @@ class BrowserAdapter:
         try:
             import playwright  # noqa: F401
             return {"ok": True, "available": True}
-        except Exception:
+        except ImportError:
             return {"ok": True, "available": False, "install": "pip install -r requirements-browser.txt && playwright install chromium"}
 
     def _validate_url(self, url: str) -> tuple[bool, str]:
@@ -63,7 +63,7 @@ class BrowserAdapter:
             return {"ok": False, "error": str(exc)}
         try:
             from playwright.async_api import async_playwright
-        except Exception:
+        except ImportError:
             return {"ok": False, "error": "Playwright is not installed. Use requirements-browser.txt."}
 
         extracted = ""
