@@ -97,7 +97,15 @@ def test_browser_and_api_security_headers_are_enforced():
         '"X-Frame-Options", "DENY"',
         '"Referrer-Policy", "no-referrer"',
         '"Permissions-Policy", "camera=(), geolocation=(), microphone=(self)"',
-        '"frame-ancestors \'none\'; object-src \'none\'; base-uri \'self\'"',
+        '"default-src \'self\'; "',
+        '"script-src \'self\'; "',
+        '"connect-src \'self\'; "',
+        '"frame-ancestors \'none\'; "',
+        '"object-src \'none\'; "',
+        '"Cross-Origin-Opener-Policy", "same-origin"',
+        '"Cross-Origin-Resource-Policy", "same-origin"',
+        '"X-Permitted-Cross-Domain-Policies", "none"',
+        '"Strict-Transport-Security", "max-age=31536000"',
         'response.headers["Cache-Control"] = "no-store"',
     ):
         assert token in MAIN
@@ -156,3 +164,13 @@ def test_core_http_clients_ignore_ambient_proxy_environment():
         for line in source.splitlines():
             if "httpx.AsyncClient(" in line:
                 assert "trust_env=False" in line
+
+
+
+def test_ui_has_no_inline_script_or_dynamic_eval_requirements():
+    index = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
+    assert '<script>' not in index
+    assert "eval(" not in APP_JS
+    assert "new Function(" not in APP_JS
+    assert "script-src 'self'" in MAIN
+    assert "connect-src 'self'" in MAIN
