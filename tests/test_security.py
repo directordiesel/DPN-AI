@@ -199,6 +199,47 @@ def test_connector_rejects_dangerous_http_methods(tmp_path: Path) -> None:
     hub.db.create_connector.assert_not_called()
 
 
+
+def test_connector_rejects_plaintext_sensitive_headers(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create(
+            "unsafe-secret",
+            "https://example.test/api",
+            headers={"Authorization": "Bearer plaintext-secret"},
+        )
+    assert result["ok"] is False
+    assert "secret" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
+def test_connector_accepts_secret_references_for_sensitive_headers(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create(
+            "safe-secret",
+            "https://example.test/api",
+            headers={"Authorization": "Bearer {{secret:provider.token}}", "Accept": "application/json"},
+        )
+    assert result["ok"] is True
+    config = hub.db.create_connector.call_args.args[2]
+    assert config["headers"]["Authorization"] == "Bearer {{secret:provider.token}}"
+
+
+def test_connector_rejects_header_injection(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create(
+            "bad-header",
+            "https://example.test/api",
+            headers={"X-Test": "ok\r\nX-Evil: injected"},
+        )
+    assert result["ok"] is False
+    hub.db.create_connector.assert_not_called()
+
 def test_connector_accepts_public_allowlisted_configuration(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
