@@ -269,3 +269,13 @@ def test_release_provenance_attests_at_actual_build_boundaries():
     assert 'subject-path: "${{ env.ARTIFACT_BASENAME }}-${{ env.VERSION }}-source.zip"' in publication
     assert publication.index("Build source archive and checksums") < publication.index("Attest release source archive")
     assert publication.index("Attest release source archive") < publication.index("Create GitHub Release")
+
+
+def test_production_builder_injects_and_cleans_public_update_trust_root():
+    assert ".github/scripts/write_update_trust_root.py" in BUILDER
+    assert '$env:DPN_UPDATE_TRUST_FILE = $TrustRootPath' in BUILDER
+    assert "update_trust_configured" in BUILDER
+    assert "update_trust_root_sha256" in BUILDER
+    assert "Production package trust-root hash does not match the generated trust root." in BUILDER
+    assert 'Remove-Item -LiteralPath $TrustRootPath' in BUILDER
+    assert 'Remove-Item Env:DPN_UPDATE_TRUST_FILE' in BUILDER
