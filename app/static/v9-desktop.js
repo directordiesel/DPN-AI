@@ -65,11 +65,11 @@
       <div id="v9CommandPalette" class="v9-command-palette hidden" role="dialog" aria-modal="true" aria-label="Command palette" aria-hidden="true">
         <div class="v9-command-panel">
           <div class="v9-command-head"><strong>DPN AI Command Palette</strong><kbd>Esc</kbd></div>
-          <input id="v9CommandInput" type="search" autocomplete="off" placeholder="Search commands…" aria-label="Search commands" aria-controls="v9CommandResults" aria-activedescendant="" />
+          <input id="v9CommandInput" type="search" autocomplete="off" placeholder="Search commands..." aria-label="Search commands" aria-controls="v9CommandResults" aria-activedescendant="" />
           <div id="v9CommandResults" class="v9-command-results" role="listbox"></div>
         </div>
       </div>
-      <button id="v9PaletteButton" class="v9-palette-button" title="Command palette (Ctrl+K)" aria-label="Open command palette" aria-haspopup="dialog" aria-controls="v9CommandPalette">⌘</button>
+      <button id="v9PaletteButton" class="v9-palette-button" title="Command palette (Ctrl+K)" aria-label="Open command palette" aria-haspopup="dialog" aria-controls="v9CommandPalette">Commands</button>
       <div id="v9LiveRegion" class="v9-sr-only" aria-live="polite"></div>
     `);
 
