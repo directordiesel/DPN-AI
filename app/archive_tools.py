@@ -7,6 +7,8 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any, BinaryIO
 
+from app.persistence_security import sanitize_for_persistence
+
 
 class ArchiveTools:
     """Bounded ZIP/TAR inspection and extraction inside the workspace."""
@@ -109,8 +111,9 @@ class ArchiveTools:
                     kind = "tar"
             else:
                 return {"ok": False, "error": "Only ZIP and TAR-compatible archives are supported"}
-        except Exception as exc:
-            return {"ok": False, "error": f"Unable to inspect archive: {type(exc).__name__}: {exc}"}
+        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError) as exc:
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "error": f"Unable to inspect archive: {type(exc).__name__}: {detail}"}
         return {"ok": True, "path": target.relative_to(self.workspace).as_posix(), "kind": kind, "count": count, "shown": len(entries), "total_uncompressed_bytes": total_size, "unsafe_entries": unsafe[:100], "entries": entries}
 
     def extract(self, path: str, destination: str | None = None, max_files: int = 5000, max_bytes: int = 2_000_000_000, overwrite: bool = False) -> dict[str, Any]:
@@ -187,7 +190,8 @@ class ArchiveTools:
                                     extracted_bytes += self._bounded_copy(source, dest, max_bytes - extracted_bytes)
             if extracted_bytes > max_bytes:
                 raise ValueError("Archive exceeded the configured extraction byte limit")
-        except Exception as exc:
+        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError) as exc:
             shutil.rmtree(output, ignore_errors=True)
-            return {"ok": False, "error": f"Extraction failed: {type(exc).__name__}: {exc}"}
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "error": f"Extraction failed: {type(exc).__name__}: {detail}"}
         return {"ok": True, "path": output.relative_to(self.workspace).as_posix(), "files": report["count"], "bytes": extracted_bytes}
