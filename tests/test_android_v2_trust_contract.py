@@ -21,8 +21,8 @@ def test_remote_mode_rejects_revoked_devices_and_uses_shorter_session():
 
 def test_expired_or_revoked_credentials_fail_closed_before_api_use():
     assert 'if (isDeviceRevoked() || !isSessionCurrent()) return null' in STORE
-    assert 'DEVICE REVOKED • re-pairing required' in MAIN
-    assert 'SESSION EXPIRED • secure re-pairing required' in MAIN
+    assert 'DEVICE REVOKED - re-pairing required' in MAIN
+    assert 'SESSION EXPIRED - secure re-pairing required' in MAIN
 
 
 def test_main_activity_only_enables_gateway_for_current_trusted_device():
