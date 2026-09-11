@@ -28,7 +28,7 @@
       <button class="side-action" id="graphBtn">Knowledge Graph</button>
       <button class="side-action" id="sandboxBtn">Sandbox Lab</button>
       <button class="side-action" id="capabilityForgeBtn">Capability Forge</button>
-      <button class="side-action" id="mcpBtn">Tool Server Connections (MCP)</button>
+      <button class="side-action" id="mcpBtn">Tool Server Connections</button>
       <button class="side-action" id="approvalsBtn">Approval Inbox</button>
       <button class="side-action" id="projectsBtn">Projects & Task Board</button>
       <button class="side-action" id="automationsBtn">Local Automations</button>
@@ -71,12 +71,12 @@
             </div>
           </div>
           <div class="desktop-status-grid">
-            <article class="desktop-status-card" id="desktopCoreCard" data-state="unknown"><span class="label">Runtime</span><strong>Checking...</strong><small>Local runtime health probe</small></article>
-            <article class="desktop-status-card" id="desktopMissionCard" data-state="unknown"><span class="label">Mission</span><strong>No live feed</strong><small>Waiting for mission summary API</small></article>
-            <article class="desktop-status-card" id="desktopApprovalCard" data-state="unknown"><span class="label">Approvals</span><strong>No live feed</strong><small>Waiting for approval summary API</small></article>
-            <article class="desktop-status-card" id="desktopModelCard" data-state="unknown"><span class="label">Model</span><strong>No live feed</strong><small>Waiting for model runtime summary API</small></article>
-            <article class="desktop-status-card" id="desktopAutomationCard" data-state="unknown"><span class="label">Automations</span><strong>No live feed</strong><small>Waiting for scheduler summary API</small></article>
-            <article class="desktop-status-card" id="desktopConnectorCard" data-state="unknown"><span class="label">Connectors</span><strong>No live feed</strong><small>Waiting for connector health summary API</small></article>
+            <article class="desktop-status-card" id="desktopCoreCard" data-state="unknown"><span class="label">DPN Core</span><strong>Checking...</strong><small>Connecting to the local control service</small></article>
+            <article class="desktop-status-card" id="desktopMissionCard" data-state="unknown"><span class="label">Mission</span><strong>Waiting</strong><small>Waiting for live mission status</small></article>
+            <article class="desktop-status-card" id="desktopApprovalCard" data-state="unknown"><span class="label">Approvals</span><strong>Waiting</strong><small>Waiting for live approval status</small></article>
+            <article class="desktop-status-card" id="desktopModelCard" data-state="unknown"><span class="label">AI Model</span><strong>Waiting</strong><small>Waiting for live model status</small></article>
+            <article class="desktop-status-card" id="desktopAutomationCard" data-state="unknown"><span class="label">Automations</span><strong>Waiting</strong><small>Waiting for live scheduler status</small></article>
+            <article class="desktop-status-card" id="desktopConnectorCard" data-state="unknown"><span class="label">Connectors</span><strong>Waiting</strong><small>Waiting for live connector status</small></article>
           </div>
         </section>
 
@@ -89,13 +89,13 @@
           <button class="desktop-workspace-tab" data-workspace="automation">Automations</button>
           <button class="desktop-workspace-tab" data-workspace="diagnostics">Diagnostics</button>
         </nav>
-        <div class="desktop-integrity-note"><b>Evidence-first status:</b> unavailable surfaces remain explicitly unavailable until a real local API reports their state. No simulated production metrics are displayed.</div>
+        <div class="desktop-integrity-note"><b>Evidence-first status:</b> a feature stays marked unavailable until the real local service reports it ready. DPN AI does not invent production health metrics.</div>
 
         <div class="welcome" id="welcome">
           <div class="core-ring"><div class="core-inner">DPN<br><b>AI</b></div></div>
           <div class="version-pill">STABLE CORE v10.0.0 | WINDOWS DESKTOP PLATFORM</div>
           <h2>Your adaptive AI desktop operations command center</h2>
-          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved MCP servers - while retaining local voice, multimodal media, documents, code, browser, project, automation, and desktop capabilities.</p>
+          <p>Give DPN AI a goal and it can form a success contract, select focused tools, run resumable specialist missions, verify evidence, repair failed outputs, preserve provenance, and extend itself through staged plugins or approved tool servers - while retaining local voice, multimodal media, documents, code, browser, project, automation, and desktop capabilities.</p>
           <div class="capability-strip">
             <span>Windows Desktop Runtime</span><span>Cognitive Goal Contracts</span><span>Resumable Job Queue</span><span>Evidence Verification</span><span>Persistent Project Intelligence</span>
           </div>
@@ -128,7 +128,7 @@
           <textarea id="promptInput" rows="1" placeholder="Type a command or speak to DPN AI..."></textarea>
           <button class="send" id="sendBtn" title="Send">Send</button>
         </div>
-        <div class="composer-meta"><span id="coreMeta">Local voice | Agent missions | Creator studio | Project intelligence | Evidence verification | Recovery control</span><span id="permissionText">Web ON | Voice OFF | Commands OFF</span></div>
+        <div class="composer-meta"><span id="coreMeta">Local voice | Agent missions | Capability Forge | Project intelligence | Evidence verification | Recovery control</span><span id="permissionText">Web ON | Voice OFF | Commands OFF</span></div>
       </footer>
     </main>
   </div>
