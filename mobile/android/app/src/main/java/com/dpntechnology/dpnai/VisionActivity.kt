@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
@@ -33,7 +34,14 @@ class VisionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         api = DesktopApiClient(SecureCredentialStore(this))
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
     }
 
     private fun buildUi(): LinearLayout = LinearLayout(this).apply {
@@ -80,8 +88,10 @@ class VisionActivity : Activity() {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setBackgroundColor(Color.rgb(16, 16, 20))
             contentDescription = "Selected image preview"
+            minimumHeight = (280 * resources.displayMetrics.density).toInt()
+            adjustViewBounds = true
         }
-        addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         prompt = EditText(this@VisionActivity).apply {
             hint = "What should DPN AI inspect?"
