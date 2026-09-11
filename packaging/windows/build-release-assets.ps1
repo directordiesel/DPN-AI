@@ -118,12 +118,16 @@ try {
         throw "Production source build manifest was not created."
     }
     $SourceManifest = Get-Content $SourceBuildManifest -Raw | ConvertFrom-Json
+    $TrustRootData = Get-Content $TrustRootPath -Raw | ConvertFrom-Json
     $ExpectedTrustHash = (Get-FileHash -Algorithm SHA256 $TrustRootPath).Hash.ToLowerInvariant()
     if (-not $SourceManifest.update_trust_configured) {
         throw "Production package manifest does not record an update trust root."
     }
     if ($SourceManifest.update_trust_root_sha256 -ne $ExpectedTrustHash) {
         throw "Production package trust-root hash does not match the generated trust root."
+    }
+    if ($SourceManifest.update_trust_public_key_sha256 -ne $TrustRootData.public_key_sha256) {
+        throw "Production package trust root is not bound to the configured update verification key."
     }
 
     Invoke-Checked $Python ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
