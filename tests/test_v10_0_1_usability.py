@@ -281,3 +281,21 @@ def test_interface_shell_validator_covers_primary_controls_and_cache_is_rotated(
     assert "Repair cached interface" in js
     assert "dpn-ai-v10.0.1-development-ui-shell" in sw
     assert "dpn-ai-v10.0.0-ui-shell" not in sw
+
+
+
+def test_workspace_shortcuts_are_truthful_and_chat_preserves_context():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    desktop_js = (STATIC / "v8-desktop.js").read_text(encoding="utf-8")
+
+    assert 'data-workspace="creator">Capability Forge</button>' in html
+    assert 'data-workspace="research">Tool Servers</button>' in html
+    assert 'data-workspace="creator">Creator Studio</button>' not in html
+    assert 'data-workspace="research">Research & Tools</button>' not in html
+
+    assert "chat: 'newChatBtn'" not in desktop_js
+    assert "tab.dataset.workspace === 'chat'" in desktop_js
+    assert "invokeExisting('closeModalBtn')" in desktop_js
+    assert "document.getElementById('promptInput')?.focus()" in desktop_js
+    assert "creator: 'capabilityForgeBtn'" in desktop_js
+    assert "research: 'mcpBtn'" in desktop_js
