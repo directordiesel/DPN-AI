@@ -38,7 +38,7 @@ class MobileReleaseHardeningTests(unittest.TestCase):
         self.assertNotIn('keyPassword = "', self.gradle)
 
     def test_production_version_must_be_explicit(self):
-        self.assertIn('"1.0.0-dev"', self.gradle)
+        self.assertIn('"10.0.1-dev"', self.gradle)
         self.assertIn("DPN_MOBILE_VERSION_CODE", self.gradle)
         self.assertIn("DPN_MOBILE_VERSION_NAME", self.gradle)
         self.assertIn("production semantic version", self.gradle)
