@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Awaitable, Callable
 
+from app.persistence_security import sanitize_for_persistence
 from app.research_intelligence import ResearchIntelligence
 
 
@@ -70,8 +71,9 @@ class WebResearchRuntime:
             async with semaphore:
                 try:
                     result = await self.fetch_fn(url, self.fetch_chars)
-                except Exception as exc:  # noqa: BLE001
-                    result = {"ok": False, "error": f"fetch failed: {exc}"}
+                except Exception as exc:  # Fetch boundary preserves partial research when one provider fails.
+                    detail = str(sanitize_for_persistence(str(exc)))
+                    result = {"ok": False, "error": f"fetch failed: {detail}"}
                 return url, result if isinstance(result, dict) else {"ok": False, "error": "invalid fetch result"}
 
         fetched_pairs = await asyncio.gather(*(fetch_one(url) for url in urls)) if urls else []
@@ -89,7 +91,10 @@ class WebResearchRuntime:
                     enriched_item["title"] = fetch_result.get("title") or enriched_item.get("title")
                     enriched_item["content"] = fetch_result.get("content") or ""
                 else:
-                    fetch_failures.append({"url": normalized, "error": str(fetch_result.get("error") or "fetch failed")})
+                    fetch_failures.append({
+                        "url": normalized,
+                        "error": str(sanitize_for_persistence(str(fetch_result.get("error") or "fetch failed"))),
+                    })
             enriched.append(enriched_item)
 
         bundle = self.intelligence.evidence_bundle(query, enriched)
