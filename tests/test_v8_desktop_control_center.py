@@ -27,7 +27,7 @@ def test_desktop_status_surfaces_are_explicit_and_not_simulated():
         'desktopConnectorCard',
     ):
         assert card_id in HTML
-    assert 'No simulated production metrics are displayed.' in HTML
+    assert 'DPN AI does not invent production health metrics.' in HTML
     assert "summary: '/api/v1/desktop/summary'" in JS
     assert "events: '/api/v1/desktop/events'" in JS
     assert 'renderSummary' in JS
