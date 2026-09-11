@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,3 +181,82 @@ def test_desktop_shell_source_uses_plain_ascii_ui_copy():
 
     v9 = (STATIC / "v9-desktop.js").read_text(encoding="utf-8")
     assert ">Commands</button>" in v9
+
+
+def test_literal_dom_references_resolve_and_static_ids_are_unique():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    scripts = "\n".join(
+        (STATIC / name).read_text(encoding="utf-8")
+        for name in ("app.js", "v8-desktop.js", "v9-desktop.js")
+    )
+    markup = html + "\n" + scripts
+
+    declared = set(re.findall(r'\bid=["\']([^"\'$}{]+)["\']', markup))
+    references = set(re.findall(r"\$\(['\"]([^'\"]+)['\"]\)", scripts))
+    references.update(re.findall(r"getElementById\(['\"]([^'\"]+)['\"]\)", scripts))
+
+    assert references - declared == set()
+
+    static_ids = re.findall(r'\bid=["\']([^"\']+)["\']', html)
+    duplicates = sorted({item for item in static_ids if static_ids.count(item) > 1})
+    assert duplicates == []
+
+
+def test_every_static_button_with_an_id_is_wired_in_desktop_javascript():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    scripts = "\n".join(
+        (STATIC / name).read_text(encoding="utf-8")
+        for name in ("app.js", "v8-desktop.js", "v9-desktop.js")
+    )
+    button_ids = re.findall(r'<button\b[^>]*\bid="([^"]+)"', html)
+    missing = [button_id for button_id in button_ids if button_id not in scripts]
+    assert missing == []
+
+
+def test_modal_supports_scrolling_semantics_escape_focus_trap_and_focus_restore():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    css = (STATIC / "styles.css").read_text(encoding="utf-8")
+
+    assert 'role="dialog"' in html
+    assert 'aria-modal="true"' in html
+    assert 'aria-labelledby="modalTitle"' in html
+    assert 'id="modalBackdrop" aria-hidden="true"' in html
+
+    assert "let modalReturnFocus = null" in js
+    assert "function modalIsOpen()" in js
+    assert "function modalFocusableElements()" in js
+    assert "function trapModalFocus(event)" in js
+    assert "event.key === 'Tab' && modalIsOpen()" in js
+    assert "els.modalBackdrop.setAttribute('aria-hidden', 'false')" in js
+    assert "els.modalBackdrop.setAttribute('aria-hidden', 'true')" in js
+    assert "document.contains(target)" in js
+    assert "target.focus({preventScroll:true})" in js
+    assert "if (modalIsOpen()) { event.preventDefault(); closeModal(); return; }" in js
+
+    assert ".modal-body {" in css
+    assert "overflow: auto;" in css
+    assert "max-height: calc(var(--dpn-viewport-height) - 28px);" in css
+
+
+def test_user_visible_desktop_copy_has_no_stale_v5_labels():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "v5.0.7 clarity engine" not in js
+    assert "DPN AI v5 sandbox ready" not in js
+    assert "Legacy model active:" not in js
+    assert "DPN AI sandbox ready" in js
+    assert "The local voice engine uses the highest-quality installed voice model" in js
+
+
+def test_all_delete_requests_have_human_confirmation_nearby():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    lines = js.splitlines()
+    delete_lines = [index for index, line in enumerate(lines) if "method:'DELETE'" in line or 'method:"DELETE"' in line]
+    assert delete_lines
+    unconfirmed = []
+    for index in delete_lines:
+        nearby = "\n".join(lines[max(0, index - 3): index + 1])
+        if "confirm(" not in nearby:
+            unconfirmed.append(index + 1)
+    assert unconfirmed == []
