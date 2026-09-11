@@ -15,6 +15,8 @@ TOOL_REGISTRY = (ROOT / "app" / "tools" / "registry.py").read_text(encoding="utf
 SANDBOX = (ROOT / "app" / "sandbox.py").read_text(encoding="utf-8")
 SECURITY_GATE = (ROOT / ".github" / "workflows" / "security-gate.yml").read_text(encoding="utf-8")
 SECURITY_REQUIREMENTS = (ROOT / ".github" / "requirements-security.txt").read_text(encoding="utf-8")
+APP_JS = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
+SERVICE_WORKER = (ROOT / "app" / "static" / "sw.js").read_text(encoding="utf-8")
 
 
 def test_api_token_comparison_is_constant_time():
@@ -120,3 +122,18 @@ def test_provider_secret_setting_is_a_vault_reference_not_plaintext():
     assert 'available_secrets = set(tools.vault.list().get("secrets", []))' in MAIN
     assert "Saved API key name must already exist in Connectors & Secrets" in MAIN
     assert 'sanitize_for_persistence(response.text[:500])' in MODEL_GATEWAY
+
+
+def test_browser_token_bootstrap_never_uses_query_string():
+    assert "location.hash" in APP_JS
+    assert "fragmentParams.get('token')" in APP_JS
+    assert "new URLSearchParams(location.search).get('token')" not in APP_JS
+    assert "location.search.includes('token=')" not in APP_JS
+
+
+def test_service_worker_caches_only_allowlisted_ui_shell_requests():
+    assert "CACHEABLE_PATHS" in SERVICE_WORKER
+    assert "url.pathname.startsWith('/api/')" in SERVICE_WORKER
+    assert "if (!CACHEABLE_PATHS.has(url.pathname)) return;" in SERVICE_WORKER
+    assert "if (url.pathname === '/' && url.search) return;" in SERVICE_WORKER
+    assert "response.ok" in SERVICE_WORKER
