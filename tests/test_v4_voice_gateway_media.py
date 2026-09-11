@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import io
 import zipfile
+
+import pytest
 from pathlib import Path
+from unittest import mock
 
 from app.archive_tools import ArchiveTools
 from app.config import Settings
@@ -121,3 +124,64 @@ def test_media_capabilities_are_reported_without_ffmpeg(tmp_path: Path):
     assert ".mp4" in status["video_formats"]
     assert ".wav" in status["audio_formats"]
     assert "ffmpeg" in status and "ffprobe" in status
+
+
+def _gateway(tmp_path: Path, **settings_overrides) -> ModelGateway:
+    settings = make_settings(tmp_path, **settings_overrides)
+    db = Database(settings.database_path)
+    vault = SecretVault(settings.vault_key_path, settings.data_dir / "secrets.json")
+    return ModelGateway(settings, db, vault)
+
+
+def test_model_gateway_rejects_embedded_credentials_and_url_metadata(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="https://user:secret@example.test/v1", allow_external_models_default=True)
+    with pytest.raises(Exception, match="embedded credentials"):
+        gateway._ensure_compatible_allowed()
+
+    gateway = _gateway(tmp_path, compatible_api_url="https://example.test/v1?token=abc", allow_external_models_default=True)
+    with pytest.raises(Exception, match="query string"):
+        gateway._ensure_compatible_allowed()
+
+    gateway = _gateway(tmp_path, compatible_api_url="https://example.test/v1#fragment", allow_external_models_default=True)
+    with pytest.raises(Exception, match="fragment"):
+        gateway._ensure_compatible_allowed()
+
+
+def test_model_gateway_requires_https_for_public_external_endpoints(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="http://example.test/v1", allow_external_models_default=True)
+    public = [(2, 1, 6, "", ("93.184.216.34", 80))]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=public):
+        with pytest.raises(Exception, match="must use HTTPS"):
+            gateway._ensure_compatible_allowed()
+
+
+def test_model_gateway_blocks_public_endpoint_until_explicitly_enabled(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="https://example.test/v1", allow_external_models_default=False)
+    public = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=public):
+        with pytest.raises(Exception, match="disabled"):
+            gateway._ensure_compatible_allowed()
+
+
+def test_model_gateway_allows_explicit_https_public_endpoint(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="https://example.test/v1", allow_external_models_default=True)
+    public = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=public):
+        assert gateway._ensure_compatible_allowed() == "https://example.test/v1"
+
+
+def test_model_gateway_rejects_mixed_public_private_dns_answers(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="https://example.test/v1", allow_external_models_default=True)
+    mixed = [
+        (2, 1, 6, "", ("93.184.216.34", 443)),
+        (2, 1, 6, "", ("127.0.0.1", 443)),
+    ]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=mixed):
+        with pytest.raises(Exception, match="mixed public/private"):
+            gateway._ensure_compatible_allowed()
+
+
+def test_model_gateway_rejects_link_local_metadata_addresses(tmp_path: Path):
+    gateway = _gateway(tmp_path, compatible_api_url="http://169.254.169.254/v1", allow_external_models_default=True)
+    with pytest.raises(Exception, match="reserved or link-local"):
+        gateway._ensure_compatible_allowed()
