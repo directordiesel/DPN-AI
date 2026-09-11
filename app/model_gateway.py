@@ -14,6 +14,7 @@ import httpx
 from app.config import Settings
 from app.db import Database
 from app.ollama_client import OllamaClient, OllamaError
+from app.persistence_security import sanitize_for_persistence
 from app.vault import SecretVault
 
 
@@ -55,7 +56,7 @@ class ModelGateway:
             except ValueError:
                 addresses = socket.getaddrinfo(host, parsed.port or 80, type=socket.SOCK_STREAM)
                 return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_private or ipaddress.ip_address(item[4][0]).is_loopback for item in addresses)
-        except Exception:
+        except (OSError, ValueError):
             return False
 
     @staticmethod
@@ -135,7 +136,7 @@ class ModelGateway:
             return self._best_model_cache[1]
         try:
             models = await self.list_models()
-        except Exception:
+        except OllamaError:
             return fallback or self.settings.default_model
         default_provider = self._config()["default_provider"]
         candidates = [item for item in models if item.get("provider") == default_provider]
@@ -181,8 +182,8 @@ class ModelGateway:
                 compatible.update({"ok": response.status_code < 400, "status_code": response.status_code})
                 if response.status_code >= 400:
                     compatible["error"] = response.text[:500]
-            except Exception as exc:  # noqa: BLE001
-                compatible["error"] = str(exc)
+            except (OllamaError, httpx.HTTPError, OSError, ValueError) as exc:
+                compatible["error"] = str(sanitize_for_persistence(str(exc)))
         return {
             "ok": bool(ollama_health.get("ok") or compatible.get("ok")),
             "default_provider": self._config()["default_provider"],
@@ -195,7 +196,7 @@ class ModelGateway:
         try:
             for item in await self.ollama.list_models():
                 models.append({**item, "name": item.get("name") or item.get("model"), "provider": "ollama"})
-        except Exception:
+        except OllamaError:
             pass
         if self._config()["compatible_api_url"]:
             try:
@@ -203,11 +204,15 @@ class ModelGateway:
                 async with httpx.AsyncClient(timeout=20) as client:
                     response = await client.get(f"{self._api_root(url)}/models", headers=self._compatible_headers())
                 if response.status_code < 400:
-                    for item in response.json().get("data", []):
+                    payload = response.json()
+                    data = payload.get("data", []) if isinstance(payload, dict) else []
+                    for item in data:
+                        if not isinstance(item, dict):
+                            continue
                         model_id = str(item.get("id") or "").strip()
                         if model_id:
                             models.append({"name": f"compatible:{model_id}", "model": model_id, "provider": "compatible", "details": item})
-            except Exception:
+            except (OllamaError, httpx.HTTPError, json.JSONDecodeError, OSError, ValueError):
                 pass
         return models
 
@@ -290,7 +295,8 @@ class ModelGateway:
         except httpx.ConnectError as exc:
             raise OllamaError("DPN AI cannot reach the configured OpenAI-compatible model server.") from exc
         if response.status_code >= 400:
-            raise OllamaError(f"Compatible model endpoint returned {response.status_code}: {response.text[:1000]}")
+            detail = str(sanitize_for_persistence(response.text[:1000]))
+            raise OllamaError(f"Compatible model endpoint returned {response.status_code}: {detail}")
         return self._normalize_compatible_response(response.json(), provider_model)
 
     async def chat_stream(
@@ -330,7 +336,8 @@ class ModelGateway:
                 json={"model": provider_model, "input": inputs},
             )
         if response.status_code >= 400:
-            raise OllamaError(f"Compatible embedding endpoint returned {response.status_code}: {response.text[:1000]}")
+            detail = str(sanitize_for_persistence(response.text[:1000]))
+            raise OllamaError(f"Compatible embedding endpoint returned {response.status_code}: {detail}")
         data = sorted(response.json().get("data", []), key=lambda item: item.get("index", 0))
         return [item.get("embedding", []) for item in data]
 
