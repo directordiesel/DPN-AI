@@ -27,7 +27,14 @@ object MobileDiagnostics {
     }
 
     private fun sanitize(value: String): String {
-        var clean = value.replace(Regex("(?i)(token|password|secret|authorization|x-dpn-token)\\s*[:=]\\s*[^\\s,;]+"), "$1=<redacted>")
+        var clean = value.replace(
+            Regex("(?i)\\bBearer\\s+[A-Za-z0-9._~+/=-]+"),
+            "Bearer <redacted>",
+        )
+        clean = clean.replace(
+            Regex("(?i)(token|password|secret|authorization|x-dpn-token|api[-_]?key)\\s*[:=]\\s*[^\\s,;]+"),
+            "$1=<redacted>",
+        )
         clean = clean.replace(Regex("https://[^@\\s]+@"), "https://<redacted>@")
         return clean.take(MAX_ERROR_CHARS)
     }
