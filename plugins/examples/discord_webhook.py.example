@@ -14,7 +14,7 @@ def register(registry) -> None:
             return {"ok": False, "error": "DPN_DISCORD_WEBHOOK is not configured"}
         if len(content) > 2000:
             return {"ok": False, "error": "Discord webhook messages cannot exceed 2000 characters"}
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
             response = await client.post(webhook, json={"content": content, "username": username})
         if response.status_code >= 400:
             return {"ok": False, "error": f"Discord returned {response.status_code}: {response.text[:500]}"}
