@@ -11,7 +11,8 @@ JS = (ROOT / "app" / "static" / "v8-desktop.js").read_text(encoding="utf-8")
 def test_v8_desktop_assets_are_linked():
     assert '/v8-desktop.css' in HTML
     assert '/v8-desktop.js' in HTML
-    assert 'WINDOWS DESKTOP PLATFORM v8' in HTML
+    assert 'WINDOWS DESKTOP PLATFORM v8' not in HTML
+    assert 'DPN AI DESKTOP PLATFORM' in HTML
     assert f'/styles.css?v={VERSION}' in HTML
     assert f'/app.js?v={VERSION}' in HTML
 
