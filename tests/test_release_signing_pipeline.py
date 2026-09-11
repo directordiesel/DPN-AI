@@ -74,9 +74,20 @@ def test_release_signing_material_is_external_and_fail_closed():
 
 def test_release_pipeline_uses_immutable_actions_and_least_privilege():
     assert "permissions:\n  contents: read" in RELEASE
-    assert "permissions:\n      contents: write" in RELEASE
+    preflight = RELEASE.split("  security-preflight:", 1)[1].split("  windows-release-assets:", 1)[0]
+    windows = RELEASE.split("  windows-release-assets:", 1)[1].split("  release:", 1)[0]
+    publication = RELEASE.split("  release:", 1)[1]
+    assert "id-token: write" not in preflight
+    assert "attestations: write" not in preflight
+    assert "contents: read" in windows
+    assert "id-token: write" in windows
+    assert "attestations: write" in windows
+    assert "contents: write" in publication
+    assert "id-token: write" in publication
+    assert "attestations: write" in publication
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in RELEASE
     assert "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131" in RELEASE
+    assert "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" in RELEASE
     assert "@v4" not in RELEASE
     assert "@v7" not in RELEASE
 
@@ -236,3 +247,25 @@ def test_release_security_preflight_audits_all_python_surfaces():
         "requirements-voice.txt",
     ):
         assert requirement in RELEASE
+
+
+def test_release_provenance_attests_at_actual_build_boundaries():
+    windows = RELEASE.split("  windows-release-assets:", 1)[1].split("  release:", 1)[0]
+    publication = RELEASE.split("  release:", 1)[1]
+
+    assert "Attest production Windows release bundle" in windows
+    for subject in (
+        "dist/installer/DPN-AI-Setup-*.exe",
+        "dist/installer/installer-manifest.json",
+        "dist/installer/source-build-manifest.json",
+        "dist/installer/update-manifest.json",
+        "dist/installer/WINDOWS_SHA256SUMS.txt",
+    ):
+        assert subject in windows
+    assert windows.index("Build verified signed production Windows assets") < windows.index("Attest production Windows release bundle")
+    assert windows.index("Attest production Windows release bundle") < windows.index("Upload verified production Windows assets")
+
+    assert "Attest release source archive" in publication
+    assert 'subject-path: "${{ env.ARTIFACT_BASENAME }}-${{ env.VERSION }}-source.zip"' in publication
+    assert publication.index("Build source archive and checksums") < publication.index("Attest release source archive")
+    assert publication.index("Attest release source archive") < publication.index("Create GitHub Release")
