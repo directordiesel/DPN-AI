@@ -10,6 +10,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -53,19 +56,24 @@ class UpdateArtifact:
 class SignedUpdateManifest:
     artifact: UpdateArtifact
     signature: str
+    signature_algorithm: str = "ed25519"
 
     @classmethod
     def parse(cls, raw: str) -> "SignedUpdateManifest":
         data = json.loads(raw)
         if not isinstance(data, dict) or not isinstance(data.get("artifact"), dict):
             raise ValueError("invalid update manifest shape")
+        algorithm = str(data.get("signature_algorithm", "")).strip().lower()
+        if algorithm != "ed25519":
+            raise ValueError("update manifest must use Ed25519 signatures")
         manifest = cls(
             artifact=UpdateArtifact.from_dict(data["artifact"]),
             signature=str(data.get("signature", "")).strip().lower(),
+            signature_algorithm=algorithm,
         )
         manifest.artifact.validate()
-        if len(manifest.signature) != 64 or any(ch not in "0123456789abcdef" for ch in manifest.signature):
-            raise ValueError("invalid update manifest signature")
+        if len(manifest.signature) != 128 or any(ch not in "0123456789abcdef" for ch in manifest.signature):
+            raise ValueError("invalid Ed25519 update manifest signature")
         return manifest
 
     def canonical_artifact_json(self) -> bytes:
@@ -80,16 +88,21 @@ class SignedUpdateManifest:
 
 
 def verify_manifest_signature(manifest: SignedUpdateManifest, verification_key: bytes) -> bool:
-    """Verify release metadata using an injected trusted key.
+    """Verify release metadata with an Ed25519 public key.
 
-    This HMAC-backed contract keeps verification testable while the production
-    signing provider/certificate implementation is added during release hardening.
-    The verification key must be provisioned outside distributable source.
+    The application requires only the 32-byte public verification key. The
+    private signing key must remain outside distributable source, installers,
+    runtime state, and update metadata.
     """
-    if not verification_key:
+    if manifest.signature_algorithm != "ed25519" or len(verification_key) != 32:
         return False
-    expected = hmac.new(verification_key, manifest.canonical_artifact_json(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, manifest.signature)
+    try:
+        public_key = Ed25519PublicKey.from_public_bytes(verification_key)
+        signature = bytes.fromhex(manifest.signature)
+        public_key.verify(signature, manifest.canonical_artifact_json())
+        return True
+    except (InvalidSignature, ValueError):
+        return False
 
 
 def verify_artifact(path: Path, artifact: UpdateArtifact) -> None:
