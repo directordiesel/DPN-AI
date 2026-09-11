@@ -6,6 +6,7 @@ assets inspectable, makes updates/rollback safer, and avoids extracting the full
 runtime to a temporary directory on every launch.
 """
 
+import os
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
@@ -21,6 +22,16 @@ datas = [
     (str(ROOT / "requirements.txt"), "."),
     (str(ROOT / "app" / "static"), "app/static"),
 ]
+
+# Production builds inject only the public Ed25519 update trust root. Development
+# builds intentionally omit it so remote updates fail closed unless they were
+# produced by the governed release pipeline.
+trust_source = os.getenv("DPN_UPDATE_TRUST_FILE", "").strip()
+if trust_source:
+    trust_path = Path(trust_source).resolve()
+    if not trust_path.is_file() or trust_path.name != "update-trust.json":
+        raise RuntimeError("DPN_UPDATE_TRUST_FILE must identify the generated update-trust.json file")
+    datas.append((str(trust_path), "desktop"))
 
 # Include data discovered by package hooks while avoiding duplicate static entries.
 for source, target in app_data:
