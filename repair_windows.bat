@@ -1,7 +1,9 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title DPN AI v5.0.7 Repair
+set "DPN_VERSION=unknown"
+if exist "VERSION" set /p DPN_VERSION=<"VERSION"
+title DPN AI v%DPN_VERSION% Repair
 color 0E
 
 if not exist "INSTALL_DPN_AI.ps1" (
