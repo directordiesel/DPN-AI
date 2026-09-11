@@ -506,3 +506,15 @@ def test_active_documentation_does_not_claim_v5_is_current():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "live activity surfaces" not in readme
     assert "Ed25519 public-key update manifest verification" in readme
+
+
+
+def test_dynamic_html_sinks_escape_backend_identifiers_and_numeric_trace_fields():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert '<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>' in js
+    assert "Number.isFinite(Number(entry.elapsed_ms))" in js
+    assert "${elapsedMs} ms" in js
+    assert 'rel="noopener noreferrer"' in js
+    assert 'value="${project.id}"' not in js
+    assert "${entry.elapsed_ms || 0} ms" not in js
