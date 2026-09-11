@@ -185,3 +185,37 @@ def test_model_gateway_rejects_link_local_metadata_addresses(tmp_path: Path):
     gateway = _gateway(tmp_path, compatible_api_url="http://169.254.169.254/v1", allow_external_models_default=True)
     with pytest.raises(Exception, match="reserved or link-local"):
         gateway._ensure_compatible_allowed()
+
+
+
+def test_model_gateway_external_policy_also_covers_ollama(tmp_path: Path):
+    gateway = _gateway(
+        tmp_path,
+        ollama_url="https://ollama.example.test",
+        allow_external_models_default=False,
+    )
+    public = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=public):
+        with pytest.raises(Exception, match="External Ollama endpoints are disabled"):
+            gateway._ensure_ollama_allowed()
+
+
+def test_model_gateway_external_ollama_requires_https(tmp_path: Path):
+    gateway = _gateway(
+        tmp_path,
+        ollama_url="http://ollama.example.test",
+        allow_external_models_default=True,
+    )
+    public = [(2, 1, 6, "", ("93.184.216.34", 80))]
+    with mock.patch("app.model_gateway.socket.getaddrinfo", return_value=public):
+        with pytest.raises(Exception, match="must use HTTPS"):
+            gateway._ensure_ollama_allowed()
+
+
+def test_model_gateway_allows_local_http_ollama(tmp_path: Path):
+    gateway = _gateway(
+        tmp_path,
+        ollama_url="http://127.0.0.1:11434",
+        allow_external_models_default=False,
+    )
+    assert gateway._ensure_ollama_allowed() == "http://127.0.0.1:11434"
