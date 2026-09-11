@@ -42,7 +42,7 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          required = ["README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md", "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md", "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS", ".github/scripts/generate_supply_chain.py", ".github/workflows/release.yml", ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml", ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml", ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml"]
+          required = ["README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md", "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md", "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS", ".github/scripts/generate_supply_chain.py", ".github/scripts/sign_update_manifest.py", ".github/scripts/verify_windows_release_bundle.py", "packaging/windows/build-release-assets.ps1", ".github/workflows/release.yml", ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml", ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml", ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml"]
           missing = [p for p in required if not Path(p).is_file()]
           if missing:
               raise SystemExit("Missing required standards: " + ", ".join(missing))
@@ -91,6 +91,20 @@ jobs:
               failures.append("release workflow must retain manual workflow_dispatch")
           if "if: github.ref == 'refs/heads/main'" not in release:
               failures.append("release job must be restricted to refs/heads/main")
+          if "windows-release-assets:" not in release or "needs: windows-release-assets" not in release:
+              failures.append("release publication must depend on verified Windows production assets")
+          if "packaging\\windows\\build-release-assets.ps1" not in release:
+              failures.append("release workflow must use the fail-closed Windows production asset builder")
+          if ".github/scripts/verify_windows_release_bundle.py" not in release:
+              failures.append("release workflow must independently verify transferred Windows assets")
+          for secret_name in (
+              "DPN_WINDOWS_SIGNING_PFX_B64",
+              "DPN_WINDOWS_SIGNING_PFX_PASSWORD",
+              "DPN_UPDATE_ED25519_PRIVATE_KEY_B64",
+              "DPN_UPDATE_ED25519_PUBLIC_KEY_HEX",
+          ):
+              if f"secrets.{secret_name}" not in release:
+                  failures.append(f"release workflow is missing required external signing secret reference: {secret_name}")
           if failures:
               raise SystemExit("Release control policy violations: " + "; ".join(failures))
           print("Validated main-only manual release policy")
