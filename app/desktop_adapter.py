@@ -27,7 +27,7 @@ class DesktopAdapter:
         try:
             import pyautogui  # noqa: F401
             return {"ok": True, "available": True}
-        except Exception:
+        except ImportError:
             return {"ok": True, "available": False, "install": "pip install -r requirements-desktop.txt"}
 
     def _output_path(self, screenshot_name: str, default: str) -> Path:
@@ -64,7 +64,7 @@ class DesktopAdapter:
                 include_image: bool = True) -> dict[str, Any]:
         try:
             import pyautogui
-        except Exception:
+        except ImportError:
             return {"ok": False, "error": "pyautogui is not installed. Use requirements-desktop.txt."}
         try:
             target = self._output_path(screenshot_name, "screen-observation.png")
@@ -101,7 +101,7 @@ class DesktopAdapter:
     def run(self, actions: list[dict[str, Any]], screenshot_name: str = "desktop-result.png") -> dict[str, Any]:
         try:
             import pyautogui
-        except Exception:
+        except ImportError:
             return {"ok": False, "error": "pyautogui is not installed. Use requirements-desktop.txt."}
         try:
             target = self._output_path(screenshot_name, "desktop-result.png")
