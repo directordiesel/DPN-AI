@@ -176,3 +176,16 @@ def test_ui_has_no_inline_script_or_dynamic_eval_requirements():
     assert "new Function(" not in APP_JS
     assert "script-src 'self'" in MAIN
     assert "connect-src 'self'" in MAIN
+
+
+def test_early_api_denials_receive_security_headers():
+    assert "def _secured_api_error(request: Request, status_code: int, detail: str)" in MAIN
+    assert "return _apply_security_response_headers(" in MAIN
+    for detail in (
+        "Cross-origin browser API requests are not allowed.",
+        "A valid X-DPN-Token is required.",
+        "Remote API access is disabled until DPN_ACCESS_TOKEN is configured.",
+        "Untrusted Host header for local API access.",
+    ):
+        assert f'_secured_api_error(request,' in MAIN
+        assert detail in MAIN
