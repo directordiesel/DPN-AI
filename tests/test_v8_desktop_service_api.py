@@ -8,7 +8,7 @@ DESKTOP_JS = (ROOT / "app" / "static" / "v8-desktop.js").read_text(encoding="utf
 
 
 def test_desktop_service_reuses_unified_runtime():
-    assert "from app.main import app, db, agent" in SERVICE
+    assert "from app.main import APP_VERSION, app, db, agent" in SERVICE
     assert "FastAPI(" not in SERVICE
     assert "Database(" not in SERVICE
     assert "DPNAIAgent(" not in SERVICE
@@ -48,3 +48,22 @@ def test_desktop_client_uses_authenticated_summary_and_stream_endpoints():
     assert "'X-DPN-Token': token" in DESKTOP_JS
     assert "Accept: 'text/event-stream'" in DESKTOP_JS
     assert "renderSummary(JSON.parse" in DESKTOP_JS
+
+
+def test_desktop_updates_require_packaged_trust_and_never_auto_execute():
+    assert "load_packaged_update_trust_root()" in SERVICE
+    assert "GitHubReleaseUpdateClient(trust_root)" in SERVICE
+    assert '@app.get("/api/v1/desktop/updates/check")' in SERVICE
+    assert '@app.post("/api/v1/desktop/updates/download")' in SERVICE
+    assert "download_verified_installer(candidate)" in SERVICE
+    assert '"installation_started": False' in SERVICE
+    assert "Review and explicitly launch the verified installer when ready." in SERVICE
+    assert "subprocess" not in SERVICE
+    assert "os.startfile" not in SERVICE
+    assert "Popen(" not in SERVICE
+    assert "run(" not in SERVICE
+
+
+def test_verified_update_downloads_are_serialized():
+    assert "_update_download_lock = asyncio.Lock()" in SERVICE
+    assert "async with _update_download_lock:" in SERVICE
