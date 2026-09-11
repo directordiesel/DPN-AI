@@ -107,3 +107,13 @@ def test_trusted_packaging_workflow_keeps_pr_binary_execution_disabled():
     assert 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\\packaging\\windows\\build-installer.ps1" -Python python' in WORKFLOW
     assert "shell: cmd" in WORKFLOW
     assert "preserve-user-data-outside-install-directory" in WORKFLOW
+
+
+def test_windows_signing_requires_https_timestamping():
+    package_build = (ROOT / "packaging" / "windows" / "build.ps1").read_text(encoding="utf-8")
+    assert 'https://timestamp.digicert.com' in package_build
+    assert 'https://timestamp.digicert.com' in BUILD
+    assert 'https://timestamp.digicert.com' in SIGN
+    assert 'http://timestamp.digicert.com' not in package_build + BUILD + SIGN
+    assert 'if (-not $TimestampUrl.StartsWith("https://"))' in SIGN
+    assert 'TimestampUrl must use HTTPS.' in SIGN
