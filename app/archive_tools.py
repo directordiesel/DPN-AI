@@ -111,7 +111,7 @@ class ArchiveTools:
                     kind = "tar"
             else:
                 return {"ok": False, "error": "Only ZIP and TAR-compatible archives are supported"}
-        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError) as exc:
+        except Exception as exc:  # Archive-parser boundary contains malformed/unsupported formats.
             detail = str(sanitize_for_persistence(str(exc)))
             return {"ok": False, "error": f"Unable to inspect archive: {type(exc).__name__}: {detail}"}
         return {"ok": True, "path": target.relative_to(self.workspace).as_posix(), "kind": kind, "count": count, "shown": len(entries), "total_uncompressed_bytes": total_size, "unsafe_entries": unsafe[:100], "entries": entries}
@@ -190,7 +190,7 @@ class ArchiveTools:
                                     extracted_bytes += self._bounded_copy(source, dest, max_bytes - extracted_bytes)
             if extracted_bytes > max_bytes:
                 raise ValueError("Archive exceeded the configured extraction byte limit")
-        except (OSError, ValueError, zipfile.BadZipFile, tarfile.TarError) as exc:
+        except Exception as exc:  # Extraction boundary cleans partial output for any parser/runtime failure.
             shutil.rmtree(output, ignore_errors=True)
             detail = str(sanitize_for_persistence(str(exc)))
             return {"ok": False, "error": f"Extraction failed: {type(exc).__name__}: {detail}"}
