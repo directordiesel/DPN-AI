@@ -30,6 +30,22 @@ if ($RequireSigned -and -not $CertificateThumbprint) {
     throw "Production signing is required but no CertificateThumbprint was supplied."
 }
 
+$UpdateTrustFile = [Environment]::GetEnvironmentVariable("DPN_UPDATE_TRUST_FILE")
+$UpdateTrustConfigured = -not [string]::IsNullOrWhiteSpace($UpdateTrustFile)
+$UpdateTrustRootSha256 = $null
+if ($UpdateTrustConfigured) {
+    if (-not (Test-Path $UpdateTrustFile -PathType Leaf)) {
+        throw "DPN_UPDATE_TRUST_FILE does not identify a file."
+    }
+    if ([IO.Path]::GetFileName($UpdateTrustFile) -ne "update-trust.json") {
+        throw "DPN_UPDATE_TRUST_FILE must be named update-trust.json."
+    }
+    $UpdateTrustRootSha256 = (Get-FileHash -Algorithm SHA256 $UpdateTrustFile).Hash.ToLowerInvariant()
+}
+if ($RequireSigned -and -not $UpdateTrustConfigured) {
+    throw "Production signing requires the packaged public update trust root."
+}
+
 if (-not $SkipInstall) {
     Invoke-Checked $Python -m pip install --disable-pip-version-check -r requirements-build.txt
 }
@@ -48,6 +64,21 @@ Invoke-Checked $Python -m PyInstaller --noconfirm --clean --distpath $DistRoot -
 $Exe = Join-Path $DistRoot "DPN-AI\DPN-AI.exe"
 if (-not (Test-Path $Exe)) {
     throw "PyInstaller completed without producing DPN-AI.exe"
+}
+
+$PackagedTrustRoots = @(
+    Get-ChildItem -Path (Join-Path $DistRoot "DPN-AI") -Filter "update-trust.json" -File -Recurse -ErrorAction SilentlyContinue
+)
+if ($UpdateTrustConfigured) {
+    if ($PackagedTrustRoots.Count -ne 1) {
+        throw "Production package must contain exactly one update-trust.json file."
+    }
+    $PackagedTrustHash = (Get-FileHash -Algorithm SHA256 $PackagedTrustRoots[0].FullName).Hash.ToLowerInvariant()
+    if ($PackagedTrustHash -ne $UpdateTrustRootSha256) {
+        throw "Packaged update trust root does not match the configured production trust root."
+    }
+} elseif ($PackagedTrustRoots.Count -ne 0) {
+    throw "Development package unexpectedly contains an update trust root."
 }
 
 $SigningState = "unsigned-development-artifact"
@@ -81,6 +112,8 @@ $Manifest = [ordered]@{
     signing = $SigningState
     signer_thumbprint = $SignerThumbprint
     signer_subject = $SignerSubject
+    update_trust_configured = $UpdateTrustConfigured
+    update_trust_root_sha256 = $UpdateTrustRootSha256
 }
 $ManifestPath = Join-Path $DistRoot "DPN-AI\build-manifest.json"
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
