@@ -139,6 +139,9 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
                 "sha256": "0" * 64,
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
+                "update_trust_configured": True,
+                "update_trust_root_sha256": "1" * 64,
+                "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
             }
         ),
         encoding="utf-8",
@@ -199,6 +202,9 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "version": version,
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
+                "update_trust_configured": True,
+                "update_trust_root_sha256": "2" * 64,
+                "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
             }
         ),
         encoding="utf-8",
