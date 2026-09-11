@@ -1320,7 +1320,12 @@ window.addEventListener('resize', syncViewportHeight, {passive:true});
 window.visualViewport?.addEventListener('resize', syncViewportHeight, {passive:true});
 
 function validateInterfaceShell() {
-  const required = ['sidebar','chat','messages','promptInput','sendBtn','modalBackdrop','modalBody','messageTemplate'];
+  const required = [
+    'sidebar','chat','messages','promptInput','sendBtn','modalBackdrop','modal','modalTitle','modalBody','messageTemplate',
+    'newChatBtn','refreshChatsBtn','voiceBtn','missionsBtn','jobsBtn','graphBtn','sandboxBtn','capabilityForgeBtn',
+    'mcpBtn','approvalsBtn','projectsBtn','automationsBtn','runsBtn','snapshotsBtn','filesBtn','memoryBtn','skillsBtn',
+    'connectorsBtn','diagnosticsBtn','settingsBtn','menuBtn','indexBtn','micBtn','stopVoiceBtn','voiceSettingsBtn'
+  ];
   const missing = required.filter(id => !$(id));
   if (!missing.length) return true;
   document.body.innerHTML = `<main class="fatal-ui"><h1>DPN AI interface cache mismatch</h1><p>Missing interface elements: ${escapeHtml(missing.join(', '))}</p><button id="repairUiCacheBtn">Repair cached interface</button></main>`;
