@@ -434,10 +434,14 @@ def test_structured_result_failures_use_safe_action_error_presenter():
     assert "Discovering tool server capabilities" in js
     assert "Running the workflow" in js
 
-    assert "Capability promoted; restart DPN AI to load it.':r.error" not in js
-    assert "Plugin backup restored; restart DPN AI.':r.error" not in js
-    assert "tools.\`.:r.error" not in js
-    assert "Workflow completed.':result.error" not in js
+    unsafe_structured_errors = [
+        line for line in js.splitlines()
+        if (".error" in line)
+        and ("r.error" in line or "result.error" in line)
+        and "showActionError" not in line
+        and "userSafeErrorDetail" not in line
+    ]
+    assert unsafe_structured_errors == []
 
 
 def test_expert_evidence_is_human_first_and_explicitly_labeled():
