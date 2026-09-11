@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import copy
 import hashlib
@@ -13,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+from app.persistence_security import sanitize_for_persistence
 
 
 _MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -104,8 +107,9 @@ class ConfigurableVisionProvider:
                 "sha256": hashlib.sha256(payload).hexdigest(),
                 "mime_type": mime,
             }
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "configured": True, "model": selected, "error": f"Vision analysis failed: {type(exc).__name__}: {exc}"}
+        except Exception as exc:  # Provider boundary converts arbitrary model failures into safe diagnostics.
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "configured": True, "model": selected, "error": f"Vision analysis failed: {type(exc).__name__}: {detail}"}
 
 
 class ComfyUIImageEditor:
@@ -194,8 +198,12 @@ class ComfyUIImageEditor:
             payload = path.read_bytes()
             mime = _image_mime(path, payload)
             workflow = self._load_workflow()
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "configured": bool(self.workflow_path), "error": str(exc)}
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+            return {
+                "ok": False,
+                "configured": bool(self.workflow_path),
+                "error": str(sanitize_for_persistence(str(exc))),
+            }
 
         actual_seed = int(seed if seed is not None else time.time_ns() % 2_147_483_647)
         prefix = _safe_prefix(filename_prefix)
@@ -211,11 +219,16 @@ class ComfyUIImageEditor:
                 )
                 upload.raise_for_status()
                 upload_data = upload.json() if upload.content else {}
+                if not isinstance(upload_data, dict):
+                    raise ValueError("ComfyUI upload endpoint returned an unexpected JSON shape")
                 uploaded_name = str(upload_data.get("name") or upload_name)
                 prepared = self._prepare_workflow(workflow, uploaded_name, str(prompt), str(negative_prompt), actual_seed, prefix)
                 queued = await client.post(f"{self.base_url}/prompt", json={"prompt": prepared, "client_id": client_id})
                 queued.raise_for_status()
-                prompt_id = queued.json().get("prompt_id")
+                queue_data = queued.json()
+                if not isinstance(queue_data, dict):
+                    raise ValueError("ComfyUI prompt endpoint returned an unexpected JSON shape")
+                prompt_id = queue_data.get("prompt_id")
                 if not prompt_id:
                     return {"ok": False, "configured": True, "error": "ComfyUI rejected the image-edit workflow"}
 
@@ -224,14 +237,22 @@ class ComfyUIImageEditor:
                 while time.monotonic() < deadline:
                     history = await client.get(f"{self.base_url}/history/{prompt_id}")
                     history.raise_for_status()
-                    entry = history.json().get(prompt_id)
+                    history_data = history.json()
+                    if not isinstance(history_data, dict):
+                        raise ValueError("ComfyUI history endpoint returned an unexpected JSON shape")
+                    entry = history_data.get(prompt_id)
+                    if entry and not isinstance(entry, dict):
+                        raise ValueError("ComfyUI history entry has an unexpected JSON shape")
                     if entry:
                         status = entry.get("status") or {}
+                        if not isinstance(status, dict):
+                            status = {}
                         if status.get("status_str") == "error":
-                            return {"ok": False, "configured": True, "error": f"ComfyUI image edit failed: {status}"}
+                            detail = str(sanitize_for_persistence(status))
+                            return {"ok": False, "configured": True, "error": f"ComfyUI image edit failed: {detail}"}
                         if entry.get("outputs"):
                             break
-                    await __import__("asyncio").sleep(1)
+                    await asyncio.sleep(1)
                 if not entry or not entry.get("outputs"):
                     return {"ok": False, "configured": True, "error": f"ComfyUI image edit did not finish within {timeout_seconds} seconds"}
 
@@ -243,11 +264,21 @@ class ComfyUIImageEditor:
                             "subfolder": image.get("subfolder", ""),
                             "type": image.get("type", "output"),
                         }
-                        response = await client.get(f"{self.base_url}/view", params=params)
-                        response.raise_for_status()
-                        suffix = Path(str(params["filename"])).suffix or ".png"
+                        async with client.stream("GET", f"{self.base_url}/view", params=params) as response:
+                            response.raise_for_status()
+                            content_length = int(response.headers.get("content-length", "0") or 0)
+                            if content_length > _MAX_IMAGE_BYTES:
+                                raise ValueError("ComfyUI output exceeded the 25 MB image limit")
+                            image_payload = bytearray()
+                            async for chunk in response.aiter_bytes():
+                                image_payload.extend(chunk)
+                                if len(image_payload) > _MAX_IMAGE_BYTES:
+                                    raise ValueError("ComfyUI output exceeded the 25 MB image limit")
+                        suffix = Path(str(params["filename"])).suffix.lower()
+                        if suffix not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+                            suffix = ".png"
                         target = self.output_dir / f"{prefix}_{len(saved) + 1}_{actual_seed}{suffix}"
-                        target.write_bytes(response.content)
+                        target.write_bytes(bytes(image_payload))
                         saved.append(target.relative_to(self.workspace).as_posix())
                 if not saved:
                     return {"ok": False, "configured": True, "error": "ComfyUI edit completed but returned no image outputs"}
@@ -264,5 +295,6 @@ class ComfyUIImageEditor:
                 }
         except httpx.ConnectError:
             return {"ok": False, "configured": True, "error": f"Cannot reach configured ComfyUI at {self.base_url}"}
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "configured": True, "error": f"ComfyUI image editing failed: {type(exc).__name__}: {exc}"}
+        except (httpx.HTTPError, OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "configured": True, "error": f"ComfyUI image editing failed: {type(exc).__name__}: {detail}"}
