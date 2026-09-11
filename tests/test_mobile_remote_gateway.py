@@ -62,3 +62,10 @@ def test_gateway_control_does_not_bypass_approval_or_launch_missions():
     assert "MissionApiClient" not in source
     assert "decide(" not in source
     assert "launchMission(" not in source
+
+
+def test_mobile_keystore_requires_randomized_encryption_and_unlocked_device_when_supported():
+    source = text(STORE)
+    assert "setRandomizedEncryptionRequired(true)" in source
+    assert "Build.VERSION.SDK_INT >= Build.VERSION_CODES.P" in source
+    assert "setUnlockedDeviceRequired(true)" in source
