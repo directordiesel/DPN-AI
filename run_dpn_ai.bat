@@ -1,7 +1,9 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title DPN AI v5.0.7 Operations Core
+set "DPN_VERSION=unknown"
+if exist "VERSION" set /p DPN_VERSION=<"VERSION"
+title DPN AI v%DPN_VERSION% Operations Core
 color 0C
 
 if not exist "requirements.txt" (
@@ -41,7 +43,7 @@ if errorlevel 1 (
 )
 
 echo ============================================================
-echo DPN AI v5.0.7 is starting at http://127.0.0.1:8787
+echo DPN AI v%DPN_VERSION% is starting at http://127.0.0.1:8787
 echo Press Ctrl+Space in the browser to talk to DPN AI.
 echo Close this window to stop the application server.
 echo ============================================================
