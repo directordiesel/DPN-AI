@@ -106,7 +106,7 @@ class ComfyUIImageGenerator:
         timeout_seconds = max(30, min(int(timeout_seconds), 1800))
         client_id = str(uuid.uuid4())
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
                 queued = await client.post(
                     f"{self.base_url}/prompt",
                     json={"prompt": workflow, "client_id": client_id},
