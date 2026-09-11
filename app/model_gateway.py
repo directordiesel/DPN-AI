@@ -181,7 +181,7 @@ class ModelGateway:
                     response = await client.get(f"{self._api_root(url)}/models", headers=self._compatible_headers())
                 compatible.update({"ok": response.status_code < 400, "status_code": response.status_code})
                 if response.status_code >= 400:
-                    compatible["error"] = response.text[:500]
+                    compatible["error"] = str(sanitize_for_persistence(response.text[:500]))
             except (OllamaError, httpx.HTTPError, OSError, ValueError) as exc:
                 compatible["error"] = str(sanitize_for_persistence(str(exc)))
         return {
