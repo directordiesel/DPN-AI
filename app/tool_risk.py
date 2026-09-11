@@ -33,7 +33,7 @@ class ToolRiskClassifier:
         "browser_automation": ToolRiskProfile(RiskLevel.EXTERNAL, network_effect=True, host_effect=True),
         "connector_request": ToolRiskProfile(RiskLevel.EXTERNAL, network_effect=True, credential_effect=True),
         "call_mcp_tool": ToolRiskProfile(RiskLevel.EXTERNAL, network_effect=True, credential_effect=True),
-        "run_command": ToolRiskProfile(RiskLevel.EXECUTE, host_effect=True),
+        "run_command": ToolRiskProfile(RiskLevel.EXTERNAL, network_effect=True, host_effect=True),
         "run_python_sandbox": ToolRiskProfile(RiskLevel.EXECUTE, requires_sandbox=True),
     }
 
