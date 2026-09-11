@@ -91,6 +91,10 @@ jobs:
               failures.append("release workflow must retain manual workflow_dispatch")
           if "if: github.ref == 'refs/heads/main'" not in release:
               failures.append("release job must be restricted to refs/heads/main")
+          if "security-preflight:" not in release or "needs: security-preflight" not in release:
+              failures.append("production signing must depend on release security preflight")
+          if "python tools/dpn_security_gate.py --github" not in release or "python -m pip_audit -r" not in release:
+              failures.append("release security preflight must run source and dependency security audits")
           if "windows-release-assets:" not in release or "needs: windows-release-assets" not in release:
               failures.append("release publication must depend on verified Windows production assets")
           if "packaging\\windows\\build-release-assets.ps1" not in release:
