@@ -373,6 +373,14 @@ def get_settings() -> dict[str, Any]:
 @app.patch("/api/settings")
 def patch_settings(request: SettingsPatch) -> dict[str, Any]:
     values = request.model_dump(exclude_none=True)
+    provider_secret_name = str(values.get("compatible_api_secret") or "").strip()
+    if provider_secret_name and provider_secret_name != "MODEL_PROVIDER_KEY":
+        available_secrets = set(tools.vault.list().get("secrets", []))
+        if provider_secret_name not in available_secrets:
+            raise HTTPException(
+                status_code=400,
+                detail="Saved API key name must already exist in Connectors & Secrets before it can be selected.",
+            )
     for key, value in values.items():
         db.set_setting(key, value)
     if "command_timeout_seconds" in values:
