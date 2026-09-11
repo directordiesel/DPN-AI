@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ipaddress
+import json
+import re
 import socket
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -8,10 +10,17 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.db import Database
+from app.persistence_security import sanitize_for_persistence
 from app.vault import SecretVault
 
 
 SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
+MAX_CONNECTOR_RESPONSE_BYTES = 2_000_000
+_HEADER_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_SECRET_HEADER_VALUE = re.compile(
+    r"(?i)^(?:(?:bearer|basic)\s+)?\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}$"
+)
+_SENSITIVE_HEADER_PARTS = ("authorization", "cookie", "token", "secret", "api-key", "apikey", "credential")
 
 
 class ConnectorHub:
@@ -31,6 +40,22 @@ class ConnectorHub:
         if unsupported:
             return False, f"Unsupported connector method(s): {', '.join(sorted(unsupported))}"
         return True, sorted(requested)
+
+    @staticmethod
+    def _validated_headers(headers: dict[str, str] | None) -> tuple[bool, dict[str, str] | str]:
+        safe: dict[str, str] = {}
+        for raw_name, raw_value in (headers or {}).items():
+            name = str(raw_name).strip()
+            value = str(raw_value).strip()
+            if not name or len(name) > 200 or not _HEADER_NAME.fullmatch(name):
+                return False, "Connector header name is invalid"
+            if len(value) > 8000 or any(ch in value for ch in ("\r", "\n", "\x00")):
+                return False, f"Connector header {name} contains an invalid or oversized value"
+            normalized = name.lower()
+            if any(part in normalized for part in _SENSITIVE_HEADER_PARTS) and not _SECRET_HEADER_VALUE.fullmatch(value):
+                return False, f"Sensitive connector header {name} must use an encrypted {{secret:NAME}} reference"
+            safe[name] = value
+        return True, safe
 
     @staticmethod
     def _is_private_host(host: str) -> bool:
@@ -79,9 +104,12 @@ class ConnectorHub:
         methods_ok, methods = self._normalized_methods(allowed_methods)
         if not methods_ok:
             return {"ok": False, "error": methods}
+        headers_ok, safe_headers = self._validated_headers(headers)
+        if not headers_ok:
+            return {"ok": False, "error": safe_headers}
         config = {
             "base_url": base_url.rstrip("/") + "/",
-            "headers": headers or {},
+            "headers": safe_headers,
             "allowed_methods": methods,
         }
         connector = self.db.create_connector(name.strip(), "http", config, enabled)
@@ -121,22 +149,37 @@ class ConnectorHub:
         try:
             headers = self.vault.resolve(config.get("headers", {}))
             body = self.vault.resolve(json_body)
-            async with httpx.AsyncClient(timeout=max(5, min(timeout_seconds, 120)), follow_redirects=False) as client:
-                response = await client.request(method, url, params=params, json=body, headers=headers)
-            text = response.text[:100_000]
-            content_type = response.headers.get("content-type", "")
-            parsed: Any = text
+            timeout = max(5, min(timeout_seconds, 120))
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+                async with client.stream(method, url, params=params, json=body, headers=headers) as response:
+                    content_length = int(response.headers.get("content-length", "0") or 0)
+                    if content_length > MAX_CONNECTOR_RESPONSE_BYTES:
+                        return {"ok": False, "error": "Connector response exceeded the 2 MB safety limit"}
+                    raw = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        raw.extend(chunk)
+                        if len(raw) > MAX_CONNECTOR_RESPONSE_BYTES:
+                            return {"ok": False, "error": "Connector response exceeded the 2 MB safety limit"}
+                    status_code = response.status_code
+                    response_url = str(response.url)
+                    content_type = response.headers.get("content-type", "")
+                    encoding = response.encoding or "utf-8"
+
+            text = bytes(raw).decode(encoding, errors="replace")
+            parsed: Any = text[:100_000]
             if "json" in content_type:
                 try:
-                    parsed = response.json()
-                except Exception:
-                    pass
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    parsed = text[:100_000]
+            parsed = sanitize_for_persistence(parsed)
             return {
-                "ok": response.status_code < 400,
-                "status_code": response.status_code,
-                "url": str(response.url),
+                "ok": status_code < 400,
+                "status_code": status_code,
+                "url": response_url,
                 "content_type": content_type,
                 "response": parsed,
             }
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": f"Connector request failed: {type(exc).__name__}: {exc}"}
+        except (httpx.HTTPError, OSError, ValueError, KeyError) as exc:
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "error": f"Connector request failed: {type(exc).__name__}: {detail}"}
