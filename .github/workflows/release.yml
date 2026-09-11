@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Exact release tag matching VERSION (example: v9.1.0 or v9.1.0-rc.1)"
+        description: "Exact release tag matching VERSION (example: v10.0.1 or v10.1.0-rc.1)"
         required: true
         type: string
       prerelease:
@@ -14,16 +14,83 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.event.inputs.version }}
   cancel-in-progress: false
 
 jobs:
+  windows-release-assets:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      DISPATCH_VERSION: ${{ github.event.inputs.version }}
+      DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
+
+    steps:
+      - name: Checkout exact release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up release Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Validate exact release request
+        shell: pwsh
+        run: |
+          $repositoryVersion = (Get-Content VERSION -Raw).Trim()
+          python .github/scripts/validate_release_request.py --version "$repositoryVersion" --tag "$env:DISPATCH_VERSION" --prerelease "$env:DISPATCH_PRERELEASE"
+          if ($LASTEXITCODE -ne 0) { throw "Release request validation failed." }
+          $existingTag = [string](git tag --list "$env:DISPATCH_VERSION")
+          if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+            throw "Tag $env:DISPATCH_VERSION already exists. Existing releases must not be overwritten."
+          }
+          "DPN_RELEASE_VERSION=$repositoryVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $channel = if ($env:DISPATCH_PRERELEASE -eq "true") { "beta" } else { "stable" }
+          "DPN_RELEASE_CHANNEL=$channel" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run repository and version guard
+        run: python .github/scripts/ci_repository_guard.py
+
+      - name: Build verified signed production Windows assets
+        shell: pwsh
+        env:
+          DPN_WINDOWS_SIGNING_PFX_B64: ${{ secrets.DPN_WINDOWS_SIGNING_PFX_B64 }}
+          DPN_WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.DPN_WINDOWS_SIGNING_PFX_PASSWORD }}
+          DPN_UPDATE_ED25519_PRIVATE_KEY_B64: ${{ secrets.DPN_UPDATE_ED25519_PRIVATE_KEY_B64 }}
+          DPN_UPDATE_ED25519_PUBLIC_KEY_HEX: ${{ secrets.DPN_UPDATE_ED25519_PUBLIC_KEY_HEX }}
+        run: |
+          & .\packaging\windows\build-release-assets.ps1 -Python python -Version "$env:DPN_RELEASE_VERSION" -Channel "$env:DPN_RELEASE_CHANNEL"
+          if ($LASTEXITCODE -ne 0) { throw "Production Windows release asset build failed." }
+
+      - name: Upload verified production Windows assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DPN-AI-production-windows-${{ github.sha }}
+          path: |
+            dist/installer/DPN-AI-Setup-*.exe
+            dist/installer/installer-manifest.json
+            dist/installer/source-build-manifest.json
+            dist/installer/update-manifest.json
+            dist/installer/WINDOWS_SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 1
+
   release:
+    needs: windows-release-assets
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       ARTIFACT_BASENAME: DPN-AI
       DISPATCH_VERSION: ${{ github.event.inputs.version }}
@@ -34,6 +101,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Download verified production Windows assets
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: DPN-AI-production-windows-${{ github.sha }}
+          path: windows-release
+
 
       - name: Resolve release request
         shell: bash
@@ -70,7 +144,7 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Compile sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/sign_update_manifest.py .github/scripts/verify_windows_release_bundle.py
 
       - name: Run release tests
         run: pytest -q
@@ -82,6 +156,16 @@ jobs:
             echo "::error::Tag $VERSION already exists. Existing releases must not be overwritten."
             exit 1
           fi
+
+      - name: Verify transferred production Windows bundle
+        env:
+          DPN_UPDATE_ED25519_PUBLIC_KEY_HEX: ${{ secrets.DPN_UPDATE_ED25519_PUBLIC_KEY_HEX }}
+        run: |
+          repository_version="$(tr -d '\r\n ' < VERSION)"
+          channel="stable"
+          if [ "$PRERELEASE" = "true" ]; then channel="beta"; fi
+          python .github/scripts/verify_windows_release_bundle.py --root windows-release --version "$repository_version" --channel "$channel"
+
 
       - name: Generate release SBOM and source manifest
         env:
@@ -119,6 +203,11 @@ jobs:
             "SBOM.spdx.json"
             "SOURCE_SHA256SUMS.txt"
             "DEPENDENCY_INVENTORY.txt"
+            "$(find windows-release -maxdepth 1 -type f -name 'DPN-AI-Setup-*.exe' -print -quit)"
+            "windows-release/installer-manifest.json"
+            "windows-release/source-build-manifest.json"
+            "windows-release/update-manifest.json"
+            "windows-release/WINDOWS_SHA256SUMS.txt"
           )
           if [ "$PRERELEASE" = "true" ]; then
             args+=(--prerelease)
@@ -133,6 +222,9 @@ jobs:
             echo ""
             echo "- Version: `$VERSION`"
             echo "- Commit: `$GITHUB_SHA`"
+            echo "- Authenticode-signed Windows installer attached"
+            echo "- Ed25519-signed update manifest attached"
+            echo "- Windows release checksums and signer manifests attached"
             echo "- Source archive and release SHA-256 checksum attached"
             echo "- SPDX SBOM attached"
             echo "- Full tracked-source SHA-256 manifest attached"
