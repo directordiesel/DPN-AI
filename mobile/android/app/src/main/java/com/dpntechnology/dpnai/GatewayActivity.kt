@@ -10,6 +10,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import com.dpntechnology.dpnai.diagnostics.MobileDiagnostics
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
 import kotlin.concurrent.thread
@@ -61,20 +62,34 @@ class GatewayActivity : Activity() {
 
     private fun saveGateway() {
         val result = runCatching { store.saveRemoteGateway(endpoint.text.toString(), token.text.toString()) }
-        status.text = result.fold({ "Remote gateway saved securely. It is not active until you choose Use Remote Gateway." }, { "Gateway rejected: ${it.message}" })
+        result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-save", it) }
+        status.text = result.fold(
+            { "Remote connection saved securely. It is not active until you choose Use Remote Gateway." },
+            { "Remote connection settings were rejected. Check the HTTPS address and access token, then try again. Technical details are available in Diagnostics & Status." },
+        )
         if (result.isSuccess) token.text.clear()
     }
 
     private fun switchMode(remote: Boolean) {
         val result = runCatching { store.setRemoteMode(remote) }
-        status.text = result.fold({ if (remote) "Remote gateway mode active." else "Local desktop mode active." }, { "Mode switch failed: ${it.message}" })
+        result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-mode", it) }
+        status.text = result.fold(
+            { if (remote) "Remote connection mode active." else "Local desktop mode active." },
+            { "Could not change connection mode. Confirm pairing and saved remote connection settings, then try again. Technical details are available in Diagnostics & Status." },
+        )
     }
 
     private fun testConnection() {
         status.text = "Testing active encrypted connection..."
         thread(name = "dpn-gateway-test") {
             val result = runCatching { DesktopApiClient(store).fetchDesktopSummary() }
-            runOnUiThread { status.text = result.fold({ "Active connection authenticated and reachable." }, { "Connection test failed: ${it.message}" }) }
+            result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-test", it) }
+            runOnUiThread {
+                status.text = result.fold(
+                    { "Active connection authenticated and reachable." },
+                    { "Connection test failed. Confirm DPN AI is running, verify the selected local/remote mode, and try again. Technical details are available in Diagnostics & Status." },
+                )
+            }
         }
     }
 
