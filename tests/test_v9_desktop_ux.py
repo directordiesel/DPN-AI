@@ -7,12 +7,13 @@ JS = (ROOT / "app" / "static" / "v9-desktop.js").read_text(encoding="utf-8")
 CSS = (ROOT / "app" / "static" / "v9-desktop.css").read_text(encoding="utf-8")
 
 
-def test_v9_desktop_assets_are_loaded_without_removing_v8_shell():
+def test_legacy_assets_can_load_without_exposing_legacy_product_branding():
     assert '/v8-desktop.css' in HTML
     assert '/v8-desktop.js' in HTML
     assert '/v9-desktop.css' in HTML
     assert '/v9-desktop.js' in HTML
-    assert 'WINDOWS DESKTOP PLATFORM v8' in HTML
+    assert 'WINDOWS DESKTOP PLATFORM v8' not in HTML
+    assert 'DPN AI DESKTOP PLATFORM' in HTML
 
 
 def test_command_palette_maps_existing_control_center_targets():
