@@ -435,7 +435,7 @@ def test_structured_result_failures_use_safe_action_error_presenter():
     assert "Discovering tool server capabilities" in js
     assert "Running the workflow" in js
 
-    structured_error_ref = re.compile(r"(?<![A-Za-z0-9_])(?:r|result)\\.error\\b")
+    structured_error_ref = re.compile(r"(?<![A-Za-z0-9_])(?:r|result)\.error\b")
     unsafe_structured_errors = [
         line for line in js.splitlines()
         if structured_error_ref.search(line)
