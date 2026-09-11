@@ -295,6 +295,6 @@ class ComfyUIImageEditor:
                 }
         except httpx.ConnectError:
             return {"ok": False, "configured": True, "error": f"Cannot reach configured ComfyUI at {self.base_url}"}
-        except (httpx.HTTPError, OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        except Exception as exc:  # External provider boundary returns safe diagnostics instead of crashing the tool.
             detail = str(sanitize_for_persistence(str(exc)))
             return {"ok": False, "configured": True, "error": f"ComfyUI image editing failed: {type(exc).__name__}: {detail}"}
