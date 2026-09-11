@@ -7,7 +7,7 @@ DPN AI Mobile releases are intentionally fail-closed. Source control contains no
 Supply these outside the repository through local Gradle properties or protected CI secret injection:
 
 - `DPN_MOBILE_VERSION_CODE` — positive integer.
-- `DPN_MOBILE_VERSION_NAME` — semantic version such as `1.0.0`.
+- `DPN_MOBILE_VERSION_NAME` — exact production semantic version; for this candidate use `10.0.1`.
 - `DPN_MOBILE_KEYSTORE` — path to the private release keystore available only in the trusted build environment.
 - `DPN_MOBILE_STORE_PASSWORD` — release keystore password.
 - `DPN_MOBILE_KEY_ALIAS` — release key alias.
@@ -30,4 +30,4 @@ Never commit a keystore, signing password, private key, generated signed APK/AAB
 
 ## Current development behavior
 
-Without explicit production version/signing properties, the app remains a development build (`1.0.0-dev`) and the production release-readiness task fails closed. This is intentional.
+Without explicit production version/signing properties, the app remains a development build (`10.0.1-dev`) and the production release-readiness task fails closed. A trusted v10.0.1 release build must explicitly set `DPN_MOBILE_VERSION_NAME=10.0.1`, a positive release version code, and all external signing inputs. This is intentional.
