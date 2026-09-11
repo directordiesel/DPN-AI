@@ -5,6 +5,7 @@ import sys
 from typing import Any
 
 from app.db import Database, utc_now
+from app.persistence_security import sanitize_for_persistence
 
 
 class JobSupervisor:
@@ -216,7 +217,8 @@ class JobSupervisor:
                 )
                 result = response.model_dump()
             status = "completed" if result.get("ok", True) else "failed"
-            self.db.update_background_job(job_id, status, {"stage": "finished"}, result, "" if status == "completed" else str(result.get("error", "Operation reported failure")))
+            result_error = "" if status == "completed" else str(sanitize_for_persistence(str(result.get("error", "Operation reported failure"))))
+            self.db.update_background_job(job_id, status, {"stage": "finished"}, result, result_error)
             self.db.audit(f"job.{status}", f"Background job {status}", {"job_id": job_id, "kind": job["kind"]})
         except asyncio.CancelledError:
             if self._stopping:
@@ -228,9 +230,10 @@ class JobSupervisor:
                 self.db.update_background_job(job_id, "cancelled", {"stage": "cancelled"}, error="Cancelled by operator")
                 self.db.audit("job.cancelled", "Background job cancelled by operator", {"job_id": job_id})
             raise
-        except Exception as exc:  # noqa: BLE001
-            self.db.update_background_job(job_id, "failed", {"stage": "failed"}, error=f"{type(exc).__name__}: {exc}")
-            self.db.audit("job.failed", "Background job failed", {"job_id": job_id, "error": str(exc)[:1000]})
+        except Exception as exc:  # Job boundary must survive arbitrary provider/tool failures.
+            safe_error = str(sanitize_for_persistence(str(exc)))
+            self.db.update_background_job(job_id, "failed", {"stage": "failed"}, error=f"{type(exc).__name__}: {safe_error}")
+            self.db.audit("job.failed", "Background job failed", {"job_id": job_id, "error": safe_error})
 
     async def cancel(self, job_id: str) -> dict[str, Any]:
         job = self.db.get_background_job(job_id)
