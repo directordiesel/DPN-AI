@@ -132,7 +132,7 @@ jobs:
                   handle.write("- Batch 15 full-system integration release readiness: executed\n")
                   handle.write("- Batch 16 security regression release readiness: executed\n")
                   handle.write("- Batch 17 performance release readiness: executed\n")
-                  handle.write("- Batch 18 production release readiness: executed\\n")
-                  handle.write("- v10.0.1 maintenance release readiness: executed\\n")
+                  handle.write("- Batch 18 production release readiness: executed\n")
+                  handle.write("- v10.0.1 maintenance release readiness: executed\n")
         env:
           MATRIX_PYTHON: ${{ matrix.python }}
