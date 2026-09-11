@@ -1377,5 +1377,5 @@ async function boot() {
   await Promise.all([loadModels(), loadProfiles(), loadSkills(), loadProjects(), loadConversations(), loadVoiceProfiles()]);
   newConversation();
 }
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=10.0.0').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js?v=10.0.1').catch(() => {});
 boot().catch(error => showActionError('Starting the DPN AI interface', error, 'Reload the application. If the problem continues, open System Diagnostics or repair the cached interface.'));
