@@ -133,8 +133,8 @@
     </main>
   </div>
 
-  <div class="modal-backdrop hidden" id="modalBackdrop">
-    <section class="modal" id="modal">
+  <div class="modal-backdrop hidden" id="modalBackdrop" aria-hidden="true">
+    <section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <header><div><span class="eyebrow" id="modalEyebrow">DPN AI</span><h3 id="modalTitle">Control Center</h3></div><button class="icon-button text-button" id="closeModalBtn">Close</button></header>
       <div class="modal-body" id="modalBody" tabindex="-1"></div>
     </section>
