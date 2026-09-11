@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import copy
+import json
 from typing import Any
 
 import httpx
@@ -22,7 +24,10 @@ class OllamaClient:
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.get(f"{self.base_url}/api/version")
                 response.raise_for_status()
-                return {"ok": True, **response.json()}
+                payload = response.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("Ollama version endpoint returned an unexpected JSON shape")
+                return {"ok": True, **payload}
         except (httpx.HTTPError, ValueError) as exc:
             return {"ok": False, "error": str(sanitize_for_persistence(str(exc)))}
 
@@ -37,7 +42,11 @@ class OllamaClient:
         if response.status_code >= 400:
             detail = str(sanitize_for_persistence(response.text[:500]))
             raise OllamaError(f"Ollama returned {response.status_code}: {detail}")
-        return response.json().get("models", [])
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise OllamaError("Ollama returned an unexpected model-list response.")
+        models = payload.get("models", [])
+        return models if isinstance(models, list) else []
 
     @classmethod
     def _normalize_schema_node(cls, value: Any) -> Any:
@@ -145,7 +154,10 @@ class OllamaClient:
         response = await self._post_chat(payload)
         if response.status_code < 400:
             try:
-                return response.json()
+                payload = response.json()
+        if not isinstance(payload, dict):
+            raise OllamaError("Ollama returned an unexpected model-pull response.")
+        return payload
             except ValueError as exc:
                 raise OllamaError("Ollama returned an invalid non-JSON chat response.") from exc
 
@@ -187,6 +199,8 @@ class OllamaClient:
         if response.status_code >= 400:
             raise OllamaError(f"Model warm-up failed ({response.status_code}): {self._error_text(response)}")
         result = response.json()
+        if not isinstance(result, dict):
+            raise OllamaError("Ollama returned an unexpected model warm-up response.")
         return {"ok": True, "model": model, "load_duration": result.get("load_duration", 0)}
 
     async def chat_stream(
@@ -200,7 +214,6 @@ class OllamaClient:
     ) -> dict[str, Any]:
         """Stream Ollama response tokens while returning a normal accumulated response."""
         import inspect
-        import json
 
         normalized_tools = self.normalize_tools(tools)
         payload: dict[str, Any] = {
@@ -284,7 +297,11 @@ class OllamaClient:
             raise OllamaError("Ollama embedding generation timed out.") from exc
         if response.status_code >= 400:
             raise OllamaError(f"Embedding failed ({response.status_code}): {self._error_text(response)}")
-        return response.json().get("embeddings", [])
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise OllamaError("Ollama returned an unexpected embedding response.")
+        embeddings = payload.get("embeddings", [])
+        return embeddings if isinstance(embeddings, list) else []
 
     async def pull_model(self, model: str) -> dict[str, Any]:
         try:
