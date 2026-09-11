@@ -12,6 +12,9 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
+$VersionPath = Join-Path $Root 'VERSION'
+$DpnVersion = if (Test-Path $VersionPath -PathType Leaf) { (Get-Content $VersionPath -Raw).Trim() } else { 'unknown' }
+if ([string]::IsNullOrWhiteSpace($DpnVersion)) { $DpnVersion = 'unknown' }
 $LogDir = Join-Path $Root 'install_logs'
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $Timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
@@ -144,17 +147,17 @@ try {
         Write-Warn "Could not start PowerShell transcript logging: $($_.Exception.Message)"
     }
 
-    try { $Host.UI.RawUI.WindowTitle = 'DPN AI v5.0.7 Installer Hotfix' } catch { }
+    try { $Host.UI.RawUI.WindowTitle = "DPN AI v$DpnVersion Installer / Repair" } catch { }
     Clear-Host
     Write-Host '============================================================' -ForegroundColor Red
-    Write-Host '       DPN AI v5.0.7 - INSTALLER HOTFIX' -ForegroundColor Red
+    Write-Host "       DPN AI v$DpnVersion - INSTALLER / REPAIR" -ForegroundColor Red
     Write-Host '============================================================' -ForegroundColor Red
     Write-Host "Install folder: $Root"
     Write-Host "Install log:    $LogPath"
     if ($Repair) { Write-Host 'Mode:           Repair existing installation' -ForegroundColor Yellow }
 
     Write-Step '1/10 Checking the extracted release'
-    $requiredFiles = @('requirements.txt', '.env.example', 'launch.py', 'manage.py', 'app\main.py', 'installer_python_probe.py')
+    $requiredFiles = @('VERSION', 'requirements.txt', '.env.example', 'launch.py', 'manage.py', 'app\main.py', 'installer_python_probe.py')
     foreach ($file in $requiredFiles) {
         if (-not (Test-Path (Join-Path $Root $file))) {
             throw "The release is incomplete: '$file' is missing. Right-click the ZIP, choose Extract All, and run the installer from the extracted folder. Do not run it inside the ZIP preview."
@@ -283,7 +286,7 @@ try {
     if ($LASTEXITCODE -ne 0) { Write-Warn 'The diagnostic report completed with warnings.' }
 
     $state = [ordered]@{
-        version = (Get-Content (Join-Path $Root 'VERSION') -Raw).Trim()
+        version = $DpnVersion
         installed_at = (Get-Date).ToString('o')
         python_version = $script:PythonInfo.Version
         python_executable = $script:PythonInfo.Executable
@@ -294,7 +297,7 @@ try {
     $state | Set-Content -Path (Join-Path $Root 'data\install_state.json') -Encoding UTF8
 
     Write-Host "`n============================================================" -ForegroundColor Green
-    Write-Host 'DPN AI v5.0.7 installation/repair completed successfully.' -ForegroundColor Green
+    Write-Host "DPN AI v$DpnVersion installation/repair completed successfully." -ForegroundColor Green
     Write-Host 'Launch it with: run_dpn_ai.bat' -ForegroundColor Green
     Write-Host 'Control Center: http://127.0.0.1:8787' -ForegroundColor Green
     Write-Host "Install log: $LogPath" -ForegroundColor Green
