@@ -159,7 +159,8 @@ def test_tampered_rollback_backup_is_rejected(tmp_path: Path):
     backup.write_bytes(original_backup)
     expected_hash = hashlib.sha256(original_backup).hexdigest()
     expected_size = len(original_backup)
-    backup.write_bytes(b"tampered-backup")
+    backup.write_bytes(b"altered-backup")
+    assert backup.stat().st_size == expected_size
 
     manifest = SignedUpdateManifest.parse(_manifest_for(payload, private_key=private_key))
     with pytest.raises(ValueError, match="sha256 verification failed"):
