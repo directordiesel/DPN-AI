@@ -771,3 +771,30 @@ html, body {
   .composer-meta { display: none; }
   .file-row { min-width: 560px; }
 }
+
+/* v10.0.1 plain-language settings */
+.settings-intro { margin-bottom: 16px; padding: 16px; border: 1px solid #352347; border-radius: 12px; background: #100b16; }
+.settings-intro h4 { margin: 0 0 6px; }
+.settings-intro p { margin: 0; color: #b6adbF; line-height: 1.55; }
+.settings-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; color: #9b91a8; font-size: 10px; }
+.recommended-badge, .risk-badge { display: inline-flex; align-items: center; border: 1px solid #4b3761; border-radius: 999px; padding: 3px 7px; font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.risk-badge { border-color: #6a3037; }
+.settings-sections { display: grid; gap: 10px; }
+.settings-section { border: 1px solid #30223d; border-radius: 12px; background: #0e0b13; overflow: hidden; }
+.settings-section > summary { display: grid; gap: 4px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.settings-section > summary::-webkit-details-marker { display: none; }
+.settings-section > summary strong { font-size: 13px; }
+.settings-section > summary small { color: #968ca3; line-height: 1.4; }
+.settings-section[open] > summary { border-bottom: 1px solid #2a1d36; background: #120d19; }
+.settings-section-body { padding: 14px; }
+.settings-section-body.form-grid { margin: 0; }
+.setting-sensitive { border-color: #4d2930 !important; }
+.setting-sensitive strong::after { content: "  Sensitive"; font-size: 8px; font-weight: 800; letter-spacing: .05em; color: #c69aa0; }
+.model-route-editor { grid-column: 1 / -1; }
+.model-route-list { display: grid; gap: 8px; margin: 10px 0; }
+.model-route-row { display: grid; grid-template-columns: minmax(160px,1fr) minmax(180px,1fr) auto; gap: 8px; align-items: end; padding: 10px; border: 1px solid #30223d; border-radius: 10px; background: #0a080d; }
+.model-route-row label { display: grid; gap: 5px; color: #a9a0b5; font-size: 10px; }
+.model-route-row select { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #34343a; border-radius: 8px; background: #0b0b0d; color: #eeeef1; }
+.settings-empty-note { padding: 12px; border: 1px dashed #3a2a49; border-radius: 9px; color: #91869e; }
+.settings-actions { position: sticky; bottom: 0; z-index: 3; padding-top: 12px; background: linear-gradient(to bottom, rgba(10,8,13,0), #0a080d 28%); }
+@media(max-width:760px) { .model-route-row { grid-template-columns: 1fr; } }
