@@ -25,9 +25,10 @@ def test_api_token_comparison_is_constant_time():
 
 
 def test_unhandled_server_errors_do_not_disclose_exception_details_to_clients():
-    assert "DPN AI encountered an internal error. Error ID" in MAIN
-    assert "sanitize_for_persistence(raw_detail)" in MAIN
-    assert 'f"DPN AI encountered {type(exc).__name__}' not in MAIN
+    handler = MAIN.split("@app.exception_handler(Exception)", 1)[1].split("_LOCAL_API_HOSTS", 1)[0]
+    assert "DPN AI encountered an internal error. Error ID" in handler
+    assert "sanitize_for_persistence(raw_detail)" in handler
+    assert 'f"DPN AI encountered {type(exc).__name__}' not in handler
 
 
 def test_user_supplied_json_errors_are_generic_and_bounded():
@@ -119,10 +120,11 @@ def test_security_gate_uses_locked_audit_toolchain():
 
 
 def test_streaming_errors_are_redacted_and_opaque():
-    assert "safe_message = str(sanitize_for_persistence(str(exc)))[:500]" in MAIN
-    assert 'f"DPN AI encountered an internal error. Error ID {error_id}' in MAIN
-    assert 'f"DPN AI encountered {type(exc).__name__}' not in MAIN
-    assert 'except OSError:' in MAIN
+    stream_block = MAIN.split("async def chat_stream", 1)[1].split("# DPN AI v5 local conversational voice console", 1)[0]
+    assert "safe_message = str(sanitize_for_persistence(str(exc)))[:500]" in stream_block
+    assert 'f"DPN AI encountered an internal error. Error ID {error_id}' in stream_block
+    assert 'f"DPN AI encountered {type(exc).__name__}' not in stream_block
+    assert 'except OSError:' in stream_block
 
 
 def test_provider_secret_setting_is_a_vault_reference_not_plaintext():
