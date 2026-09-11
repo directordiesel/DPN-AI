@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from app.persistence_security import sanitize_for_persistence
 from desktop.platform import DesktopMode, DesktopPreflight, DesktopRuntimePolicy, ServiceState
 
 
@@ -186,9 +187,9 @@ class DesktopServiceSupervisor:
         self._process = None
         try:
             return self.start()
-        except Exception as exc:  # supervisor must retain evidence for diagnostics
+        except Exception as exc:  # Supervisor boundary retains redacted evidence for diagnostics.
             self.snapshot.state = ServiceState.FAILED
-            self.snapshot.last_error = str(exc)
+            self.snapshot.last_error = str(sanitize_for_persistence(str(exc)))
             return self.snapshot
 
     def enter_safe_mode(self) -> "DesktopServiceSupervisor":
