@@ -25,9 +25,10 @@ def test_api_token_comparison_is_constant_time():
 
 
 def test_unhandled_server_errors_do_not_disclose_exception_details_to_clients():
+    writer = MAIN.split("def _write_server_error", 1)[1].split("@app.exception_handler(Exception)", 1)[0]
     handler = MAIN.split("@app.exception_handler(Exception)", 1)[1].split("_LOCAL_API_HOSTS", 1)[0]
+    assert "sanitize_for_persistence(raw_detail)" in writer
     assert "DPN AI encountered an internal error. Error ID" in handler
-    assert "sanitize_for_persistence(raw_detail)" in handler
     assert 'f"DPN AI encountered {type(exc).__name__}' not in handler
 
 
@@ -48,8 +49,9 @@ def test_skill_listing_only_swallows_expected_parse_and_io_failures():
 
 def test_model_gateway_redacts_upstream_provider_errors():
     assert "sanitize_for_persistence(response.text[:1000])" in MODEL_GATEWAY
-    assert "except (OSError, ValueError):" in MODEL_GATEWAY
+    assert "except (OllamaError, OSError, ValueError) as exc:" in MODEL_GATEWAY
     assert "except (OllamaError, httpx.HTTPError, OSError, ValueError) as exc:" in MODEL_GATEWAY
+    assert "httpx.AsyncClient(trust_env=False" in MODEL_GATEWAY
 
 
 def test_codeql_runs_extended_security_and_quality_queries():
