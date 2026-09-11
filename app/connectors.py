@@ -150,7 +150,7 @@ class ConnectorHub:
             headers = self.vault.resolve(config.get("headers", {}))
             body = self.vault.resolve(json_body)
             timeout = max(5, min(timeout_seconds, 120))
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=timeout, follow_redirects=False) as client:
                 async with client.stream(method, url, params=params, json=body, headers=headers) as response:
                     content_length = int(response.headers.get("content-length", "0") or 0)
                     if content_length > MAX_CONNECTOR_RESPONSE_BYTES:
