@@ -39,12 +39,12 @@ class FileActivity : Activity() {
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         addView(TextView(this@FileActivity).apply {
-            text = "DPN AI • Files"
+            text = "DPN AI - Files"
             textSize = 26f
             setTextColor(Color.WHITE)
         })
         addView(TextView(this@FileActivity).apply {
-            text = "Documents • Code • Logs • Data • Archives"
+            text = "Documents - Code - Logs - Data - Archives"
             textSize = 12f
             setTextColor(Color.rgb(167, 139, 250))
             setPadding(0, 4, 0, 28)
@@ -106,7 +106,7 @@ class FileActivity : Activity() {
             return
         }
         selectedUri = uri
-        selectedFile.text = if (size >= 0) "$name • ${size / 1024} KB" else name
+        selectedFile.text = if (size >= 0) "$name - ${size / 1024} KB" else name
         status.text = "File selected. Add an instruction or use the default analysis request."
         analyzeButton.isEnabled = true
     }
@@ -114,7 +114,7 @@ class FileActivity : Activity() {
     private fun uploadAndAnalyze() {
         val uri = selectedUri ?: return
         analyzeButton.isEnabled = false
-        status.text = "Reading and securely uploading file…"
+        status.text = "Reading and securely uploading file..."
         val prompt = instruction.text.toString().trim().ifBlank {
             "Analyze this file thoroughly. Explain what it contains, identify important findings or problems, and recommend the next useful actions."
         }
