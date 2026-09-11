@@ -1,8 +1,11 @@
+import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 import pytest
+from cryptography.fernet import Fernet
 
 from app.connectors import ConnectorHub
 from app.tools.filesystem import WorkspaceFS
@@ -332,3 +335,36 @@ def test_workspace_upload_uses_unique_exclusive_names(tmp_path: Path) -> None:
     assert second == "uploads/report_1.txt"
     assert (tmp_path / "workspace" / first).read_bytes() == b"one"
     assert (tmp_path / "workspace" / second).read_bytes() == b"two"
+
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI is only available on Windows")
+def test_windows_vault_master_key_is_dpapi_protected(tmp_path: Path) -> None:
+    key_path = tmp_path / "security" / "vault.key"
+    data_path = tmp_path / "data" / "vault.json"
+    vault = SecretVault(key_path, data_path)
+    assert vault.set("provider.token", "windows-secret")["ok"] is True
+
+    stored_key = key_path.read_bytes()
+    assert stored_key.startswith(b"DPN-AI-DPAPI1:")
+    assert Fernet.generate_key() != stored_key
+    assert vault.get_value("provider.token") == "windows-secret"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI migration is only available on Windows")
+def test_windows_vault_migrates_legacy_raw_key_without_rotating_secrets(tmp_path: Path) -> None:
+    key_path = tmp_path / "security" / "vault.key"
+    data_path = tmp_path / "data" / "vault.json"
+    key_path.parent.mkdir(parents=True)
+    data_path.parent.mkdir(parents=True)
+
+    legacy_key = Fernet.generate_key()
+    encrypted = Fernet(legacy_key).encrypt(b"legacy-secret").decode("ascii")
+    key_path.write_bytes(legacy_key)
+    data_path.write_text(json.dumps({"legacy.token": encrypted}), encoding="utf-8")
+
+    vault = SecretVault(key_path, data_path)
+
+    assert vault.get_value("legacy.token") == "legacy-secret"
+    assert key_path.read_bytes().startswith(b"DPN-AI-DPAPI1:")
+    assert legacy_key not in key_path.read_bytes()
