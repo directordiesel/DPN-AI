@@ -178,13 +178,13 @@ class CapabilityForge:
             if folder.is_dir() and not folder.is_symlink() and manifest_path.exists() and not manifest_path.is_symlink():
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except Exception:
+                except (OSError, UnicodeError, json.JSONDecodeError, TypeError):
                     manifest = {"id": folder.name, "status": "invalid-manifest"}
                 validation_path = folder / "validation.json"
                 if validation_path.exists() and not validation_path.is_symlink():
                     try:
                         manifest["validation"] = json.loads(validation_path.read_text(encoding="utf-8"))
-                    except Exception:
+                    except (OSError, UnicodeError, json.JSONDecodeError, TypeError):
                         pass
                 staged.append(manifest)
         active = [
