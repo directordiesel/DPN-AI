@@ -6,7 +6,7 @@
     summary: '/api/v1/desktop/summary',
     events: '/api/v1/desktop/events',
   };
-  const MODEL_AUTO_LABEL = 'AUTO — Strongest Installed Model';
+  const MODEL_AUTO_LABEL = 'AUTO - Strongest Installed Model';
   let streamAbort = null;
   let reconnectTimer = null;
 
@@ -56,13 +56,13 @@
       'desktopCoreCard',
       'healthy',
       'Online',
-      `Desktop API ${summary?.api_version || 'v1'} • unified local runtime`,
+      `Desktop API ${summary?.api_version || 'v1'} - unified local runtime`,
     );
     setState(
       'desktopMissionCard',
       Number(missions.failed || 0) > 0 ? 'warning' : 'healthy',
       `${Number(missions.running || 0)} running`,
-      `${Number(missions.queued || 0)} queued • ${Number(missions.total || 0)} total`,
+      `${Number(missions.queued || 0)} queued - ${Number(missions.total || 0)} total`,
     );
     setState(
       'desktopApprovalCard',
@@ -91,7 +91,7 @@
   }
 
   async function probeDesktopSummary() {
-    setState('desktopCoreCard', 'unknown', 'Checking…', 'Versioned local desktop API probe');
+    setState('desktopCoreCard', 'unknown', 'Checking...', 'Versioned local desktop API probe');
     try {
       const response = await fetch(STATUS_ENDPOINTS.summary, {
         cache: 'no-store',
