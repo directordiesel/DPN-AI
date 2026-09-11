@@ -530,16 +530,17 @@ async def chat_stream(request: ChatRequest, http_request: Request) -> StreamingR
                     payload["verification"] = review
             await emit({"type": "final", "data": payload})
         except (OllamaError, ValueError) as exc:
-            await emit({"type": "error", "message": str(exc), "error_type": type(exc).__name__})
-        except Exception as exc:  # noqa: BLE001
+            safe_message = str(sanitize_for_persistence(str(exc)))[:500] or "The operation could not be completed."
+            await emit({"type": "error", "message": safe_message, "error_type": type(exc).__name__})
+        except Exception as exc:  # Streaming boundary logs details server-side and returns only an opaque error ID.
             error_id = uuid.uuid4().hex[:10].upper()
             try:
                 _write_server_error(error_id, http_request, exc)
-            except Exception:
+            except OSError:
                 pass
             await emit({
                 "type": "error",
-                "message": f"DPN AI encountered {type(exc).__name__}: {str(exc)[:500]}. Error ID {error_id}. See runtime_logs\\errors.log.",
+                "message": f"DPN AI encountered an internal error. Error ID {error_id}. See runtime_logs\\errors.log.",
                 "error_id": error_id,
             })
         finally:
