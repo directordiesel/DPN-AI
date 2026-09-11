@@ -15,17 +15,16 @@ def test_ui_assets_are_cache_busted():
 
 
 def test_sidebar_and_chat_are_explicit_scroll_regions():
-    hotfix = CSS.split("/* DPN AI v5.0.5 viewport and scrolling hotfix */", 1)[1]
-    assert ".sidebar" in hotfix and "overflow-y: scroll" in hotfix
-    assert ".chat" in hotfix and "overflow-y: scroll" in hotfix
-    assert "scrollbar-gutter: stable" in hotfix
+    assert ".sidebar {" in CSS
+    assert ".chat {" in CSS
+    assert CSS.count("overflow-y: scroll;") >= 2
+    assert "scrollbar-gutter: stable;" in CSS
 
 
 def test_main_and_messages_are_viewport_contained():
-    hotfix = CSS.split("/* DPN AI v5.0.5 viewport and scrolling hotfix */", 1)[1]
-    assert ".main" in hotfix and "overflow: hidden" in hotfix
-    assert ".message-main" in hotfix and "max-width: 100%" in hotfix
-    assert ".message-content pre" in hotfix and "overflow: auto" in hotfix
+    assert ".main {" in CSS and "overflow: hidden;" in CSS
+    assert ".message-main," in CSS and "max-width: 100%;" in CSS
+    assert ".message-content pre," in CSS and "overflow: auto;" in CSS
 
 
 def test_compact_laptop_layout_is_present():
