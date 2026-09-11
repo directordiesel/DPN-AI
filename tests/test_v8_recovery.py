@@ -103,3 +103,24 @@ def test_diagnostics_exclude_environment_and_include_recovery_evidence(tmp_path:
     assert payload["version"] == "8.0.0-dev"
     assert payload["state"] == "failed"
     assert payload["recent_crashes"][-1]["exit_code"] == 7
+
+
+def test_crash_diagnostics_redact_embedded_credentials(tmp_path: Path):
+    controller = CrashRecoveryController(RecoveryPolicy(repository_root=make_repo(tmp_path)))
+    event = controller.record_crash(
+        exit_code=1,
+        error="request failed Authorization: Bearer super-secret-token password=hunter2",
+        timestamp=1000,
+    )
+    assert "super-secret-token" not in event.error
+    assert "hunter2" not in event.error
+
+    diagnostics = controller.write_diagnostics(
+        state="failed",
+        pid=None,
+        last_error="Authorization: Bearer another-secret token=abc123",
+    )
+    text = diagnostics.read_text(encoding="utf-8")
+    assert "another-secret" not in text
+    assert "abc123" not in text
+    assert "[redacted" in text.lower()
