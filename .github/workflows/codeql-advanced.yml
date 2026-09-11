@@ -1,0 +1,95 @@
+name: DPN CodeQL Advanced Security
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# GitHub stopped computing PR file coverage by default in 2026.
+# DPN keeps it enabled so security reviews retain full visibility.
+env:
+  CODEQL_ACTION_FILE_COVERAGE_ON_PRS: "true"
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    name: CodeQL - ${{ matrix.display-name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            display-name: Python
+            build-mode: none
+            codeql-config: |
+              queries:
+                - uses: security-extended
+
+          - language: actions
+            display-name: GitHub Actions
+            build-mode: none
+            codeql-config: |
+              queries:
+                - uses: security-extended
+
+          - language: java-kotlin
+            display-name: Android Kotlin
+            build-mode: manual
+            codeql-config: |
+              queries:
+                - uses: security-extended
+              threat-models: local
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Java 17
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle 8.11.1
+        if: matrix.language == 'java-kotlin'
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config: ${{ matrix.codeql-config }}
+
+      - name: Build Android application for CodeQL extraction
+        if: matrix.language == 'java-kotlin'
+        working-directory: mobile/android
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Analyze source
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
