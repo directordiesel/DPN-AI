@@ -177,7 +177,7 @@ class ModelGateway:
         if compatible["configured"]:
             try:
                 url = self._ensure_compatible_allowed()
-                async with httpx.AsyncClient(timeout=5) as client:
+                async with httpx.AsyncClient(trust_env=False, timeout=5) as client:
                     response = await client.get(f"{self._api_root(url)}/models", headers=self._compatible_headers())
                 compatible.update({"ok": response.status_code < 400, "status_code": response.status_code})
                 if response.status_code >= 400:
@@ -201,7 +201,7 @@ class ModelGateway:
         if self._config()["compatible_api_url"]:
             try:
                 url = self._ensure_compatible_allowed()
-                async with httpx.AsyncClient(timeout=20) as client:
+                async with httpx.AsyncClient(trust_env=False, timeout=20) as client:
                     response = await client.get(f"{self._api_root(url)}/models", headers=self._compatible_headers())
                 if response.status_code < 400:
                     payload = response.json()
@@ -290,7 +290,7 @@ class ModelGateway:
             payload["tools"] = tools
             payload["tool_choice"] = "auto"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
                 response = await client.post(f"{self._api_root(url)}/chat/completions", headers=self._compatible_headers(), json=payload)
         except httpx.ConnectError as exc:
             raise OllamaError("DPN AI cannot reach the configured OpenAI-compatible model server.") from exc
@@ -329,7 +329,7 @@ class ModelGateway:
         if provider == "ollama":
             return await self.ollama.embed(provider_model, inputs)
         url = self._ensure_compatible_allowed()
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
             response = await client.post(
                 f"{self._api_root(url)}/embeddings",
                 headers=self._compatible_headers(),
