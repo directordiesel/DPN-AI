@@ -83,7 +83,7 @@ def test_v9_default_requires_approval_when_no_explicit_rule_exists():
 
 def test_v9_session_rule_requires_grant_then_allows():
     engine = PermissionEngine(PermissionMode.ASK_EVERY_TIME)
-    engine.set_tool_rule("run_command", PermissionMode.ALLOW_SESSION, RiskLevel.EXECUTE)
+    engine.set_tool_rule("run_command", PermissionMode.ALLOW_SESSION, RiskLevel.EXTERNAL)
     runtime = ToolPermissionRuntime(engine)
 
     before = runtime.authorize(
@@ -174,3 +174,19 @@ def test_host_fallback_cannot_bypass_safe_mode_denial():
     assert result.allowed is False
     assert result.approval_required is False
     assert result.decision.source == "legacy"
+
+
+def test_legacy_standard_mode_requires_approval_for_run_command():
+    runtime = ToolPermissionRuntime()
+    result = runtime.authorize(
+        tool_name="run_command",
+        declared_risk="external",
+        gate="commands",
+        permissions=base_permissions(approval_mode="standard"),
+    )
+
+    assert result.allowed is False
+    assert result.approval_required is True
+    assert result.profile.risk == RiskLevel.EXTERNAL
+    assert result.profile.network_effect is True
+    assert result.profile.host_effect is True
