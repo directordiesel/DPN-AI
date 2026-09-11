@@ -249,8 +249,26 @@ async def security_response_headers(request: Request, call_next):
     response.headers.setdefault("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)")
     response.headers.setdefault(
         "Content-Security-Policy",
-        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+        "default-src 'self'; "
+        "base-uri 'self'; "
+        "object-src 'none'; "
+        "frame-src 'none'; "
+        "frame-ancestors 'none'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "media-src 'self' blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "worker-src 'self' blob:; "
+        "manifest-src 'self'; "
+        "form-action 'self'",
     )
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+    if request.url.scheme == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
     if request.url.path.startswith("/api"):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
