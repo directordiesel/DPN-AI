@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MAIN = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
 MODEL_GATEWAY = (ROOT / "app" / "model_gateway.py").read_text(encoding="utf-8")
+SCHEMAS = (ROOT / "app" / "schemas.py").read_text(encoding="utf-8")
 SKILLS = (ROOT / "app" / "skills.py").read_text(encoding="utf-8")
 BROWSER = (ROOT / "app" / "browser_adapter.py").read_text(encoding="utf-8")
 CODEQL = (ROOT / ".github" / "workflows" / "codeql-advanced.yml").read_text(encoding="utf-8")
@@ -112,3 +113,10 @@ def test_streaming_errors_are_redacted_and_opaque():
     assert 'f"DPN AI encountered an internal error. Error ID {error_id}' in MAIN
     assert 'f"DPN AI encountered {type(exc).__name__}' not in MAIN
     assert 'except OSError:' in MAIN
+
+
+def test_provider_secret_setting_is_a_vault_reference_not_plaintext():
+    assert 'compatible_api_secret: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z_][A-Za-z0-9_.-]{0,99}$")' in SCHEMAS
+    assert 'available_secrets = set(tools.vault.list().get("secrets", []))' in MAIN
+    assert "Saved API key name must already exist in Connectors & Secrets" in MAIN
+    assert 'sanitize_for_persistence(response.text[:500])' in MODEL_GATEWAY
