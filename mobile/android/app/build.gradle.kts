@@ -4,7 +4,7 @@ plugins {
 }
 
 val releaseVersionCode = providers.gradleProperty("DPN_MOBILE_VERSION_CODE").orNull?.toIntOrNull() ?: 1
-val releaseVersionName = providers.gradleProperty("DPN_MOBILE_VERSION_NAME").orNull ?: "1.0.0-dev"
+val releaseVersionName = providers.gradleProperty("DPN_MOBILE_VERSION_NAME").orNull ?: "10.0.1-dev"
 val signingStoreFile = providers.gradleProperty("DPN_MOBILE_KEYSTORE").orNull
 val signingStorePassword = providers.gradleProperty("DPN_MOBILE_STORE_PASSWORD").orNull
 val signingKeyAlias = providers.gradleProperty("DPN_MOBILE_KEY_ALIAS").orNull
