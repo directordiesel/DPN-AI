@@ -798,3 +798,14 @@ html, body {
 .settings-empty-note { padding: 12px; border: 1px dashed #3a2a49; border-radius: 9px; color: #91869e; }
 .settings-actions { position: sticky; bottom: 0; z-index: 3; padding-top: 12px; background: linear-gradient(to bottom, rgba(10,8,13,0), #0a080d 28%); }
 @media(max-width:760px) { .model-route-row { grid-template-columns: 1fr; } }
+
+
+/* v10.0.1 module explanations */
+.module-intro { margin: 0 0 14px; }
+.module-intro details { border: 1px solid #352347; border-radius: 12px; background: #100b16; overflow: hidden; }
+.module-intro summary { cursor: pointer; padding: 11px 14px; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.module-intro details[open] summary { border-bottom: 1px solid #2a1d36; }
+.module-intro h4 { margin: 12px 14px 6px; }
+.module-intro p { margin: 6px 14px 12px; color: #b6adbF; line-height: 1.5; }
+.module-intro .module-start { color: #d0c5dc; }
+.module-intro .module-safety { padding: 10px 12px; border: 1px solid #4d2930; border-radius: 9px; background: #150d12; }
