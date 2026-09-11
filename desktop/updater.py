@@ -19,6 +19,18 @@ from typing import Any
 
 
 ALLOWED_CHANNELS = {"stable", "beta", "dev"}
+HASH_CHUNK_BYTES = 1024 * 1024
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(HASH_CHUNK_BYTES)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 @dataclass(frozen=True)
@@ -107,13 +119,15 @@ def verify_manifest_signature(manifest: SignedUpdateManifest, verification_key: 
 
 def verify_artifact(path: Path, artifact: UpdateArtifact) -> None:
     artifact.validate()
+    if path.is_symlink():
+        raise ValueError("downloaded update must not be a symlink")
     if not path.is_file():
         raise FileNotFoundError(path)
     if path.name != artifact.filename:
         raise ValueError("downloaded update filename does not match manifest")
     if path.stat().st_size != artifact.size:
         raise ValueError("downloaded update size does not match manifest")
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = _sha256_file(path)
     if not hmac.compare_digest(digest, artifact.sha256):
         raise ValueError("downloaded update sha256 does not match manifest")
 
@@ -123,14 +137,25 @@ class RollbackPlan:
     current_version: str
     target_version: str
     backup_path: Path
+    backup_sha256: str
+    backup_size: int
 
     def validate(self) -> None:
         if not self.current_version or not self.target_version:
             raise ValueError("rollback versions are required")
         if self.current_version == self.target_version:
             raise ValueError("rollback target must differ from current version")
+        if self.backup_path.is_symlink():
+            raise ValueError("rollback backup must not be a symlink")
         if not self.backup_path.is_file():
             raise ValueError("verified rollback backup is required")
+        if self.backup_size <= 0 or self.backup_path.stat().st_size != self.backup_size:
+            raise ValueError("rollback backup size verification failed")
+        if len(self.backup_sha256) != 64 or any(ch not in "0123456789abcdef" for ch in self.backup_sha256):
+            raise ValueError("rollback backup sha256 is invalid")
+        actual = _sha256_file(self.backup_path)
+        if not hmac.compare_digest(actual, self.backup_sha256):
+            raise ValueError("rollback backup sha256 verification failed")
 
 
 def stage_update(
@@ -140,6 +165,8 @@ def stage_update(
     selected_channel: str,
     verification_key: bytes,
     rollback_backup: Path,
+    rollback_sha256: str,
+    rollback_size: int,
     current_version: str,
 ) -> RollbackPlan:
     selected_channel = selected_channel.strip().lower()
@@ -157,6 +184,8 @@ def stage_update(
         current_version=current_version,
         target_version=manifest.artifact.version,
         backup_path=rollback_backup,
+        backup_sha256=str(rollback_sha256).strip().lower(),
+        backup_size=int(rollback_size),
     )
     plan.validate()
     return plan
