@@ -349,19 +349,19 @@ def test_empty_states_explain_a_next_action():
     for guidance in expected_guidance:
         assert guidance in js
 
-    for vague in (
-        "Workspace is empty.",
-        "No durable memories saved.",
-        "No local automations configured.",
-        "No operation runs yet.",
-        "No snapshots yet.",
-        "No background jobs yet.",
-        "No MCP servers configured.",
-        "No actions are awaiting approval.",
-        "No workflows created. The API and agent tools can create them.",
-        "No connectors configured.",
+    for vague_markup in (
+        '<div class="empty-state">Workspace is empty.</div>',
+        '<div class="empty-state">No durable memories saved.</div>',
+        '<div class="empty-state">No local automations configured.</div>',
+        '<div class="empty-state">No operation runs yet.</div>',
+        '<div class="empty-state">No snapshots yet.</div>',
+        '<div class="empty-state">No background jobs yet.</div>',
+        '<div class="empty-state">No MCP servers configured.</div>',
+        '<div class="empty-state">No actions are awaiting approval.</div>',
+        '<div class="empty-state">No workflows created. The API and agent tools can create them.</div>',
+        '<div class="empty-state">No connectors configured.</div>',
     ):
-        assert vague not in js
+        assert vague_markup not in js
 
 
 def test_raw_json_is_labeled_as_technical_evidence_where_user_facing():
