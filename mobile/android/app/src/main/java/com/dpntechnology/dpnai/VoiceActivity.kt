@@ -101,7 +101,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
 
     private fun startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            status.text = "Speech recognition is unavailable on this device."
+            status.text = "Speech recognition is not available on this device. Use Unified Chat, or enable/install a supported Android speech service and try again."
             return
         }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
