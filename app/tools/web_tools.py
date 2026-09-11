@@ -58,7 +58,7 @@ def _safe_public_url(url: str) -> tuple[bool, str]:
 async def search_web(query: str, max_results: int = 6) -> dict[str, Any]:
     url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
+        async with httpx.AsyncClient(trust_env=False, timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
             response = await client.get(url)
             response.raise_for_status()
     except (httpx.HTTPError, OSError, ValueError) as exc:
@@ -87,7 +87,7 @@ async def search_web(query: str, max_results: int = 6) -> dict[str, Any]:
 async def fetch_web_page(url: str, max_chars: int = 20_000) -> dict[str, Any]:
     current_url = url
     try:
-        async with httpx.AsyncClient(
+        async with httpx.AsyncClient(trust_env=False, 
             timeout=25,
             follow_redirects=False,
             headers={"User-Agent": USER_AGENT},
