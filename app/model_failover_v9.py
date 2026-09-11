@@ -6,6 +6,7 @@ from typing import Any, Awaitable, Callable, Iterable
 
 from app.model_routing_runtime_v9 import ModelRouteContext, ModelRoutingRuntime
 from app.model_routing_v9 import ModelRoutingError
+from app.persistence_security import sanitize_for_persistence
 
 
 class ModelFailoverError(RuntimeError):
@@ -90,7 +91,8 @@ class ModelFailoverExecutor:
                 attempts.append(ModelAttempt(selected.name, selected.provider, True))
                 return ModelFailoverResult(result=result, selected_model=selected.name, attempts=tuple(attempts))
             except Exception as exc:  # noqa: BLE001 - boundary records provider failures
-                attempts.append(ModelAttempt(selected.name, selected.provider, False, str(exc)[:500]))
+                safe_error = str(sanitize_for_persistence(str(exc)))[:500]
+                attempts.append(ModelAttempt(selected.name, selected.provider, False, safe_error))
                 self._mark_unhealthy(inventory, selected.name)
                 # Once an explicitly requested model fails, permit only normal
                 # policy-selected fallbacks; remote allowance remains unchanged.
