@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
@@ -22,7 +23,14 @@ class GatewayActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = SecureCredentialStore(this)
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
         refreshStatus()
     }
 
