@@ -63,7 +63,10 @@ async def mobile_device_access_boundary(request: Request, call_next):
             # The mobile credential is the authenticated boundary. For a local-only
             # desktop configuration, present the validated call to the existing
             # loopback-only API gate as internal traffic rather than weakening it.
+            # Rewrite Host as well as the peer address so app.main's DNS-rebinding
+            # protection still fails closed for every unauthenticated request.
             request.scope["client"] = ("127.0.0.1", 0)
+            _replace_header(request.scope, b"host", b"localhost")
             _replace_header(request.scope, b"x-dpn-token", None)
 
     return await call_next(request)
