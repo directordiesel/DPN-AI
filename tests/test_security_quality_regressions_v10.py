@@ -12,6 +12,8 @@ DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 TOOL_RISK = (ROOT / "app" / "tool_risk.py").read_text(encoding="utf-8")
 TOOL_REGISTRY = (ROOT / "app" / "tools" / "registry.py").read_text(encoding="utf-8")
 SANDBOX = (ROOT / "app" / "sandbox.py").read_text(encoding="utf-8")
+SECURITY_GATE = (ROOT / ".github" / "workflows" / "security-gate.yml").read_text(encoding="utf-8")
+SECURITY_REQUIREMENTS = (ROOT / ".github" / "requirements-security.txt").read_text(encoding="utf-8")
 
 
 def test_api_token_comparison_is_constant_time():
@@ -84,3 +86,22 @@ def test_tool_failure_boundary_redacts_exception_text():
 def test_sandbox_never_implicitly_pulls_runtime_image():
     assert '"--pull=never"' in SANDBOX
     assert '"image_auto_pull": False' in SANDBOX
+
+
+def test_browser_and_api_security_headers_are_enforced():
+    for token in (
+        '"X-Content-Type-Options", "nosniff"',
+        '"X-Frame-Options", "DENY"',
+        '"Referrer-Policy", "no-referrer"',
+        '"Permissions-Policy", "camera=(), geolocation=(), microphone=(self)"',
+        '"frame-ancestors \'none\'; object-src \'none\'; base-uri \'self\'"',
+        'response.headers["Cache-Control"] = "no-store"',
+    ):
+        assert token in MAIN
+
+
+def test_security_gate_uses_locked_audit_toolchain():
+    assert "pip-audit==2.10.1" in SECURITY_REQUIREMENTS
+    assert "-r .github/requirements-security.txt" in SECURITY_GATE
+    assert "pip install --upgrade pip pip-audit" not in SECURITY_GATE
+    assert 'directory: "/.github"' in DEPENDABOT
