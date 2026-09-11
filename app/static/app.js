@@ -153,10 +153,10 @@ function inlineMarkdown(text) {
   const links = [];
   html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => {
     const token = `@@LINK_${links.length}@@`;
-    links.push(`<a href="${url}" target="_blank" rel="noreferrer">${label}</a>`);
+    links.push(`<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>`);
     return token;
   });
-  html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noreferrer">$1</a>');
+  html = html.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
@@ -588,7 +588,8 @@ function addMessage(role, content, metadata = {}) {
   for (const entry of metadata.traces || []) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.innerHTML = `<span class="${entry.ok ? 'ok' : 'bad'}">${entry.ok ? 'PASS' : 'FAIL'}</span> Technical tool evidence - ${escapeHtml(entry.name)} <small>${entry.elapsed_ms || 0} ms</small>`;
+    const elapsedMs = Number.isFinite(Number(entry.elapsed_ms)) ? Math.max(0, Math.trunc(Number(entry.elapsed_ms))) : 0;
+    summary.innerHTML = `<span class="${entry.ok ? 'ok' : 'bad'}">${entry.ok ? 'PASS' : 'FAIL'}</span> Technical tool evidence - ${escapeHtml(entry.name)} <small>${elapsedMs} ms</small>`;
     const pre = document.createElement('pre');
     pre.textContent = JSON.stringify({arguments: entry.arguments, result: entry.result}, null, 2);
     details.append(summary, pre); if (trace) trace.appendChild(details);
@@ -738,7 +739,7 @@ async function loadSkills() {
 async function loadProjects() {
   const data = await api('/api/projects'); state.projects = data.projects || [];
   const selected = els.projectSelect.value;
-  els.projectSelect.innerHTML = '<option value="">No project</option>' + state.projects.map(project => `<option value="${project.id}">${escapeHtml(project.name)}</option>`).join('');
+  els.projectSelect.innerHTML = '<option value="">No project</option>' + state.projects.map(project => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`).join('');
   if (state.projects.some(item => item.id === selected)) els.projectSelect.value = selected;
 }
 
