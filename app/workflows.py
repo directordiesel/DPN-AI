@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from app.db import Database
+from app.persistence_security import sanitize_for_persistence
 
 
 _TOKEN = re.compile(r"\{\{([A-Za-z0-9_.-]+)\}\}")
@@ -110,6 +111,7 @@ class WorkflowEngine:
                     raise RuntimeError(f"Workflow step {step_id} failed: {result.get('error', 'unknown error')}")
             self.db.finish_workflow_run(run_id, "completed", context)
             return {"ok": True, "workflow_run_id": run_id, "outputs": context}
-        except Exception as exc:  # noqa: BLE001
-            self.db.finish_workflow_run(run_id, "failed", context, f"{type(exc).__name__}: {exc}")
-            return {"ok": False, "workflow_run_id": run_id, "outputs": context, "error": str(exc)}
+        except Exception as exc:  # Workflow boundary records failures without leaking secrets.
+            safe_error = str(sanitize_for_persistence(str(exc)))
+            self.db.finish_workflow_run(run_id, "failed", context, f"{type(exc).__name__}: {safe_error}")
+            return {"ok": False, "workflow_run_id": run_id, "outputs": context, "error": safe_error}
