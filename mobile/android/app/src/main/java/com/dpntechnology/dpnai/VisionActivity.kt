@@ -44,7 +44,7 @@ class VisionActivity : Activity() {
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         addView(TextView(this@VisionActivity).apply {
-            text = "DPN AI • Vision"
+            text = "DPN AI - Vision"
             textSize = 25f
             setTextColor(Color.WHITE)
         })
@@ -180,7 +180,7 @@ class VisionActivity : Activity() {
         selectedImage = uri
         preview.setImageURI(uri)
         analyzeButton.isEnabled = true
-        status.text = "Image ready • ${displayName(uri)} • ${mime.removePrefix("image/").uppercase()}"
+        status.text = "Image ready - ${displayName(uri)} - ${mime.removePrefix("image/").uppercase()}"
         result.text = ""
     }
 
@@ -192,7 +192,7 @@ class VisionActivity : Activity() {
             return
         }
         analyzeButton.isEnabled = false
-        status.text = "Uploading image through the encrypted DPN AI connection…"
+        status.text = "Uploading image through the encrypted DPN AI connection..."
         result.text = ""
         thread(name = "dpn-mobile-vision") {
             val outcome = runCatching {
@@ -212,10 +212,10 @@ class VisionActivity : Activity() {
             runOnUiThread {
                 analyzeButton.isEnabled = selectedImage != null
                 outcome.onSuccess { reply ->
-                    status.text = "Vision analysis synchronized • conversation ${reply.conversationId}"
+                    status.text = "Vision analysis synchronized - conversation ${reply.conversationId}"
                     result.text = "DPN AI\n${reply.message}"
                 }.onFailure { error ->
-                    status.text = "Vision request failed — nothing was marked complete."
+                    status.text = "Vision request failed - nothing was marked complete."
                     result.text = "SYSTEM\n${error.message ?: "Unknown vision error"}"
                 }
             }
