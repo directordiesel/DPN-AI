@@ -41,6 +41,15 @@ def _manifest_for(
     })
 
 
+def _rollback_args(path: Path) -> dict[str, object]:
+    payload = path.read_bytes()
+    return {
+        "rollback_backup": path,
+        "rollback_sha256": hashlib.sha256(payload).hexdigest(),
+        "rollback_size": len(payload),
+    }
+
+
 def test_valid_signed_update_requires_verified_rollback(tmp_path: Path):
     private_key, public_key = _keypair()
     payload = b"dpn-ai-build"
@@ -55,13 +64,15 @@ def test_valid_signed_update_requires_verified_rollback(tmp_path: Path):
         update,
         selected_channel="dev",
         verification_key=public_key,
-        rollback_backup=backup,
         current_version="7.0.0",
+        **_rollback_args(backup),
     )
 
     assert plan.current_version == "7.0.0"
     assert plan.target_version == "8.0.0-dev"
     assert plan.backup_path == backup
+    assert plan.backup_sha256 == hashlib.sha256(b"backup").hexdigest()
+    assert plan.backup_size == len(b"backup")
 
 
 def test_wrong_signature_fails_closed(tmp_path: Path):
@@ -80,8 +91,8 @@ def test_wrong_signature_fails_closed(tmp_path: Path):
             update,
             selected_channel="dev",
             verification_key=wrong_public_key,
-            rollback_backup=backup,
             current_version="7.0.0",
+            **_rollback_args(backup),
         )
 
 
@@ -102,8 +113,8 @@ def test_channel_mismatch_is_rejected(tmp_path: Path):
             update,
             selected_channel="stable",
             verification_key=public_key,
-            rollback_backup=backup,
             current_version="7.0.0",
+            **_rollback_args(backup),
         )
 
 
@@ -132,6 +143,69 @@ def test_missing_rollback_backup_blocks_staging(tmp_path: Path):
             selected_channel="dev",
             verification_key=public_key,
             rollback_backup=tmp_path / "missing-backup.exe",
+            rollback_sha256=hashlib.sha256(b"backup").hexdigest(),
+            rollback_size=len(b"backup"),
+            current_version="7.0.0",
+        )
+
+
+def test_tampered_rollback_backup_is_rejected(tmp_path: Path):
+    private_key, public_key = _keypair()
+    payload = b"build"
+    update = tmp_path / "DPN-AI-8.0.0.exe"
+    update.write_bytes(payload)
+    backup = tmp_path / "backup.exe"
+    original_backup = b"trusted-backup"
+    backup.write_bytes(original_backup)
+    expected_hash = hashlib.sha256(original_backup).hexdigest()
+    expected_size = len(original_backup)
+    backup.write_bytes(b"tampered-backup")
+
+    manifest = SignedUpdateManifest.parse(_manifest_for(payload, private_key=private_key))
+    with pytest.raises(ValueError, match="sha256 verification failed"):
+        stage_update(
+            manifest,
+            update,
+            selected_channel="dev",
+            verification_key=public_key,
+            rollback_backup=backup,
+            rollback_sha256=expected_hash,
+            rollback_size=expected_size,
+            current_version="7.0.0",
+        )
+
+
+def test_update_and_rollback_symlinks_are_rejected(tmp_path: Path):
+    private_key, public_key = _keypair()
+    payload = b"build"
+    real_update = tmp_path / "DPN-AI-8.0.0.exe"
+    real_update.write_bytes(payload)
+    update_link = tmp_path / "linked-update.exe"
+    backup = tmp_path / "backup.exe"
+    backup.write_bytes(b"backup")
+    backup_link = tmp_path / "linked-backup.exe"
+    try:
+        update_link.symlink_to(real_update)
+        backup_link.symlink_to(backup)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+
+    update_manifest = SignedUpdateManifest.parse(
+        _manifest_for(payload, private_key=private_key, filename=update_link.name)
+    )
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        verify_artifact(update_link, update_manifest.artifact)
+
+    manifest = SignedUpdateManifest.parse(_manifest_for(payload, private_key=private_key))
+    with pytest.raises(ValueError, match="rollback backup must not be a symlink"):
+        stage_update(
+            manifest,
+            real_update,
+            selected_channel="dev",
+            verification_key=public_key,
+            rollback_backup=backup_link,
+            rollback_sha256=hashlib.sha256(b"backup").hexdigest(),
+            rollback_size=len(b"backup"),
             current_version="7.0.0",
         )
 
@@ -162,3 +236,10 @@ def test_public_verification_key_is_not_a_signing_secret():
     manifest = SignedUpdateManifest.parse(_manifest_for(payload, private_key=private_key))
     assert len(public_key) == 32
     assert manifest.signature_algorithm == "ed25519"
+
+
+def test_updater_hashes_files_in_chunks_instead_of_reading_entire_installer():
+    source = Path("desktop/updater.py").read_text(encoding="utf-8")
+    assert "HASH_CHUNK_BYTES = 1024 * 1024" in source
+    assert 'with path.open("rb") as handle:' in source
+    assert "path.read_bytes()" not in source
