@@ -161,3 +161,22 @@ def test_destructive_memory_delete_requires_confirmation():
     delete_call = "api(`/api/memories/${button.dataset.memory}`, {method:'DELETE'})"
     assert delete_call in js
     assert js.index("Delete this saved memory?") < js.index(delete_call)
+
+
+
+def test_desktop_shell_source_uses_plain_ascii_ui_copy():
+    for name in ("index.html", "app.js", "v8-desktop.js", "v9-desktop.js"):
+        text = (STATIC / name).read_text(encoding="utf-8")
+        non_ascii = sorted({char for char in text if ord(char) > 127})
+        assert not non_ascii, f"{name} contains non-ASCII UI characters: {non_ascii}"
+
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    assert ">Menu</button>" in html
+    assert ">Reindex</button>" in html
+    assert ">Stop</button>" in html
+    assert ">Voice Settings</button>" in html
+    assert ">Send</button>" in html
+    assert ">Close</button>" in html
+
+    v9 = (STATIC / "v9-desktop.js").read_text(encoding="utf-8")
+    assert ">Commands</button>" in v9
