@@ -50,6 +50,9 @@ Assert-SecretEnvironment
 
 $PfxPath = Join-Path $env:RUNNER_TEMP "dpn-production-signing.pfx"
 $CertificateThumbprint = $null
+$ImportedCertificates = @()
+$PfxBytes = $null
+$Password = $null
 
 try {
     try {
@@ -65,7 +68,8 @@ try {
 
     $Password = ConvertTo-SecureString $env:DPN_WINDOWS_SIGNING_PFX_PASSWORD -AsPlainText -Force
     $Imported = Import-PfxCertificate -FilePath $PfxPath -CertStoreLocation "Cert:\CurrentUser\My" -Password $Password -Exportable:$false
-    $Certificate = @($Imported) | Where-Object { $_.HasPrivateKey } | Select-Object -First 1
+    $ImportedCertificates = @($Imported)
+    $Certificate = $ImportedCertificates | Where-Object { $_.HasPrivateKey } | Select-Object -First 1
     if (-not $Certificate) {
         throw "Imported PFX contains no certificate with a private key."
     }
@@ -197,11 +201,20 @@ for path in files:
 }
 finally {
     Remove-Item -LiteralPath $PfxPath -Force -ErrorAction SilentlyContinue
-    if ($CertificateThumbprint) {
-        $CertificatePath = "Cert:\CurrentUser\My\$CertificateThumbprint"
-        if (Test-Path $CertificatePath) {
-            Remove-Item -LiteralPath $CertificatePath -Force -ErrorAction SilentlyContinue
+    if ($PfxBytes) {
+        [Array]::Clear($PfxBytes, 0, $PfxBytes.Length)
+    }
+    foreach ($ImportedCertificate in $ImportedCertificates) {
+        if ($ImportedCertificate -and $ImportedCertificate.Thumbprint) {
+            $ImportedThumbprint = (($ImportedCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+            $ImportedPath = "Cert:\CurrentUser\My\$ImportedThumbprint"
+            if (Test-Path $ImportedPath) {
+                Remove-Item -LiteralPath $ImportedPath -Force -ErrorAction SilentlyContinue
+            }
         }
+    }
+    if ($Password) {
+        $Password.Dispose()
     }
     Remove-Item Env:DPN_RELEASE_VERSION -ErrorAction SilentlyContinue
     Remove-Item Env:DPN_RELEASE_CHANNEL -ErrorAction SilentlyContinue
