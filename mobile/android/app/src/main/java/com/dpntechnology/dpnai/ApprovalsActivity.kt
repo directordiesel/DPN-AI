@@ -43,7 +43,7 @@ class ApprovalsActivity : Activity() {
             text = "Explicit human control for protected DPN AI actions"
             textSize = 13f; setTextColor(Color.rgb(167, 139, 250)); setPadding(0, 4, 0, 20)
         })
-        status = TextView(this).apply { text = "Loading pending approvals…"; setTextColor(Color.LTGRAY); setPadding(0, 0, 0, 16) }
+        status = TextView(this).apply { text = "Loading pending approvals..."; setTextColor(Color.LTGRAY); setPadding(0, 0, 0, 16) }
         root.addView(status)
         root.addView(Button(this).apply { text = "Refresh Pending Approvals"; setOnClickListener { refresh() } })
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 16, 0, 0) }
@@ -52,7 +52,7 @@ class ApprovalsActivity : Activity() {
     }
 
     private fun refresh() {
-        status.text = "Loading pending approvals…"
+        status.text = "Loading pending approvals..."
         thread(name = "dpn-mobile-approvals") {
             val result = runCatching { api.listApprovals("pending", 100) }
             runOnUiThread {
@@ -79,7 +79,7 @@ class ApprovalsActivity : Activity() {
                 setTextColor(Color.LTGRAY); setPadding(0, 8, 0, 12)
             })
             addView(TextView(this@ApprovalsActivity).apply {
-                text = "Status: ${approval.status}${approval.createdAt?.let { " • $it" } ?: ""}"
+                text = "Status: ${approval.status}${approval.createdAt?.let { " - $it" } ?: ""}"
                 textSize = 12f; setTextColor(Color.GRAY)
             })
             addView(LinearLayout(this@ApprovalsActivity).apply {
@@ -99,7 +99,7 @@ class ApprovalsActivity : Activity() {
     }
 
     private fun submitDecision(approvalId: String, decision: String) {
-        status.text = if (decision == "approved") "Approving protected action…" else "Denying protected action…"
+        status.text = if (decision == "approved") "Approving protected action..." else "Denying protected action..."
         thread(name = "dpn-mobile-approval-decision") {
             val result = runCatching { api.decide(approvalId, decision) }
             runOnUiThread {
