@@ -69,17 +69,11 @@
           <div id="v9CommandResults" class="v9-command-results" role="listbox"></div>
         </div>
       </div>
-      <section id="v9FocusDrawer" class="v9-focus-drawer hidden" role="dialog" aria-modal="true" aria-label="Desktop focus center" aria-live="polite" aria-hidden="true" tabindex="-1">
-        <header><div><span id="v9FocusEyebrow">DPN AI</span><strong id="v9FocusTitle">Focus Center</strong></div><button id="v9FocusClose" aria-label="Close focus center">×</button></header>
-        <div id="v9FocusBody" class="v9-focus-body"></div>
-      </section>
       <button id="v9PaletteButton" class="v9-palette-button" title="Command palette (Ctrl+K)" aria-label="Open command palette" aria-haspopup="dialog" aria-controls="v9CommandPalette">⌘</button>
       <div id="v9LiveRegion" class="v9-sr-only" aria-live="polite"></div>
     `);
 
     $('v9PaletteButton')?.addEventListener('click', openPalette);
-    $('v9FocusClose')?.addEventListener('click', closeFocus);
-    $('v9FocusDrawer')?.addEventListener('keydown', (event) => trapFocus(event, $('v9FocusDrawer')));
     $('v9CommandPalette')?.addEventListener('click', (event) => {
       if (event.target === $('v9CommandPalette')) closePalette();
     });
@@ -138,80 +132,11 @@
     if (event.key === 'Escape') { event.preventDefault(); closePalette(); }
   }
 
-  function focusTemplate(kind) {
-    if (kind === 'tasks') {
-      return {
-        eyebrow: 'TASK CENTER',
-        title: 'Execution Control',
-        body: `
-          <p>Use the existing autonomous job queue and run history as the source of truth. Controls below route to those live surfaces rather than simulating task state.</p>
-          <div class="v9-focus-grid">
-            <button data-route="jobsBtn"><strong>Open Job Queue</strong><small>Queued, running, paused, cancelled, and failed work</small></button>
-            <button data-route="runsBtn"><strong>Open Run History</strong><small>Evidence, audit state, and terminal outcomes</small></button>
-            <button data-route="automationsBtn"><strong>Open Automations</strong><small>Recurring and conditional workflows</small></button>
-          </div>
-          <div class="v9-control-note"><b>Pause / Resume / Cancel:</b> available through the existing task/run surfaces when the underlying runtime exposes those actions. This overlay never fabricates successful cancellation.</div>`,
-      };
-    }
-    if (kind === 'approvals') {
-      return {
-        eyebrow: 'APPROVAL CENTER',
-        title: 'Human Control Boundary',
-        body: `
-          <p>Review sensitive and destructive operations before execution. Approval state remains owned by the existing Approval Inbox.</p>
-          <div class="v9-focus-grid">
-            <button data-route="approvalsBtn"><strong>Open Approval Inbox</strong><small>Pending human decisions and evidence</small></button>
-            <button data-route="runsBtn"><strong>Review Audit Trail</strong><small>See what was approved, denied, or blocked</small></button>
-            <button data-route="settingsBtn"><strong>Permission Settings</strong><small>Inspect session and persistent permission policy</small></button>
-          </div>
-          <div class="v9-control-note"><b>Safety:</b> this center does not auto-approve requests or weaken existing permission gates.</div>`,
-      };
-    }
-    return {
-      eyebrow: 'AGENT ACTIVITY',
-      title: 'Operational Activity Summary',
-      body: `
-        <p>DPN AI can show agent status, selected tools, outputs, evidence, errors, retries, and completion state without exposing private internal reasoning.</p>
-        <div class="v9-focus-grid">
-          <button data-route="missionsBtn"><strong>Mission Activity</strong><small>Planner/executor/reviewer progress and evidence</small></button>
-          <button data-route="runsBtn"><strong>Run Evidence</strong><small>Tool activity, timestamps, outcomes, and failures</small></button>
-          <button data-route="diagnosticsBtn"><strong>Diagnostics</strong><small>Runtime health and recovery evidence</small></button>
-        </div>
-        <div class="v9-control-note"><b>Privacy boundary:</b> activity views expose concise operational summaries, not hidden chain-of-thought or private reasoning traces.</div>`,
-    };
-  }
-
-  function openFocus(kind) {
-    ensureShell();
-    if ($('v9FocusDrawer')?.classList.contains('hidden')) rememberFocus();
-    const template = focusTemplate(kind);
-    if ($('v9FocusEyebrow')) $('v9FocusEyebrow').textContent = template.eyebrow;
-    if ($('v9FocusTitle')) $('v9FocusTitle').textContent = template.title;
-    if ($('v9FocusBody')) {
-      $('v9FocusBody').innerHTML = template.body;
-      $('v9FocusBody').querySelectorAll('[data-route]').forEach((button) => {
-        button.addEventListener('click', () => invoke(button.dataset.route));
-      });
-    }
-    $('v9FocusDrawer')?.classList.remove('hidden');
-    $('v9FocusDrawer')?.setAttribute('aria-hidden', 'false');
-    window.setTimeout(() => $('v9FocusClose')?.focus(), 0);
-  }
-
-  function closeFocus() {
-    const drawer = $('v9FocusDrawer');
-    if (!drawer || drawer.classList.contains('hidden')) return;
-    drawer.classList.add('hidden');
-    drawer.setAttribute('aria-hidden', 'true');
-    restoreFocus();
-  }
-
   function bindKeyboard() {
     document.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' && !isEditableTarget(event.target)) { event.preventDefault(); openPalette(); return; }
       if (event.key === 'Escape') {
         if (!$('v9CommandPalette')?.classList.contains('hidden')) { closePalette(); return; }
-        if (!$('v9FocusDrawer')?.classList.contains('hidden')) { closeFocus(); return; }
       }
       if (!(event.ctrlKey || event.metaKey) || isEditableTarget(event.target)) return;
       const shift = event.shiftKey;
