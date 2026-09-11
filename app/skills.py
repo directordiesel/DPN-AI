@@ -30,7 +30,7 @@ class SkillManager:
                     data.setdefault("id", path.stem)
                     data["path"] = str(path)
                     skills.append(data)
-            except Exception:
+            except (OSError, UnicodeError, json.JSONDecodeError):
                 skills.append({"id": path.stem, "name": path.stem, "error": "Invalid skill JSON", "path": str(path)})
         return {"ok": True, "skills": skills}
 
