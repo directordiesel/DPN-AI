@@ -59,3 +59,11 @@ def test_container_runtime_drops_root_privileges():
     assert "adduser --system --ingroup dpnai" in DOCKERFILE
     assert "USER dpnai" in DOCKERFILE
     assert "chown -R dpnai:dpnai /opt/dpn-ai" in DOCKERFILE
+
+
+def test_local_api_blocks_cross_origin_browser_requests_and_dns_rebinding():
+    assert "_same_browser_origin(request)" in MAIN
+    assert "Cross-origin browser API requests are not allowed." in MAIN
+    assert "_normalized_hostname(request.headers.get(\"Host\", \"\"))" in MAIN
+    assert "Untrusted Host header for local API access." in MAIN
+    assert '_LOCAL_API_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}' in MAIN
