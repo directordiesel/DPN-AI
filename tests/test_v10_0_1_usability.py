@@ -282,7 +282,8 @@ def test_interface_shell_validator_covers_primary_controls_and_cache_is_rotated(
     assert "DPN AI interface cache mismatch" in js
     assert "Repair cached interface" in js
     assert "dpn-ai-v10.0.1-ui-shell" in sw
-    assert "dpn-ai-v10.0.0-ui-shell" not in sw\n    assert "development-ui-shell" not in sw
+    assert "dpn-ai-v10.0.0-ui-shell" not in sw
+    assert "development-ui-shell" not in sw
 
 
 
