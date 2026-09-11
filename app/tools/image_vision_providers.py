@@ -211,7 +211,7 @@ class ComfyUIImageEditor:
         upload_name = f"dpn_ai_edit_{uuid.uuid4().hex}_{path.name}"
         client_id = str(uuid.uuid4())
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=30) as client:
                 upload = await client.post(
                     f"{self.base_url}/upload/image",
                     files={"image": (upload_name, payload, mime)},
