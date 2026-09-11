@@ -105,3 +105,10 @@ def test_security_gate_uses_locked_audit_toolchain():
     assert "-r .github/requirements-security.txt" in SECURITY_GATE
     assert "pip install --upgrade pip pip-audit" not in SECURITY_GATE
     assert 'directory: "/.github"' in DEPENDABOT
+
+
+def test_streaming_errors_are_redacted_and_opaque():
+    assert "safe_message = str(sanitize_for_persistence(str(exc)))[:500]" in MAIN
+    assert 'f"DPN AI encountered an internal error. Error ID {error_id}' in MAIN
+    assert 'f"DPN AI encountered {type(exc).__name__}' not in MAIN
+    assert 'except OSError:' in MAIN
