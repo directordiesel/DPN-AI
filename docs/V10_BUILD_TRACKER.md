@@ -1,6 +1,6 @@
-# DPN AI v10.0.0 Build Tracker
+# DPN AI v10 Program and v10.0.1 Maintenance Tracker
 
-DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. Incremental 10.0.x checkpoints may be used during construction, but the complete approved scope remains part of v10.0.0.
+DPN AI v10.0.0 completed the approved Autonomous Intelligence Platform program and was published as the stable release. The v10.0.x line now carries compatible maintenance hardening without rewriting historical batch evidence.
 
 ## Status Legend
 
@@ -12,9 +12,11 @@ DPN AI v10.0.0 is the single approved Autonomous Intelligence Platform program. 
 
 ## Program Status
 
-Current active batch: **Batch 17 — Performance + Benchmark Optimization**
+Current active checkpoint: **v10.0.1 — Usability Recovery, Interface Sanitation, and Maintenance Release Readiness**
 
-Overall program state: **IN DEVELOPMENT**
+Published stable baseline: **v10.0.0**
+
+Overall program state: **v10.0.0 PUBLISHED / v10.0.1 RELEASE-CANDIDATE VALIDATION**
 
 ## Batches
 
@@ -34,8 +36,8 @@ Overall program state: **IN DEVELOPMENT**
 14. ✅ Benchmark-Gated Controlled Self-Improvement
 15. ✅ Full-System Integration
 16. ✅ Security + Regression Hardening
-17. 🟣 Performance + Benchmark Optimization
-18. ⏳ Production Readiness + Stable Release
+17. ✅ Performance + Benchmark Optimization
+18. ✅ Production Readiness + Stable Release
 
 ## Batch 1–7 Completion
 
@@ -68,21 +70,30 @@ Batches 8–14 are complete and merged. Their dedicated release-readiness gates 
 - Exact functional/release head `89b4db2fbcfba59c7a67ab94c4bc174ba6ba8e0c` passed Ubuntu/Windows Python 3.11/3.12 CI, DPN Security Gate v2, Runtime & Recovery Assurance, Repository Health, and the dedicated Batch 16 security regression release gate. Windows Desktop Package remained an expected skip.
 - This tracker-only completion commit must also pass exact-head verification before PR #114 may merge.
 
-## Batch 17 Goals
+## Batch 17 Completion
 
-- Benchmark integrated v10 hot paths using recorded evidence rather than synthetic success claims.
-- Identify and reduce unnecessary latency, retries, repeated validation, duplicate serialization, avoidable disk I/O, and redundant model/tool routing work without weakening security gates.
-- Add deterministic performance-budget and regression evidence for representative model routing, benchmark summarization, memory retrieval, connector authorization, artifact orchestration, mission control, and release-gate paths where practical.
-- Preserve functional behavior and all Batch 8–16 release/security gates while optimizing.
-- Add an immutable Batch 17 performance-readiness gate before merge.
+- Performance + Benchmark Optimization completed with deterministic regression budgets and a dedicated fail-closed Batch 17 performance release-readiness gate.
+- The optimization work preserved the established security, approval, connector, benchmark, and execution trust boundaries.
 
-## Batch 18 Goals
+## Batch 18 Completion and v10.0.0 Publication
 
-- Production readiness, packaging, installation, operator documentation, final release verification, stable versioning, SBOM/checksum evidence, and v10.0.0 stable release declaration.
+- Production readiness, version promotion, release-artifact contracts, supply-chain generation, and non-authorizing release evidence completed.
+- DPN AI v10.0.0 was published from exact main commit `43811b3dd2afb77b6b5a803eb158c8515f82a4b5`.
+- The published GitHub release includes the source archive, SHA-256 checksum, release manifest, SPDX SBOM, tracked-source SHA-256 manifest, and dependency inventory.
+- Historical Batch 8–18 checkpoints remain immutable v10.0.0 evidence and are not renamed during patch releases.
+
+## v10.0.1 Maintenance Checkpoint
+
+- Desktop interface sanitation: encoding cleanup, dead-control/DOM auditing, accessible modal focus lifecycle, truthful navigation, actionable empty states, and safe recovery copy.
+- Capability honesty: model, voice, Docker, Tool Server/MCP, connector, and workflow failures explain the missing dependency or next recovery action.
+- Technical evidence remains available but is presented behind clearly labeled detail sections where exact raw evidence is not the primary user task.
+- Android primary screens are plain-text, scroll-safe, action-wired, and route connection failures to bounded local diagnostics.
+- Active candidate metadata is governed separately from the published v10.0.0 baseline.
+- The dedicated `v10.0.1-maintenance-readiness` gate is strict, fail-closed, and non-authorizing.
 
 ## Verification Rules
 
-A batch is not complete merely because files exist. Completion requires relevant tests, evidence, documentation, and end-to-end integration. High-risk or destructive actions remain approval-gated. Stable v10.0.0 is not declared until all batches are integrated and production-readiness gates pass.
+A checkpoint is not complete merely because files exist. Completion requires relevant tests, evidence, documentation, end-to-end integration, and exact-head validation. High-risk or destructive actions remain approval-gated. A green older commit must never be substituted for the current candidate head. Publishing v10.0.1 remains a separate explicitly authorized action.
 
 ## Update Format
 
