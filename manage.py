@@ -10,6 +10,7 @@ from app.config import settings
 from app.database_maintenance import DatabaseMaintenance
 from app.db import Database
 from app.model_gateway import ModelGateway
+from app.persistence_security import sanitize_for_persistence
 from app.tools.registry import ToolRegistry
 
 
@@ -33,15 +34,16 @@ async def doctor() -> dict[str, Any]:
     result["ollama"] = result["model_gateway"].get("ollama", {})
     try:
         result["models"] = await gateway.list_models()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # Doctor must continue when one diagnostic provider fails.
         result["models"] = []
-        result["model_error"] = str(exc)
+        result["model_error"] = str(sanitize_for_persistence(str(exc)))
     try:
         maintenance = database_maintenance()
         result["database"] = maintenance.integrity_check(full=False)
         maintenance.harden_permissions()
-    except Exception as exc:  # noqa: BLE001
-        result["database"] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    except Exception as exc:  # Doctor must report database failures without leaking details.
+        detail = str(sanitize_for_persistence(str(exc)))
+        result["database"] = {"ok": False, "error": f"{type(exc).__name__}: {detail}"}
     result["universal_core"] = {
         "tools": len(tools.schemas()),
         "plugin_errors": tools.plugin_errors,
@@ -116,8 +118,9 @@ def main() -> int:
                 }
             else:
                 output = maintenance.restore(args.name)
-        except Exception as exc:  # noqa: BLE001
-            output = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        except Exception as exc:  # CLI boundary converts failures into redacted diagnostics.
+            detail = str(sanitize_for_persistence(str(exc)))
+            output = {"ok": False, "error": f"{type(exc).__name__}: {detail}"}
         print(json.dumps(output, indent=2, ensure_ascii=False, default=str))
         return 0 if output.get("ok", False) else 1
 
