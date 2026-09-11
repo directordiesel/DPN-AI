@@ -48,9 +48,11 @@ def _sha256(path: Path) -> str:
 
 
 def test_release_requires_signed_windows_assets_before_publication():
+    assert "security-preflight:" in RELEASE
+    assert "needs: security-preflight" in RELEASE
     assert "windows-release-assets:" in RELEASE
     assert "needs: windows-release-assets" in RELEASE
-    assert RELEASE.index("windows-release-assets:") < RELEASE.index("  release:")
+    assert RELEASE.index("security-preflight:") < RELEASE.index("windows-release-assets:") < RELEASE.index("  release:")
     assert "Build verified signed production Windows assets" in RELEASE
     assert "packaging\\windows\\build-release-assets.ps1" in RELEASE
     assert "Verify transferred production Windows bundle" in RELEASE
@@ -219,3 +221,18 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
             channel="stable",
             public_key_hex=public_hex,
         )
+
+
+def test_release_security_preflight_audits_all_python_surfaces():
+    assert "Run repository and source security guards" in RELEASE
+    assert "python tools/dpn_security_gate.py --github" in RELEASE
+    assert ".github/requirements-security.txt" in RELEASE
+    assert "python -m pip_audit -r" in RELEASE
+    for requirement in (
+        "requirements.txt",
+        "requirements-build.txt",
+        "requirements-browser.txt",
+        "requirements-desktop.txt",
+        "requirements-voice.txt",
+    ):
+        assert requirement in RELEASE
