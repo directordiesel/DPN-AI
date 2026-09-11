@@ -21,7 +21,7 @@ class OllamaClient:
 
     async def health(self) -> dict[str, Any]:
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=5) as client:
                 response = await client.get(f"{self.base_url}/api/version")
                 response.raise_for_status()
                 payload = response.json()
@@ -33,7 +33,7 @@ class OllamaClient:
 
     async def list_models(self) -> list[dict[str, Any]]:
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=20) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
         except httpx.ConnectError as exc:
             raise OllamaError("DPN AI cannot reach Ollama. Start the Ollama application or run `ollama serve`.") from exc
@@ -106,7 +106,7 @@ class OllamaClient:
 
     async def _post_chat(self, payload: dict[str, Any]) -> httpx.Response:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
                 return await client.post(f"{self.base_url}/api/chat", json=payload)
         except httpx.ConnectError as exc:
             raise OllamaError(
@@ -196,7 +196,7 @@ class OllamaClient:
         """Load a model into Ollama memory and keep it resident for fast first-token latency."""
         payload = {"model": model, "prompt": "", "stream": False, "keep_alive": "24h"}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
                 response = await client.post(f"{self.base_url}/api/generate", json=payload)
         except httpx.ConnectError as exc:
             raise OllamaError("DPN AI cannot reach Ollama to warm the intelligence model.") from exc
@@ -245,7 +245,7 @@ class OllamaClient:
                 await result
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
                 async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
                     if response.status_code >= 400:
                         raw = await response.aread()
@@ -299,7 +299,7 @@ class OllamaClient:
 
     async def embed(self, model: str, inputs: list[str]) -> list[list[float]]:
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=self.timeout) as client:
                 response = await client.post(
                     f"{self.base_url}/api/embed",
                     json={"model": model, "input": inputs, "truncate": True},
@@ -321,7 +321,7 @@ class OllamaClient:
 
     async def pull_model(self, model: str) -> dict[str, Any]:
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(trust_env=False, timeout=None) as client:
                 response = await client.post(
                     f"{self.base_url}/api/pull",
                     json={"model": model, "stream": False},
