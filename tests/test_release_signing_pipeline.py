@@ -84,8 +84,11 @@ def test_production_builder_imports_nonexportable_cert_and_always_cleans_it():
     assert "-Exportable:$false" in BUILDER
     assert "finally {" in BUILDER
     assert 'Remove-Item -LiteralPath $PfxPath' in BUILDER
-    assert 'Cert:\\CurrentUser\\My\\$CertificateThumbprint' in BUILDER
-    assert "Remove-Item -LiteralPath $CertificatePath" in BUILDER
+    assert "foreach ($ImportedCertificate in $ImportedCertificates)" in BUILDER
+    assert 'Cert:\\CurrentUser\\My\\$ImportedThumbprint' in BUILDER
+    assert "Remove-Item -LiteralPath $ImportedPath" in BUILDER
+    assert "[Array]::Clear($PfxBytes, 0, $PfxBytes.Length)" in BUILDER
+    assert "$Password.Dispose()" in BUILDER
     assert "https://timestamp.digicert.com" in BUILDER
     assert "Production timestamp URL must use HTTPS" in BUILDER
 
