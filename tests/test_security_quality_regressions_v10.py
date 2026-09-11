@@ -7,6 +7,8 @@ MODEL_GATEWAY = (ROOT / "app" / "model_gateway.py").read_text(encoding="utf-8")
 SKILLS = (ROOT / "app" / "skills.py").read_text(encoding="utf-8")
 BROWSER = (ROOT / "app" / "browser_adapter.py").read_text(encoding="utf-8")
 CODEQL = (ROOT / ".github" / "workflows" / "codeql-advanced.yml").read_text(encoding="utf-8")
+DEPENDABOT = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
 
 
 def test_api_token_comparison_is_constant_time():
@@ -45,3 +47,15 @@ def test_codeql_runs_extended_security_and_quality_queries():
     assert "queries: security-extended,security-and-quality" in CODEQL
     for language in ("python", "actions", "javascript-typescript", "java-kotlin"):
         assert f"language: {language}" in CODEQL
+
+
+def test_dependabot_covers_all_shipped_dependency_ecosystems():
+    for ecosystem in ("pip", "github-actions", "gradle", "docker"):
+        assert f'package-ecosystem: "{ecosystem}"' in DEPENDABOT
+    assert 'directory: "/mobile/android"' in DEPENDABOT
+
+
+def test_container_runtime_drops_root_privileges():
+    assert "adduser --system --ingroup dpnai" in DOCKERFILE
+    assert "USER dpnai" in DOCKERFILE
+    assert "chown -R dpnai:dpnai /opt/dpn-ai" in DOCKERFILE
