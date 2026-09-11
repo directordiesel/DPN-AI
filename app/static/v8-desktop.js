@@ -162,7 +162,6 @@
 
   function bindWorkspaceTabs() {
     const map = {
-      chat: 'newChatBtn',
       missions: 'missionsBtn',
       projects: 'projectsBtn',
       creator: 'capabilityForgeBtn',
@@ -174,8 +173,13 @@
       tab.addEventListener('click', () => {
         document.querySelectorAll('.desktop-workspace-tab').forEach((item) => item.classList.remove('active'));
         tab.classList.add('active');
-        const target = map[tab.dataset.workspace];
-        if (target) invokeExisting(target);
+        if (tab.dataset.workspace === 'chat') {
+          invokeExisting('closeModalBtn');
+          document.getElementById('promptInput')?.focus();
+        } else {
+          const target = map[tab.dataset.workspace];
+          if (target) invokeExisting(target);
+        }
         try {
           localStorage.setItem('dpn-ai-v8-workspace', tab.dataset.workspace || 'chat');
         } catch (_) {}
