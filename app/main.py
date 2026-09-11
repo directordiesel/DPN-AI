@@ -62,7 +62,7 @@ from app.services import ExportService
 from app.tools.registry import ToolRegistry
 
 
-APP_VERSION = "10.0.0"
+APP_VERSION = "10.0.1"
 db = Database(settings.database_path)
 tools = ToolRegistry(settings, db)
 ollama = ModelGateway(settings, db, tools.vault)
