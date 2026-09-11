@@ -59,7 +59,7 @@ Windows release artifacts use two independent trust mechanisms:
 
 The release builder requires HTTPS timestamping, validates signer thumbprints, self-verifies the generated Ed25519 signature, re-hashes the installer, and clears temporary signing material before exit.
 
-The Ubuntu publication job independently re-verifies the transferred bundle before creating the GitHub Release.
+The Windows build job also creates GitHub/Sigstore SLSA build-provenance attestations for the signed production bundle. The Ubuntu publication job independently re-verifies the transferred bundle, creates a separate provenance attestation for the source archive it builds, and only then creates the GitHub Release.
 
 ## Verification
 
@@ -69,7 +69,7 @@ Verify tracked source files from a checkout of the tagged release with sha256sum
 
 Verify the Windows bundle with sha256sum against WINDOWS_SHA256SUMS.txt.
 
-Authenticode and Ed25519 verification are additionally enforced inside the production release workflow.
+Authenticode and Ed25519 verification are additionally enforced inside the production release workflow. GitHub artifact attestations provide an additional Sigstore-backed provenance record for workflow-built release artifacts.
 
 ## Release traceability
 
@@ -82,7 +82,9 @@ Source + VERSION
 → Authenticode-Signed Windows Installer
 → Ed25519-Signed Update Manifest
 → Windows SHA-256 Bundle
+→ GitHub/Sigstore Windows Build Provenance
 → Independent Ubuntu Bundle Verification
+→ GitHub/Sigstore Source Archive Provenance
 → GitHub Release + Immutable Tag
 → Exact Tag Supply-Chain Inventory
 → SPDX + CycloneDX SBOMs
