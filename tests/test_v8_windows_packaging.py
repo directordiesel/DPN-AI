@@ -65,3 +65,19 @@ def test_release_build_can_require_verified_authenticode_signing():
     assert "/td SHA256" in SIGN
     assert "SignerCertificate.Thumbprint" in SIGN
     assert "Authenticode verification failed" in SIGN
+
+
+def test_production_package_requires_and_verifies_public_update_trust_root():
+    assert 'DPN_UPDATE_TRUST_FILE' in SPEC
+    assert 'update-trust.json' in SPEC
+    assert 'datas.append((str(trust_path), "desktop"))' in SPEC
+    assert 'Production signing requires the packaged public update trust root.' in BUILD
+    assert 'Get-ChildItem -Path (Join-Path $DistRoot "DPN-AI") -Filter "update-trust.json"' in BUILD
+    assert 'Production package must contain exactly one update-trust.json file.' in BUILD
+    assert 'Packaged update trust root does not match the configured production trust root.' in BUILD
+    assert 'update_trust_configured = $UpdateTrustConfigured' in BUILD
+    assert 'update_trust_root_sha256 = $UpdateTrustRootSha256' in BUILD
+
+
+def test_development_package_cannot_accidentally_ship_a_stale_update_trust_root():
+    assert 'Development package unexpectedly contains an update trust root.' in BUILD
