@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -12,10 +13,13 @@ from pypdf import PdfReader
 from pptx import Presentation
 
 from app.db import Database, utc_now
+from app.persistence_security import sanitize_for_persistence
 from app.tools.filesystem import TEXT_EXTENSIONS, WorkspaceFS
 
 
 SUPPORTED_EXTENSIONS = TEXT_EXTENSIONS | {".pdf", ".docx", ".xlsx", ".pptx"}
+MAX_INDEX_FILE_BYTES = 25_000_000
+MAX_EXTRACTED_TEXT_CHARS = 5_000_000
 
 
 def chunk_text(text: str, size: int = 1800, overlap: int = 250) -> list[str]:
@@ -123,12 +127,15 @@ class KnowledgeBase:
         for candidate in candidates:
             if indexed + skipped >= max_files:
                 break
-            if not candidate.is_file() or candidate.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            if candidate.is_symlink() or not candidate.is_file() or candidate.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 continue
             if any(part in {".git", ".venv", "node_modules", "__pycache__"} for part in candidate.parts):
                 continue
             rel = self.fs.relative(candidate)
             stat = candidate.stat()
+            if stat.st_size > MAX_INDEX_FILE_BYTES:
+                failed.append({"path": rel, "error": "File exceeds the 25 MB indexing safety limit"})
+                continue
             with self.db.connect() as db:
                 row = db.execute(
                     "SELECT modified_ns, size_bytes FROM knowledge_documents WHERE path = ?",
@@ -139,10 +146,12 @@ class KnowledgeBase:
                 continue
             try:
                 text = self.extract_text(candidate)
+                if len(text) > MAX_EXTRACTED_TEXT_CHARS:
+                    text = text[:MAX_EXTRACTED_TEXT_CHARS]
                 chunk_count += self._upsert_document(candidate, text)
                 indexed += 1
-            except Exception as exc:  # noqa: BLE001
-                failed.append({"path": rel, "error": str(exc)})
+            except Exception as exc:  # Per-file parser boundary keeps indexing remaining files.
+                failed.append({"path": rel, "error": str(sanitize_for_persistence(str(exc)))})
         return {"ok": True, "indexed": indexed, "skipped": skipped, "chunks": chunk_count, "failed": failed[:25]}
 
     def search(self, query: str, limit: int = 8) -> dict[str, Any]:
@@ -162,7 +171,7 @@ class KnowledgeBase:
                     """,
                     (fts_query, max(1, min(limit, 30))),
                 ).fetchall()
-            except Exception:
+            except sqlite3.Error:
                 rows = []
         return {
             "ok": True,
