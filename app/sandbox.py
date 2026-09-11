@@ -67,7 +67,7 @@ class SandboxManager:
                 stdin=subprocess.DEVNULL,
             )
             return result.returncode == 0
-        except Exception:
+        except (OSError, subprocess.SubprocessError):
             return False
 
     def status(self) -> dict[str, Any]:
@@ -78,6 +78,7 @@ class SandboxManager:
             "warning": "Host fallback is a bounded subprocess, not a security isolation boundary.",
             "supported_languages": ["python"],
             "sandbox_image": SANDBOX_IMAGE,
+            "image_auto_pull": False,
             "network_enabled": False,
         }
 
@@ -213,6 +214,7 @@ class SandboxManager:
             command = [
                 docker_executable,
                 "run",
+                "--pull=never",
                 "--rm",
                 "--name",
                 container_name,
