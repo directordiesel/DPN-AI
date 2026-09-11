@@ -458,3 +458,31 @@ def test_expert_evidence_is_human_first_and_explicitly_labeled():
     assert "Technical execution evidence:" in js
     assert "output.textContent=formatSandboxResult(r)" in js
     assert "output.textContent=JSON.stringify(r,null,2)" not in js
+
+
+
+def test_active_windows_surfaces_use_current_version_source():
+    active_bat_files = (
+        "run_dpn_ai.bat",
+        "repair_windows.bat",
+        "doctor_windows.bat",
+        "install_windows.bat",
+        "install_core_only_windows.bat",
+        "install_sentinel_hd_windows.bat",
+    )
+    for name in active_bat_files:
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "v5.0.7" not in text
+        assert 'set "DPN_VERSION=unknown"' in text
+        assert 'set /p DPN_VERSION=<"VERSION"' in text
+        assert "v%DPN_VERSION%" in text
+
+    installer = (ROOT / "INSTALL_DPN_AI.ps1").read_text(encoding="utf-8")
+    assert "v5.0.7" not in installer
+    assert "$DpnVersion" in installer
+    assert "$VersionPath = Join-Path $Root 'VERSION'" in installer
+    assert "'VERSION'" in installer
+
+    issue_template = (ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml").read_text(encoding="utf-8")
+    assert 'placeholder: "v5.0.7"' not in issue_template
+    assert "Version shown in DPN AI" in issue_template
