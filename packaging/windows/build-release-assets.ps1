@@ -49,6 +49,7 @@ if ($TimestampUrl -notmatch '^https://') {
 Assert-SecretEnvironment
 
 $PfxPath = Join-Path $env:RUNNER_TEMP "dpn-production-signing.pfx"
+$TrustRootPath = Join-Path $env:RUNNER_TEMP "update-trust.json"
 $CertificateThumbprint = $null
 $ImportedCertificates = @()
 $PfxBytes = $null
@@ -82,6 +83,12 @@ try {
         Write-Output "::add-mask::$CertificateThumbprint"
     }
 
+    Invoke-Checked $Python ".github/scripts/write_update_trust_root.py" "--output" $TrustRootPath
+    if (-not (Test-Path $TrustRootPath -PathType Leaf)) {
+        throw "Production update trust root was not generated."
+    }
+    $env:DPN_UPDATE_TRUST_FILE = $TrustRootPath
+
     $BuildParameters = @{
         Python = $Python
         CertificateThumbprint = $CertificateThumbprint
@@ -109,6 +116,14 @@ try {
     }
     if (-not (Test-Path $SourceBuildManifest -PathType Leaf)) {
         throw "Production source build manifest was not created."
+    }
+    $SourceManifest = Get-Content $SourceBuildManifest -Raw | ConvertFrom-Json
+    $ExpectedTrustHash = (Get-FileHash -Algorithm SHA256 $TrustRootPath).Hash.ToLowerInvariant()
+    if (-not $SourceManifest.update_trust_configured) {
+        throw "Production package manifest does not record an update trust root."
+    }
+    if ($SourceManifest.update_trust_root_sha256 -ne $ExpectedTrustHash) {
+        throw "Production package trust-root hash does not match the generated trust root."
     }
 
     Invoke-Checked $Python ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
@@ -201,6 +216,7 @@ for path in files:
 }
 finally {
     Remove-Item -LiteralPath $PfxPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $TrustRootPath -Force -ErrorAction SilentlyContinue
     if ($PfxBytes) {
         [Array]::Clear($PfxBytes, 0, $PfxBytes.Length)
     }
@@ -218,4 +234,5 @@ finally {
     }
     Remove-Item Env:DPN_RELEASE_VERSION -ErrorAction SilentlyContinue
     Remove-Item Env:DPN_RELEASE_CHANNEL -ErrorAction SilentlyContinue
+    Remove-Item Env:DPN_UPDATE_TRUST_FILE -ErrorAction SilentlyContinue
 }
