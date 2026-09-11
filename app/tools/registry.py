@@ -24,6 +24,7 @@ from app.vault import SecretVault
 from app.voice_adapter import VoiceAdapter
 from app.db import Database
 from app.plugins import load_plugins
+from app.persistence_security import sanitize_for_persistence
 from app.services import DiagnosticService, SnapshotService
 from app.tools.documents import DocumentFactory
 from app.tools.filesystem import WorkspaceFS
@@ -213,10 +214,10 @@ class ToolRegistry:
         }, ["path"]), self.fs.file_hash)
         self.register("make_directory", "Create a directory inside the workspace.", object_schema({"path": {"type": "string"}}, ["path"]), self.fs.make_directory, risk="write")
         self.register("delete_path", "Delete one file or an empty directory. Recursive deletion remains disabled.", object_schema({"path": {"type": "string"}}, ["path"]), self.fs.delete_path, risk="destructive")
-        self.register("run_command", "Run a controlled development command in the workspace. Command execution must be enabled.", object_schema({
+        self.register("run_command", "Run a controlled development command in the workspace. Commands may reach external services, so command execution must be enabled and external-risk approval policy applies.", object_schema({
             "command": {"type": "string"}, "cwd": {"type": "string", "default": "."},
             "timeout_seconds": {"type": ["integer", "null"], "default": None},
-        }, ["command"]), self.shell.run, gate="commands", risk="execute")
+        }, ["command"]), self.shell.run, gate="commands", risk="external")
 
         self.register("index_workspace", "Index supported workspace files for local document and code search.", object_schema({
             "path": {"type": "string", "default": "."}, "force": {"type": "boolean", "default": False},
@@ -487,9 +488,11 @@ class ToolRegistry:
             if not isinstance(result, dict):
                 result = {"ok": True, "result": result}
         except TypeError as exc:
-            result = {"ok": False, "error": f"Invalid tool arguments: {exc}"}
-        except Exception as exc:  # noqa: BLE001
-            result = {"ok": False, "error": f"Tool failed: {type(exc).__name__}: {exc}"}
+            detail = str(sanitize_for_persistence(str(exc)))
+            result = {"ok": False, "error": f"Invalid tool arguments: {detail}"}
+        except Exception as exc:  # Tool boundary isolates provider/plugin failures.
+            detail = str(sanitize_for_persistence(str(exc)))
+            result = {"ok": False, "error": f"Tool failed: {type(exc).__name__}: {detail}"}
         result.setdefault("elapsed_ms", int((time.monotonic() - started) * 1000))
         return result
 
