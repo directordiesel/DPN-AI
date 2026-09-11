@@ -147,7 +147,7 @@ class SandboxManager:
             finally:
                 try:
                     stream.close()
-                except Exception:
+                except OSError:
                     pass
 
         threads = [
@@ -277,14 +277,17 @@ class SandboxManager:
             }
         finally:
             if engine == "docker" and docker_executable:
-                subprocess.run(
-                    [docker_executable, "rm", "-f", container_name],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL,
-                    timeout=5,
-                    check=False,
-                )
+                try:
+                    subprocess.run(
+                        [docker_executable, "rm", "-f", container_name],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        stdin=subprocess.DEVNULL,
+                        timeout=5,
+                        check=False,
+                    )
+                except (OSError, subprocess.SubprocessError):
+                    pass
 
         elapsed = round(time.monotonic() - started, 3)
         record = {
