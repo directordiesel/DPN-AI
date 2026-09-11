@@ -45,12 +45,12 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         addView(TextView(this@VoiceActivity).apply {
-            text = "DPN AI • Voice"
+            text = "DPN AI - Voice"
             textSize = 26f
             setTextColor(Color.WHITE)
         })
         addView(TextView(this@VoiceActivity).apply {
-            text = "Tap to talk • no background listening"
+            text = "Tap to talk - no background listening"
             textSize = 12f
             setTextColor(Color.rgb(167, 139, 250))
             setPadding(0, 4, 0, 36)
@@ -102,7 +102,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         }
         listening = true
         talkButton.text = "Stop Listening"
-        status.text = "Listening only while this voice session is active…"
+        status.text = "Listening only while this voice session is active..."
         speechRecognizer.startListening(intent)
     }
 
@@ -118,7 +118,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_AUDIO) {
             if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) startListening()
-            else status.text = "Microphone permission denied — voice capture remains off."
+            else status.text = "Microphone permission denied - voice capture remains off."
         }
     }
 
@@ -139,8 +139,8 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
     }
 
     private fun submitVoiceRequest(spoken: String) {
-        transcript.text = "YOU\n$spoken\n\nDPN AI\nWorking…"
-        status.text = "Sending voice request to the unified DPN AI runtime…"
+        transcript.text = "YOU\n$spoken\n\nDPN AI\nWorking..."
+        status.text = "Sending voice request to the unified DPN AI runtime..."
         talkButton.isEnabled = false
         thread(name = "dpn-mobile-voice-chat") {
             val result = runCatching {
@@ -154,7 +154,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
                     speakReply(reply.message)
                 }.onFailure { error ->
                     transcript.text = "YOU\n$spoken\n\nSYSTEM\nVoice request failed: ${error.message ?: "unknown error"}"
-                    status.text = "Voice request failed — no success was fabricated."
+                    status.text = "Voice request failed - no success was fabricated."
                 }
             }
         }
@@ -193,7 +193,7 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
     override fun onEndOfSpeech() {
         listening = false
         talkButton.text = "Tap to Talk"
-        status.text = "Processing speech…"
+        status.text = "Processing speech..."
     }
     override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
