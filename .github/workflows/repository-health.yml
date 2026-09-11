@@ -101,6 +101,18 @@ jobs:
               failures.append("release workflow must use the fail-closed Windows production asset builder")
           if ".github/scripts/verify_windows_release_bundle.py" not in release:
               failures.append("release workflow must independently verify transferred Windows assets")
+          if "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" not in release:
+              failures.append("release workflow must use the pinned GitHub provenance attestation action")
+          windows_job = release.split("  windows-release-assets:", 1)[1].split("  release:", 1)[0] if "  windows-release-assets:" in release else ""
+          publication_job = release.split("  release:", 1)[1] if "  release:" in release else ""
+          if "id-token: write" not in windows_job or "attestations: write" not in windows_job:
+              failures.append("Windows release build must have scoped OIDC and attestation permissions")
+          if "id-token: write" not in publication_job or "attestations: write" not in publication_job:
+              failures.append("release publication must have scoped OIDC and attestation permissions")
+          if "Attest production Windows release bundle" not in windows_job:
+              failures.append("Windows production bundle must receive build provenance before upload")
+          if "Attest release source archive" not in publication_job:
+              failures.append("release source archive must receive build provenance before publication")
           for secret_name in (
               "DPN_WINDOWS_SIGNING_PFX_B64",
               "DPN_WINDOWS_SIGNING_PFX_PASSWORD",
