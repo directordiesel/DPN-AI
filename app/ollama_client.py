@@ -5,6 +5,8 @@ from typing import Any
 
 import httpx
 
+from app.persistence_security import sanitize_for_persistence
+
 
 class OllamaError(RuntimeError):
     pass
@@ -21,8 +23,8 @@ class OllamaClient:
                 response = await client.get(f"{self.base_url}/api/version")
                 response.raise_for_status()
                 return {"ok": True, **response.json()}
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": str(exc)}
+        except (httpx.HTTPError, ValueError) as exc:
+            return {"ok": False, "error": str(sanitize_for_persistence(str(exc)))}
 
     async def list_models(self) -> list[dict[str, Any]]:
         try:
@@ -33,7 +35,8 @@ class OllamaClient:
         except httpx.TimeoutException as exc:
             raise OllamaError("Ollama did not answer the model-list request before the timeout.") from exc
         if response.status_code >= 400:
-            raise OllamaError(f"Ollama returned {response.status_code}: {response.text[:500]}")
+            detail = str(sanitize_for_persistence(response.text[:500]))
+            raise OllamaError(f"Ollama returned {response.status_code}: {detail}")
         return response.json().get("models", [])
 
     @classmethod
@@ -104,7 +107,8 @@ class OllamaClient:
                 "or increase DPN_MAX_RUN_SECONDS."
             ) from exc
         except httpx.RequestError as exc:
-            raise OllamaError(f"The Ollama request failed: {exc}") from exc
+            detail = str(sanitize_for_persistence(str(exc)))
+            raise OllamaError(f"The Ollama request failed: {detail}") from exc
 
     @staticmethod
     def _error_text(response: httpx.Response) -> str:
@@ -113,9 +117,9 @@ class OllamaClient:
             payload = response.json()
             if isinstance(payload, dict):
                 text = str(payload.get("error") or payload.get("detail") or text)
-        except Exception:  # noqa: BLE001
+        except ValueError:
             pass
-        return text[:1500] or "No error details were returned."
+        return str(sanitize_for_persistence(text[:1500])) or "No error details were returned."
 
     async def chat(
         self,
@@ -224,7 +228,8 @@ class OllamaClient:
                     if response.status_code >= 400:
                         raw = await response.aread()
                         text = raw.decode("utf-8", errors="replace")
-                        raise OllamaError(f"Ollama returned {response.status_code}: {text[:1500]}")
+                        detail = str(sanitize_for_persistence(text[:1500]))
+                        raise OllamaError(f"Ollama returned {response.status_code}: {detail}")
                     content_parts: list[str] = []
                     thinking_parts: list[str] = []
                     tool_calls: list[dict[str, Any]] = []
@@ -263,7 +268,8 @@ class OllamaClient:
         except httpx.TimeoutException as exc:
             raise OllamaError("The streamed Ollama response timed out.") from exc
         except httpx.RequestError as exc:
-            raise OllamaError(f"The streamed Ollama request failed: {exc}") from exc
+            detail = str(sanitize_for_persistence(str(exc)))
+            raise OllamaError(f"The streamed Ollama request failed: {detail}") from exc
 
     async def embed(self, model: str, inputs: list[str]) -> list[list[float]]:
         try:
