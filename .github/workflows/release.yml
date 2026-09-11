@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      id-token: write
+      attestations: write
     env:
       DISPATCH_VERSION: ${{ github.event.inputs.version }}
       DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
@@ -122,6 +124,16 @@ jobs:
           & .\packaging\windows\build-release-assets.ps1 -Python python -Version "$env:DPN_RELEASE_VERSION" -Channel "$env:DPN_RELEASE_CHANNEL"
           if ($LASTEXITCODE -ne 0) { throw "Production Windows release asset build failed." }
 
+      - name: Attest production Windows release bundle
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            dist/installer/DPN-AI-Setup-*.exe
+            dist/installer/installer-manifest.json
+            dist/installer/source-build-manifest.json
+            dist/installer/update-manifest.json
+            dist/installer/WINDOWS_SHA256SUMS.txt
+
       - name: Upload verified production Windows assets
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -141,6 +153,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       ARTIFACT_BASENAME: DPN-AI
       DISPATCH_VERSION: ${{ github.event.inputs.version }}
@@ -236,6 +250,11 @@ jobs:
             echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } > RELEASE_MANIFEST.txt
 
+      - name: Attest release source archive
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: "${{ env.ARTIFACT_BASENAME }}-${{ env.VERSION }}-source.zip"
+
       - name: Create GitHub Release
         shell: bash
         env:
@@ -272,6 +291,7 @@ jobs:
             echo ""
             echo "- Version: `$VERSION`"
             echo "- Commit: `$GITHUB_SHA`"
+            echo "- GitHub/Sigstore build provenance attestations created"
             echo "- Authenticode-signed Windows installer attached"
             echo "- Ed25519-signed update manifest attached"
             echo "- Windows release checksums and signer manifests attached"
