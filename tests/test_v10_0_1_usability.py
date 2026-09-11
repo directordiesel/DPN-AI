@@ -122,3 +122,42 @@ def test_sidebar_uses_plain_labels_instead_of_decorative_glyph_prefixes():
 
     for glyph in ("◉", "▰", "⬢", "▧", "✧", "⇌", "⚠", "◆", "◷", "⌁", "⬡", "▣", "◈", "✦", "⇄"):
         assert glyph not in html
+
+
+def test_primary_modules_explain_purpose_first_action_and_safety():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "function moduleIntro(title, purpose, firstAction, safety = '')" in js
+    assert "What is this?" in js
+    assert "Start here:" in js
+    assert "Safety:" in js
+
+    for module in (
+        "Voice Command Center",
+        "Workspace Files",
+        "Local Memory",
+        "Projects & Task Board",
+        "Local Automations",
+        "Runs & Audit Trail",
+        "Workspace Snapshots",
+        "System Diagnostics",
+        "Universal Missions",
+        "Autonomous Job Queue",
+        "Knowledge Graph",
+        "Sandbox Lab",
+        "Capability Forge",
+        "Tool Server Connections (MCP)",
+        "Approval Inbox",
+        "Skills & Workflows",
+        "Connectors & Secrets",
+    ):
+        assert "moduleIntro('" + module + "'" in js
+
+
+def test_destructive_memory_delete_requires_confirmation():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "Delete this saved memory?" in js
+    delete_call = "api(`/api/memories/${button.dataset.memory}`, {method:'DELETE'})"
+    assert delete_call in js
+    assert js.index("Delete this saved memory?") < js.index(delete_call)
