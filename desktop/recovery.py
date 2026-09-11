@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterable
 
+from app.persistence_security import sanitize_for_persistence
+
 
 class RecoveryStateError(RuntimeError):
     """Raised when persisted recovery evidence is malformed or unsafe."""
@@ -77,7 +79,8 @@ class CrashRecoveryController:
     @staticmethod
     def _sanitize_error(error: str) -> str:
         text = " ".join(str(error).replace("\x00", "").split())
-        return text[:2000] or "unknown failure"
+        redacted = str(sanitize_for_persistence(text))
+        return redacted[:2000] or "unknown failure"
 
     def record_crash(
         self,
