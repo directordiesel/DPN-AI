@@ -56,7 +56,7 @@
       'desktopCoreCard',
       'healthy',
       'Online',
-      `Desktop API ${summary?.api_version || 'v1'} - unified local runtime`,
+      `Local control service ${summary?.api_version || 'v1'} - DPN Core connected`,
     );
     setState(
       'desktopMissionCard',
@@ -74,7 +74,7 @@
       'desktopModelCard',
       model?.warm_status?.ok ? 'healthy' : 'unknown',
       String(model.active || 'warming'),
-      model?.warm_status?.ok ? 'Active intelligence model ready' : 'Model runtime warming or unavailable',
+      model?.warm_status?.ok ? 'Active intelligence model ready' : 'AI model is still loading or unavailable. Check AI Models settings if this persists.',
     );
     setState(
       'desktopAutomationCard',
@@ -91,7 +91,7 @@
   }
 
   async function probeDesktopSummary() {
-    setState('desktopCoreCard', 'unknown', 'Checking...', 'Versioned local desktop API probe');
+    setState('desktopCoreCard', 'unknown', 'Checking...', 'Connecting to the local DPN Core service');
     try {
       const response = await fetch(STATUS_ENDPOINTS.summary, {
         cache: 'no-store',
@@ -101,7 +101,7 @@
       renderSummary(await response.json());
       return true;
     } catch (_) {
-      setState('desktopCoreCard', 'blocked', 'Unavailable', 'Desktop API is not responding');
+      setState('desktopCoreCard', 'blocked', 'DPN Core not responding', 'Make sure DPN AI is running. Status will reconnect automatically.');
       return false;
     }
   }
