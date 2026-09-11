@@ -10,6 +10,8 @@ from typing import Any
 
 import httpx
 
+from app.persistence_security import sanitize_for_persistence
+
 
 class ComfyUIImageGenerator:
     """Run a user-supplied local ComfyUI workflow exported in API format."""
@@ -91,14 +93,15 @@ class ComfyUIImageGenerator:
     ) -> dict[str, Any]:
         try:
             workflow = self._load_workflow()
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": str(exc)}
+        except (OSError, UnicodeError, ValueError) as exc:
+            return {"ok": False, "error": str(sanitize_for_persistence(str(exc)))}
         actual_seed = int(seed if seed is not None else time.time_ns() % 2_147_483_647)
         prefix = self._safe_prefix(filename_prefix)
         try:
             workflow = self._apply_prompt(workflow, prompt, negative_prompt, actual_seed, prefix)
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": f"Cannot prepare ComfyUI workflow: {exc}"}
+        except (TypeError, ValueError) as exc:
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "error": f"Cannot prepare ComfyUI workflow: {detail}"}
 
         timeout_seconds = max(30, min(int(timeout_seconds), 1800))
         client_id = str(uuid.uuid4())
@@ -112,7 +115,8 @@ class ComfyUIImageGenerator:
                 queue_data = queued.json()
                 prompt_id = queue_data.get("prompt_id")
                 if not prompt_id:
-                    return {"ok": False, "error": f"ComfyUI rejected the workflow: {queue_data}"}
+                    detail = str(sanitize_for_persistence(queue_data))
+                    return {"ok": False, "error": f"ComfyUI rejected the workflow: {detail}"}
 
                 deadline = time.monotonic() + timeout_seconds
                 history_entry: dict[str, Any] | None = None
@@ -125,7 +129,8 @@ class ComfyUIImageGenerator:
                         history_entry = entry
                         status = entry.get("status") or {}
                         if status.get("status_str") == "error":
-                            return {"ok": False, "error": f"ComfyUI execution failed: {status}"}
+                            detail = str(sanitize_for_persistence(status))
+                            return {"ok": False, "error": f"ComfyUI execution failed: {detail}"}
                         if entry.get("outputs"):
                             break
                     await __import__("asyncio").sleep(1)
@@ -152,5 +157,6 @@ class ComfyUIImageGenerator:
                 return {"ok": True, "paths": saved, "path": saved[0], "seed": actual_seed, "prompt_id": prompt_id}
         except httpx.ConnectError:
             return {"ok": False, "error": f"Cannot reach local ComfyUI at {self.base_url}"}
-        except Exception as exc:  # noqa: BLE001
-            return {"ok": False, "error": f"ComfyUI generation failed: {type(exc).__name__}: {exc}"}
+        except (httpx.HTTPError, OSError, TypeError, ValueError) as exc:
+            detail = str(sanitize_for_persistence(str(exc)))
+            return {"ok": False, "error": f"ComfyUI generation failed: {type(exc).__name__}: {detail}"}
