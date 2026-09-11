@@ -12,8 +12,7 @@ on:
 permissions:
   contents: read
 
-# GitHub stopped computing PR file coverage by default in 2026.
-# DPN keeps it enabled so security reviews retain full visibility.
+# Keep pull-request file coverage visible for security review.
 env:
   CODEQL_ACTION_FILE_COVERAGE_ON_PRS: "true"
 
@@ -29,7 +28,6 @@ jobs:
     permissions:
       actions: read
       contents: read
-      packages: read
       security-events: write
     strategy:
       fail-fast: false
@@ -38,23 +36,17 @@ jobs:
           - language: python
             display-name: Python
             build-mode: none
-            codeql-config: |
-              queries:
-                - uses: security-extended
+            codeql-config: "{}"
 
           - language: actions
             display-name: GitHub Actions
             build-mode: none
-            codeql-config: |
-              queries:
-                - uses: security-extended
+            codeql-config: "{}"
 
           - language: java-kotlin
             display-name: Android Kotlin
             build-mode: manual
             codeql-config: |
-              queries:
-                - uses: security-extended
               threat-models: local
 
     steps:
@@ -78,10 +70,11 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
           config: ${{ matrix.codeql-config }}
 
       - name: Build Android application for CodeQL extraction
@@ -90,6 +83,6 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Analyze source
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
         with:
           category: "/language:${{ matrix.language }}"
