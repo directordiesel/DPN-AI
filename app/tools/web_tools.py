@@ -8,6 +8,8 @@ from urllib.parse import quote_plus, urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.persistence_security import sanitize_for_persistence
+
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 DPN-AI/1.0"
 MAX_RESPONSE_BYTES = 2_000_000
@@ -59,8 +61,9 @@ async def search_web(query: str, max_results: int = 6) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
             response = await client.get(url)
             response.raise_for_status()
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"Web search failed: {exc}"}
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        detail = str(sanitize_for_persistence(str(exc)))
+        return {"ok": False, "error": f"Web search failed: {detail}"}
     soup = BeautifulSoup(response.text, "html.parser")
     results: list[dict[str, str]] = []
     for result in soup.select(".result"):
@@ -122,8 +125,9 @@ async def fetch_web_page(url: str, max_chars: int = 20_000) -> dict[str, Any]:
                     break
             else:  # pragma: no cover - defensive loop guard
                 return {"ok": False, "error": "Too many redirects"}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"Page fetch failed: {exc}"}
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        detail = str(sanitize_for_persistence(str(exc)))
+        return {"ok": False, "error": f"Page fetch failed: {detail}"}
 
     soup = BeautifulSoup(text_body, "html.parser")
     for element in soup(["script", "style", "noscript", "svg", "nav", "footer"]):
