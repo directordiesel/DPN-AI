@@ -208,7 +208,7 @@ jobs:
           python -m pip install -r requirements-dev.txt
 
       - name: Compile sources
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/sign_update_manifest.py .github/scripts/verify_windows_release_bundle.py
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/sign_update_manifest.py .github/scripts/verify_windows_release_bundle.py .github/scripts/write_update_trust_root.py
 
       - name: Run release tests
         run: pytest -q
