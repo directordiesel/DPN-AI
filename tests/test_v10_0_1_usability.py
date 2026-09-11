@@ -260,3 +260,24 @@ def test_all_delete_requests_have_human_confirmation_nearby():
         if "confirm(" not in nearby:
             unconfirmed.append(index + 1)
     assert unconfirmed == []
+
+
+
+def test_interface_shell_validator_covers_primary_controls_and_cache_is_rotated():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    sw = (STATIC / "sw.js").read_text(encoding="utf-8")
+
+    required_ids = (
+        "sidebar", "chat", "messages", "promptInput", "sendBtn", "modalBackdrop", "modal", "modalTitle", "modalBody",
+        "newChatBtn", "refreshChatsBtn", "voiceBtn", "missionsBtn", "jobsBtn", "graphBtn", "sandboxBtn",
+        "capabilityForgeBtn", "mcpBtn", "approvalsBtn", "projectsBtn", "automationsBtn", "runsBtn", "snapshotsBtn",
+        "filesBtn", "memoryBtn", "skillsBtn", "connectorsBtn", "diagnosticsBtn", "settingsBtn", "menuBtn", "indexBtn",
+        "micBtn", "stopVoiceBtn", "voiceSettingsBtn",
+    )
+    for element_id in required_ids:
+        assert f"'{element_id}'" in js
+
+    assert "DPN AI interface cache mismatch" in js
+    assert "Repair cached interface" in js
+    assert "dpn-ai-v10.0.1-development-ui-shell" in sw
+    assert "dpn-ai-v10.0.0-ui-shell" not in sw
