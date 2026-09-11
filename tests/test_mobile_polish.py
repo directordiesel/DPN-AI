@@ -47,3 +47,50 @@ def test_diagnostics_has_no_external_reporting_or_background_worker():
     combined = DIAG + STORE
     for forbidden in ("WorkManager", "JobService", "AlarmManager", "FirebaseCrashlytics", "Sentry"):
         assert forbidden not in combined
+
+
+
+ANDROID_UI = ROOT / "mobile/android/app/src/main/java/com/dpntechnology/dpnai"
+PRIMARY_ACTIVITIES = (
+    "MainActivity.kt",
+    "GatewayActivity.kt",
+    "ChatActivity.kt",
+    "ApprovalsActivity.kt",
+    "MissionsActivity.kt",
+    "ProjectsActivity.kt",
+    "FileActivity.kt",
+    "VoiceActivity.kt",
+    "VisionActivity.kt",
+    "NotificationsActivity.kt",
+    "DiagnosticsActivity.kt",
+)
+
+
+def test_every_primary_android_screen_is_scrollable():
+    missing = []
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        if "ScrollView" not in text:
+            missing.append(name)
+    assert missing == []
+
+
+def test_primary_android_ui_copy_is_plain_ascii():
+    failures = {}
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        chars = sorted({char for char in text if ord(char) > 127})
+        if chars:
+            failures[name] = chars
+    assert failures == {}
+
+
+def test_programmatic_android_buttons_have_click_handlers():
+    failures = {}
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        buttons = text.count("Button(")
+        handlers = text.count("setOnClickListener")
+        if handlers < buttons:
+            failures[name] = {"buttons": buttons, "handlers": handlers}
+    assert failures == {}
