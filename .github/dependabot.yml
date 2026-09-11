@@ -16,3 +16,11 @@ updates:
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
+  - package-ecosystem: "gradle"
+    directory: "/mobile/android"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
