@@ -61,6 +61,7 @@ Only after security preflight passes, the Windows job:
 - verifies the update signature using the separately configured public key
 - verifies installer filename, size, SHA-256, version, and release channel
 - creates WINDOWS_SHA256SUMS.txt
+- creates GitHub/Sigstore SLSA build-provenance attestations for the signed installer and its production manifests
 - uploads only the verified production bundle as a one-day workflow artifact
 
 ### 3. Independent publication verification
@@ -81,7 +82,7 @@ Publication does not continue if any transferred artifact or manifest is inconsi
 
 ### 4. GitHub Release
 
-After the full release test suite and supply-chain generation pass, the workflow creates the GitHub Release and tag from the exact main commit.
+After the full release test suite and supply-chain generation pass, the workflow creates a separate GitHub/Sigstore build-provenance attestation for the source archive, then creates the GitHub Release and tag from the exact main commit.
 
 Current release assets include:
 
@@ -96,6 +97,8 @@ Current release assets include:
 - source build manifest
 - Ed25519-signed update manifest
 - Windows release SHA-256 manifest
+
+GitHub artifact attestations are stored by GitHub and bind the workflow-produced artifacts to their repository, commit, workflow identity, and Sigstore-backed provenance record. They complement rather than replace Authenticode, Ed25519, and SHA-256 verification.
 
 Existing tags/releases are immutable. Publish a new version for every correction.
 
