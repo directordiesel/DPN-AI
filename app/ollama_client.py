@@ -42,7 +42,10 @@ class OllamaClient:
         if response.status_code >= 400:
             detail = str(sanitize_for_persistence(response.text[:500]))
             raise OllamaError(f"Ollama returned {response.status_code}: {detail}")
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise OllamaError("Ollama returned an invalid non-JSON model-list response.") from exc
         if not isinstance(payload, dict):
             raise OllamaError("Ollama returned an unexpected model-list response.")
         models = payload.get("models", [])
@@ -154,12 +157,12 @@ class OllamaClient:
         response = await self._post_chat(payload)
         if response.status_code < 400:
             try:
-                payload = response.json()
-        if not isinstance(payload, dict):
-            raise OllamaError("Ollama returned an unexpected model-pull response.")
-        return payload
+                result = response.json()
             except ValueError as exc:
                 raise OllamaError("Ollama returned an invalid non-JSON chat response.") from exc
+            if not isinstance(result, dict):
+                raise OllamaError("Ollama returned an unexpected chat response.")
+            return result
 
         first_error = self._error_text(response)
 
@@ -171,9 +174,12 @@ class OllamaClient:
             retry = await self._post_chat(retry_payload)
             if retry.status_code < 400:
                 try:
-                    return retry.json()
+                    retry_result = retry.json()
                 except ValueError as exc:
                     raise OllamaError("Ollama returned invalid JSON after the compatibility retry.") from exc
+                if not isinstance(retry_result, dict):
+                    raise OllamaError("Ollama returned an unexpected chat response after the compatibility retry.")
+                return retry_result
             retry_error = self._error_text(retry)
             if retry_error and retry_error != first_error:
                 first_error = f"{first_error} | retry without Thinking: {retry_error}"
@@ -198,7 +204,10 @@ class OllamaClient:
             raise OllamaError("The intelligence model did not finish loading before the timeout.") from exc
         if response.status_code >= 400:
             raise OllamaError(f"Model warm-up failed ({response.status_code}): {self._error_text(response)}")
-        result = response.json()
+        try:
+            result = response.json()
+        except ValueError as exc:
+            raise OllamaError("Ollama returned an invalid non-JSON model warm-up response.") from exc
         if not isinstance(result, dict):
             raise OllamaError("Ollama returned an unexpected model warm-up response.")
         return {"ok": True, "model": model, "load_duration": result.get("load_duration", 0)}
@@ -254,8 +263,12 @@ class OllamaClient:
                             chunk = json.loads(line)
                         except json.JSONDecodeError:
                             continue
+                        if not isinstance(chunk, dict):
+                            continue
                         final_payload = chunk
                         message = chunk.get("message") or {}
+                        if not isinstance(message, dict):
+                            continue
                         delta = str(message.get("content") or "")
                         if delta:
                             content_parts.append(delta)
@@ -297,7 +310,10 @@ class OllamaClient:
             raise OllamaError("Ollama embedding generation timed out.") from exc
         if response.status_code >= 400:
             raise OllamaError(f"Embedding failed ({response.status_code}): {self._error_text(response)}")
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise OllamaError("Ollama returned an invalid non-JSON embedding response.") from exc
         if not isinstance(payload, dict):
             raise OllamaError("Ollama returned an unexpected embedding response.")
         embeddings = payload.get("embeddings", [])
