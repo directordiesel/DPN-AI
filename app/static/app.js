@@ -1004,48 +1004,179 @@ async function showConnectors() {
   $('saveSecretBtn').onclick=async()=>{const name=$('secretName').value.trim(),value=$('secretValue').value;if(!name||!value)return toast('Enter a name and value.',true);await api('/api/secrets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,value})});toast('Secret encrypted and stored.');await showConnectors();};
 }
 
+
+function settingsModelNames(current = {}) {
+  return [...new Set([current.model, ...state.models.map(item => item.name || item.model)].filter(Boolean))];
+}
+
+function settingsModelRouteRow(profileKey = '', modelName = '', current = {}) {
+  const profileKeys = [...new Set([profileKey, ...state.profiles.map(profile => profile.key)].filter(Boolean))];
+  const modelNames = [...new Set([modelName, ...settingsModelNames(current)].filter(Boolean))];
+  const profileOptions = '<option value="">Choose a work profile</option>' + profileKeys.map(key => {
+    const profile = state.profiles.find(item => item.key === key);
+    const label = profile?.name || key;
+    return '<option value="' + escapeHtml(key) + '"' + (key === profileKey ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+  }).join('');
+  const modelOptions = '<option value="">Choose a model</option>' + modelNames.map(name =>
+    '<option value="' + escapeHtml(name) + '"' + (name === modelName ? ' selected' : '') + '>' + escapeHtml(name) + '</option>'
+  ).join('');
+  return '<div class="model-route-row" data-model-route-row>' +
+    '<label><span>Work profile</span><select data-route-profile>' + profileOptions + '</select></label>' +
+    '<label><span>Preferred model</span><select data-route-model>' + modelOptions + '</select></label>' +
+    '<button class="secondary" type="button" data-remove-model-route>Remove</button>' +
+    '</div>';
+}
+
+function bindSettingsModelRouteRows() {
+  document.querySelectorAll('[data-remove-model-route]').forEach(button => {
+    button.onclick = () => {
+      button.closest('[data-model-route-row]')?.remove();
+      const host = $('modelRouteList');
+      if (host && !host.querySelector('[data-model-route-row]')) {
+        host.innerHTML = '<div class="settings-empty-note" data-empty-model-routes>No custom model preferences. Automatic routing is active.</div>';
+      }
+    };
+  });
+}
+
+function collectSettingsModelRoutes() {
+  const routes = {};
+  for (const row of document.querySelectorAll('[data-model-route-row]')) {
+    const profile = row.querySelector('[data-route-profile]')?.value?.trim() || '';
+    const model = row.querySelector('[data-route-model]')?.value?.trim() || '';
+    if (!profile && !model) continue;
+    if (!profile || !model) throw new Error('Each model preference needs both a work profile and a model.');
+    if (Object.prototype.hasOwnProperty.call(routes, profile)) {
+      throw new Error('A work profile can only have one preferred model. Remove the duplicate preference for ' + profile + '.');
+    }
+    routes[profile] = model;
+  }
+  return routes;
+}
+
+function organizeSettingsSections() {
+  const grid = $('settingsLegacyGrid');
+  if (!grid) return;
+  const groups = [
+    {title:'General', help:'Everyday model choice and reasoning behavior.', open:true, ids:['settingIntelligence','settingKeepLoaded','settingModel','settingThink']},
+    {title:'AI Models', help:'Local models, optional compatible AI servers, and work-type model preferences.', ids:['settingProvider','settingCompatibleUrl','settingCompatibleSecret','settingExternalModels','settingModelRoutesEditor']},
+    {title:'Permissions & Safety', help:'What DPN AI may execute and which sensitive actions need tighter control.', ids:['settingApproval','settingCommands','settingDesktop','settingSelfImprovement']},
+    {title:'Web & Browser', help:'Internet research and controlled browser activity.', ids:['settingWeb','settingBrowser']},
+    {title:'Voice & Media', help:'Speech and local image-generation capabilities.', ids:['settingVoice','settingImages']},
+    {title:'Automations', help:'Scheduled operations that can run while DPN AI is open.', ids:['settingAutomations']},
+    {title:'Connectors', help:'Approved outside services and Tool Server Connections (MCP).', ids:['settingConnectors','settingMcp']},
+    {title:'Files & Workspace', help:'Local execution isolation and workspace safety.', ids:['settingHostSandbox']},
+    {title:'Advanced', help:'Specialist model roles, limits, and engineering controls. Most users can leave these alone.', ids:['settingPlannerModel','settingWorkerModel','settingReviewerModel','settingEmbeddingModel','settingToolCalls','settingRunSeconds','settingTimeout','comfyWorkflowFile','pullModelName']},
+  ];
+  const sensitive = new Set(['settingExternalModels','settingCommands','settingDesktop','settingSelfImprovement','settingBrowser','settingAutomations','settingConnectors','settingMcp','settingHostSandbox']);
+  const wrapper = document.createElement('div');
+  wrapper.className = 'settings-sections';
+
+  groups.forEach(group => {
+    const details = document.createElement('details');
+    details.className = 'settings-section';
+    details.open = Boolean(group.open);
+    const summary = document.createElement('summary');
+    summary.innerHTML = '<strong>' + escapeHtml(group.title) + '</strong><small>' + escapeHtml(group.help) + '</small>';
+    const body = document.createElement('div');
+    body.className = 'settings-section-body form-grid';
+
+    group.ids.forEach(id => {
+      const node = $(id);
+      const control = node?.closest('.field, .toggle-row');
+      if (!control) return;
+      if (sensitive.has(id)) control.classList.add('setting-sensitive');
+      body.appendChild(control);
+    });
+
+    if (!body.children.length) return;
+    details.appendChild(summary);
+    details.appendChild(body);
+    wrapper.appendChild(details);
+  });
+
+  grid.parentNode.insertBefore(wrapper, grid);
+  if (!grid.querySelector('.field, .toggle-row')) grid.remove();
+}
+
+function applyRecommendedSettings() {
+  $('settingIntelligence').value = 'maximum';
+  $('settingKeepLoaded').checked = true;
+  $('settingProvider').value = 'ollama';
+  $('settingExternalModels').checked = false;
+  $('settingPlannerModel').value = '';
+  $('settingWorkerModel').value = '';
+  $('settingReviewerModel').value = '';
+  $('settingEmbeddingModel').value = 'nomic-embed-text';
+  $('settingThink').value = 'medium';
+  $('settingApproval').value = 'standard';
+  $('settingWeb').checked = true;
+  $('settingImages').checked = false;
+  $('settingCommands').checked = false;
+  $('settingAutomations').checked = false;
+  $('settingBrowser').checked = false;
+  $('settingDesktop').checked = false;
+  $('settingVoice').checked = true;
+  $('settingConnectors').checked = false;
+  $('settingMcp').checked = false;
+  $('settingSelfImprovement').checked = false;
+  $('settingHostSandbox').checked = false;
+  $('settingToolCalls').value = '80';
+  $('settingRunSeconds').value = '1800';
+  $('settingTimeout').value = '120';
+  const routeList = $('modelRouteList');
+  if (routeList) routeList.innerHTML = '<div class="settings-empty-note" data-empty-model-routes>No custom model preferences. Automatic routing is active.</div>';
+  toast('Recommended settings loaded. Review them, then choose Save Settings to apply them.');
+}
+
 async function showSettings() {
   const current = await api('/api/settings'); state.settings = current;
-  const modelOptions = [...new Set([current.model, ...state.models.map(item => item.name || item.model)])].filter(Boolean).map(name => `<option value="${escapeHtml(name)}" ${name === current.model ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-  openModal('System Settings', 'DPN AI CONTROL POLICY', `
-    <div class="form-grid">
+  const modelOptions = settingsModelNames(current).map(name => `<option value="${escapeHtml(name)}" ${name === current.model ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+  const modelRoutes = Object.entries(current.model_routes || {}).map(([profile, model]) => settingsModelRouteRow(profile, model, current)).join('');
+  openModal('System Settings', 'PLAIN-LANGUAGE CONTROL CENTER', `
+    <div class="settings-intro"><h4>Configure DPN AI without guessing</h4><p>Settings are grouped by what they affect. Recommended defaults work for most users. Sensitive controls are clearly marked and advanced controls stay available without dominating everyday setup.</p><div class="settings-legend"><span class="recommended-badge">Recommended</span><span>Safe starting point</span><span class="risk-badge">Sensitive</span><span>Can execute tools, reach outside services, or change system behavior</span></div></div>
+    <div class="form-grid" id="settingsLegacyGrid">
       <div class="field"><label>Intelligence policy</label><select id="settingIntelligence"><option value="maximum">Maximum - automatically use strongest installed model</option><option value="balanced">Balanced - strong model with adaptive reasoning</option><option value="manual">Manual - use selected model exactly</option></select><small>Maximum is the default. DPN AI still disables long reasoning for greetings and uses adaptive verification to keep responses faster.</small></div>
       <div class="toggle-row"><div><strong>Keep strongest model loaded</strong><small>Warms the selected intelligence model in the background and keeps it resident in Ollama for faster first responses. This uses RAM or VRAM while DPN AI is open.</small></div><input class="toggle" id="settingKeepLoaded" type="checkbox" ${current.keep_model_loaded !== false ? 'checked' : ''}></div>
       <div class="field"><label>Default/fallback model</label><select id="settingModel">${modelOptions}</select><small>Used as a fallback if automatic model discovery is unavailable. Prefix a model with compatible: to force the compatible provider.</small></div>
-      <div class="field"><label>Default model provider</label><select id="settingProvider"><option value="ollama">Ollama - local private models</option><option value="compatible">OpenAI-compatible endpoint</option></select></div>
-      <div class="field"><label>OpenAI-compatible API base URL</label><input id="settingCompatibleUrl" value="${escapeHtml(current.compatible_api_url || '')}" placeholder="Example: http://127.0.0.1:1234"><small>Supports local servers such as LM Studio, vLLM, llama.cpp, and LocalAI. DPN AI appends /v1 endpoints.</small></div>
-      <div class="field"><label>Encrypted API key secret name</label><input id="settingCompatibleSecret" value="${escapeHtml(current.compatible_api_secret || 'MODEL_PROVIDER_KEY')}" placeholder="MODEL_PROVIDER_KEY"><small>Store the matching value in Connectors & Secrets. The key itself is never displayed here.</small></div>
+      <div class="field"><label>Primary AI provider</label><select id="settingProvider"><option value="ollama">Ollama - local private models</option><option value="compatible">Another AI server (OpenAI-compatible API)</option></select></div>
+      <div class="field"><label>Compatible AI server address</label><input id="settingCompatibleUrl" value="${escapeHtml(current.compatible_api_url || '')}" placeholder="Example: http://127.0.0.1:1234"><small>Supports local servers such as LM Studio, vLLM, llama.cpp, and LocalAI. DPN AI appends /v1 endpoints.</small></div>
+      <div class="field"><label>Saved API key name</label><input id="settingCompatibleSecret" value="${escapeHtml(current.compatible_api_secret || 'MODEL_PROVIDER_KEY')}" placeholder="MODEL_PROVIDER_KEY"><small>Store the matching value in Connectors & Secrets. The key itself is never displayed here.</small></div>
       <div class="toggle-row"><div><strong>External model endpoints</strong><small>Allow a compatible endpoint outside the local/private network. Keep disabled for a fully local system.</small></div><input class="toggle" id="settingExternalModels" type="checkbox" ${current.allow_external_models ? 'checked' : ''}></div>
-      <div class="field"><label>Planner model override</label><input id="settingPlannerModel" value="${escapeHtml(current.planner_model || '')}" placeholder="Blank uses worker/default"></div>
-      <div class="field"><label>Worker model override</label><input id="settingWorkerModel" value="${escapeHtml(current.worker_model || '')}" placeholder="Blank uses default"></div>
-      <div class="field"><label>Independent reviewer model</label><input id="settingReviewerModel" value="${escapeHtml(current.reviewer_model || '')}" placeholder="Blank uses worker/default"></div>
-      <div class="field"><label>Embedding model</label><input id="settingEmbeddingModel" value="${escapeHtml(current.embedding_model || 'nomic-embed-text')}"></div>
-      <div class="field"><label>Profile-specific model routes (JSON)</label><textarea id="settingModelRoutes" rows="4" placeholder='{"software":"model-name","research":"model-name"}'>${escapeHtml(JSON.stringify(current.model_routes || {}, null, 2))}</textarea></div>
+      <div class="field"><label>Planner model override</label><input id="settingPlannerModel" value="${escapeHtml(current.planner_model || '')}" placeholder="Automatic"><small>The planner breaks complex goals into steps. Leave blank for automatic selection.</small></div>
+      <div class="field"><label>Worker model override</label><input id="settingWorkerModel" value="${escapeHtml(current.worker_model || '')}" placeholder="Automatic"><small>The worker performs planned tasks. Leave blank for automatic selection.</small></div>
+      <div class="field"><label>Independent reviewer model</label><input id="settingReviewerModel" value="${escapeHtml(current.reviewer_model || '')}" placeholder="Automatic"><small>The reviewer independently checks results. Leave blank for automatic selection.</small></div>
+      <div class="field"><label>Search and memory matching model</label><input id="settingEmbeddingModel" value="${escapeHtml(current.embedding_model || 'nomic-embed-text')}"><small>This embedding model powers semantic search and memory matching. Most users should not change it.</small></div>
+      <div class="field" id="settingModelRoutesEditor"><label>Model preferences by work type</label><small>Optional. Choose a work profile and preferred model. Leave this empty to let DPN AI route automatically.</small><div id="modelRouteList" class="model-route-list">${modelRoutes || '<div class="settings-empty-note" data-empty-model-routes>No custom model preferences. Automatic routing is active.</div>'}</div><button class="secondary" type="button" id="addModelRouteBtn">Add Model Preference</button></div>
       <div class="field"><label>Reasoning level</label><select id="settingThink"><option value="false">Off / fastest</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div>
-      <div class="field"><label>Approval mode</label><select id="settingApproval"><option value="safe">Safe - blocks execution and deletion</option><option value="standard">Standard - execution allowed, destructive tools blocked</option><option value="autonomous">Autonomous - all enabled tools available</option></select><small>File operations always remain confined to the workspace.</small></div>
+      <div class="field"><label>Safety mode</label><select id="settingApproval"><option value="safe">Safe - blocks execution and deletion</option><option value="standard">Standard - execution allowed, destructive tools blocked</option><option value="autonomous">Autonomous - all enabled tools available</option></select><small>File operations always remain confined to the workspace.</small></div>
       <div class="toggle-row"><div><strong>Internet research</strong><small>Public web search and page reading.</small></div><input class="toggle" id="settingWeb" type="checkbox" ${current.allow_web ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Local image generation</strong><small>Submit the configured workflow to local ComfyUI.</small></div><input class="toggle" id="settingImages" type="checkbox" ${current.allow_images ? 'checked' : ''}></div>
-      <div class="toggle-row"><div><strong>Command execution</strong><small>Restricted development commands inside the workspace.</small></div><input class="toggle" id="settingCommands" type="checkbox" ${current.allow_commands ? 'checked' : ''}></div>
+      <div class="toggle-row"><div><strong>Run development commands</strong><small>Allows restricted build, test, and development commands inside the workspace. Keep off unless a task needs code execution.</small></div><input class="toggle" id="settingCommands" type="checkbox" ${current.allow_commands ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Scheduled automations</strong><small>Run persisted local operations while DPN AI is open.</small></div><input class="toggle" id="settingAutomations" type="checkbox" ${current.allow_automations ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Browser automation</strong><small>Optional Playwright-controlled browser operations. Side effects require approval.</small></div><input class="toggle" id="settingBrowser" type="checkbox" ${current.allow_browser ? 'checked' : ''}></div>
-      <div class="toggle-row"><div><strong>Desktop automation</strong><small>Optional keyboard and mouse control. High risk and disabled by default.</small></div><input class="toggle" id="settingDesktop" type="checkbox" ${current.allow_desktop ? 'checked' : ''}></div>
+      <div class="toggle-row"><div><strong>Control keyboard and mouse</strong><small>High risk. Allows desktop automation and should stay off unless a task specifically requires computer control.</small></div><input class="toggle" id="settingDesktop" type="checkbox" ${current.allow_desktop ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Offline voice tools</strong><small>Local speech recognition and text-to-speech adapters.</small></div><input class="toggle" id="settingVoice" type="checkbox" ${current.allow_voice ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Connector hub</strong><small>Allow-listed external APIs using encrypted local secrets.</small></div><input class="toggle" id="settingConnectors" type="checkbox" ${current.allow_connectors ? 'checked' : ''}></div>
-      <div class="toggle-row"><div><strong>MCP tool bridge</strong><small>Connect approved local or allow-listed MCP servers. External calls still require approval in Standard mode.</small></div><input class="toggle" id="settingMcp" type="checkbox" ${current.allow_mcp ? 'checked' : ''}></div>
+      <div class="toggle-row"><div><strong>Tool Server Connections (MCP)</strong><small>Connect approved local or allow-listed MCP servers. External calls still require approval in Standard mode.</small></div><input class="toggle" id="settingMcp" type="checkbox" ${current.allow_mcp ? 'checked' : ''}></div>
       <div class="toggle-row"><div><strong>Capability Forge</strong><small>Allow staging and validating new local plugins. Promotion is approval-controlled and restart-gated.</small></div><input class="toggle" id="settingSelfImprovement" type="checkbox" ${current.allow_self_improvement ? 'checked' : ''}></div>
-      <div class="toggle-row"><div><strong>Host sandbox fallback</strong><small>Use only when Docker is unavailable. This is a subprocess limit, not a security isolation boundary.</small></div><input class="toggle" id="settingHostSandbox" type="checkbox" ${current.allow_host_sandbox ? 'checked' : ''}></div>
+      <div class="toggle-row"><div><strong>Host fallback when Docker is unavailable</strong><small>Advanced: runs a limited subprocess directly on the host. This is weaker isolation than Docker and is not a security boundary.</small></div><input class="toggle" id="settingHostSandbox" type="checkbox" ${current.allow_host_sandbox ? 'checked' : ''}></div>
       <div class="field"><label>Maximum tool calls per operation</label><input id="settingToolCalls" type="number" min="1" max="1000" value="${current.max_tool_calls || 80}"></div>
       <div class="field"><label>Maximum operation runtime (seconds)</label><input id="settingRunSeconds" type="number" min="30" max="86400" value="${current.max_run_seconds || 1800}"></div>
       <div class="field"><label>Command timeout (seconds)</label><input id="settingTimeout" type="number" min="5" max="900" value="${current.command_timeout_seconds}"></div>
       <div class="field"><label>ComfyUI API workflow</label><div class="form-inline"><input id="comfyWorkflowFile" type="file" accept=".json,application/json"><button class="secondary" id="uploadWorkflowBtn">Upload Workflow</button></div></div>
       <div class="field"><label>Pull another Ollama model</label><div class="form-inline"><input id="pullModelName" placeholder="Example: qwen3.5:27b"><button class="secondary" id="pullModelBtn">Pull Model</button></div></div>
     </div>
-    <div class="modal-actions"><button class="primary compact" id="saveSettingsBtn">Save Control Policy</button></div>`);
+    <div class="modal-actions settings-actions"><button class="secondary" type="button" id="resetRecommendedSettingsBtn">Load Recommended Settings</button><button class="primary compact" id="saveSettingsBtn">Save Settings</button></div>`, true);
   $('settingThink').value = String(current.think_level); $('settingApproval').value = current.approval_mode || 'standard'; $('settingProvider').value = current.default_provider || 'ollama'; $('settingIntelligence').value = current.intelligence_mode || 'maximum';
+  organizeSettingsSections();
+  bindSettingsModelRouteRows();
+  $('addModelRouteBtn').onclick = () => { const host=$('modelRouteList'); host?.querySelector('[data-empty-model-routes]')?.remove(); host?.insertAdjacentHTML('beforeend', settingsModelRouteRow('', current.model || settingsModelNames(current)[0] || '', current)); bindSettingsModelRouteRows(); };
+  $('resetRecommendedSettingsBtn').onclick = applyRecommendedSettings;
   $('saveSettingsBtn').onclick = async () => {
     const thinkRaw = $('settingThink').value;
-    let routes={}; try { routes=JSON.parse($('settingModelRoutes').value||'{}'); } catch(error) { return toast('Model routes must be valid JSON.',true); } const payload = {model:$('settingModel').value, intelligence_mode:$('settingIntelligence').value, keep_model_loaded:$('settingKeepLoaded').checked, default_provider:$('settingProvider').value, compatible_api_url:$('settingCompatibleUrl').value.trim(), compatible_api_secret:$('settingCompatibleSecret').value.trim() || 'MODEL_PROVIDER_KEY', allow_external_models:$('settingExternalModels').checked, planner_model:$('settingPlannerModel').value.trim(), worker_model:$('settingWorkerModel').value.trim(), reviewer_model:$('settingReviewerModel').value.trim(), embedding_model:$('settingEmbeddingModel').value.trim(), model_routes:routes, think_level:thinkRaw === 'false' ? false : thinkRaw, approval_mode:$('settingApproval').value, allow_web:$('settingWeb').checked, allow_images:$('settingImages').checked, allow_commands:$('settingCommands').checked, allow_automations:$('settingAutomations').checked, allow_browser:$('settingBrowser').checked, allow_desktop:$('settingDesktop').checked, allow_voice:$('settingVoice').checked, allow_connectors:$('settingConnectors').checked, allow_mcp:$('settingMcp').checked, allow_self_improvement:$('settingSelfImprovement').checked, allow_host_sandbox:$('settingHostSandbox').checked, max_tool_calls:Number($('settingToolCalls').value), max_run_seconds:Number($('settingRunSeconds').value), command_timeout_seconds:Number($('settingTimeout').value)};
-    state.settings = await api('/api/settings', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); updatePermissions(); await Promise.all([loadModels(),loadVoiceProfiles()]); if (payload.keep_model_loaded) api('/api/models/warm',{method:'POST'}).then(()=>loadHealth()).catch(()=>{}); closeModal(); toast('DPN AI control policy saved.');
+    let routes={}; try { routes=collectSettingsModelRoutes(); } catch(error) { return toast(error.message,true); } const payload = {model:$('settingModel').value, intelligence_mode:$('settingIntelligence').value, keep_model_loaded:$('settingKeepLoaded').checked, default_provider:$('settingProvider').value, compatible_api_url:$('settingCompatibleUrl').value.trim(), compatible_api_secret:$('settingCompatibleSecret').value.trim() || 'MODEL_PROVIDER_KEY', allow_external_models:$('settingExternalModels').checked, planner_model:$('settingPlannerModel').value.trim(), worker_model:$('settingWorkerModel').value.trim(), reviewer_model:$('settingReviewerModel').value.trim(), embedding_model:$('settingEmbeddingModel').value.trim(), model_routes:routes, think_level:thinkRaw === 'false' ? false : thinkRaw, approval_mode:$('settingApproval').value, allow_web:$('settingWeb').checked, allow_images:$('settingImages').checked, allow_commands:$('settingCommands').checked, allow_automations:$('settingAutomations').checked, allow_browser:$('settingBrowser').checked, allow_desktop:$('settingDesktop').checked, allow_voice:$('settingVoice').checked, allow_connectors:$('settingConnectors').checked, allow_mcp:$('settingMcp').checked, allow_self_improvement:$('settingSelfImprovement').checked, allow_host_sandbox:$('settingHostSandbox').checked, max_tool_calls:Number($('settingToolCalls').value), max_run_seconds:Number($('settingRunSeconds').value), command_timeout_seconds:Number($('settingTimeout').value)};
+    state.settings = await api('/api/settings', {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); updatePermissions(); await Promise.all([loadModels(),loadVoiceProfiles()]); if (payload.keep_model_loaded) api('/api/models/warm',{method:'POST'}).then(()=>loadHealth()).catch(()=>{}); closeModal(); toast('Settings saved.');
   };
   $('uploadWorkflowBtn').onclick = async () => { const file = $('comfyWorkflowFile').files[0]; if (!file) return toast('Choose a workflow JSON file.', true); const form = new FormData(); form.append('file',file); const result = await api('/api/images/workflow',{method:'POST',body:form}); toast(`ComfyUI workflow loaded with ${result.nodes} nodes.`); };
   $('pullModelBtn').onclick = async () => { const model = $('pullModelName').value.trim(); if (!model) return; toast(`Pulling ${model}. This may take a while.`); await api('/api/models/pull',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})}); await loadModels(); toast(`${model} is installed.`); };
