@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
-      - name: Install pip-audit
-        run: python -m pip install --upgrade pip pip-audit
+      - name: Install locked security audit toolchain
+        run: python -m pip install --disable-pip-version-check -r .github/requirements-security.txt
       - name: Audit declared Python dependencies
         run: python -m pip_audit -r requirements.txt
