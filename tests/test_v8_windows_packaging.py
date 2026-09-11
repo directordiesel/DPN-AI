@@ -77,6 +77,8 @@ def test_production_package_requires_and_verifies_public_update_trust_root():
     assert 'Packaged update trust root does not match the configured production trust root.' in BUILD
     assert 'update_trust_configured = $UpdateTrustConfigured' in BUILD
     assert 'update_trust_root_sha256 = $UpdateTrustRootSha256' in BUILD
+    assert 'update_trust_public_key_sha256 = $UpdateTrustPublicKeySha256' in BUILD
+    assert 'Update trust root is not bound to the official DPN-AI repository.' in BUILD
 
 
 def test_development_package_cannot_accidentally_ship_a_stale_update_trust_root():
