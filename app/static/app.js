@@ -607,19 +607,66 @@ function autoresize() {
   els.promptInput.style.height = `${Math.min(els.promptInput.scrollHeight, 180)}px`;
 }
 
+let modalReturnFocus = null;
+
+function modalIsOpen() {
+  return Boolean(els.modalBackdrop && !els.modalBackdrop.classList.contains('hidden'));
+}
+
+function modalFocusableElements() {
+  const modal = $('modal');
+  if (!modal) return [];
+  return [...modal.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])')]
+    .filter(node => !node.hidden && node.offsetParent !== null);
+}
+
+function trapModalFocus(event) {
+  if (event.key !== 'Tab' || !modalIsOpen()) return;
+  const items = modalFocusableElements();
+  if (!items.length) {
+    event.preventDefault();
+    els.modalBody?.focus({preventScroll:true});
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 function openModal(title, eyebrow, bodyHtml, wide = false) {
   if (!els.modalBackdrop || !els.modalBody) return toast('The control center could not open. Refresh the interface cache with Ctrl+F5.', true);
+  if (!modalIsOpen()) {
+    const active = document.activeElement;
+    modalReturnFocus = active && active !== document.body ? active : null;
+  }
   if (els.modalTitle) els.modalTitle.textContent = title;
   if (els.modalEyebrow) els.modalEyebrow.textContent = eyebrow;
   els.modalBody.innerHTML = bodyHtml;
   const modal = $('modal');
   if (modal) modal.classList.toggle('modal-wide', wide);
   els.modalBackdrop.classList.remove('hidden');
+  els.modalBackdrop.setAttribute('aria-hidden', 'false');
   els.modalBody.scrollTop = 0;
   els.modalBody.scrollLeft = 0;
   requestAnimationFrame(() => els.modalBody.focus({preventScroll:true}));
 }
-function closeModal() { if (els.modalBackdrop) els.modalBackdrop.classList.add('hidden'); }
+
+function closeModal() {
+  if (!els.modalBackdrop || !modalIsOpen()) return;
+  els.modalBackdrop.classList.add('hidden');
+  els.modalBackdrop.setAttribute('aria-hidden', 'true');
+  const target = modalReturnFocus;
+  modalReturnFocus = null;
+  if (target && document.contains(target) && typeof target.focus === 'function') {
+    requestAnimationFrame(() => target.focus({preventScroll:true}));
+  }
+}
 
 async function loadHealth() {
   try {
@@ -1255,7 +1302,13 @@ window.addEventListener('dragleave', event => { event.preventDefault(); dragDept
 window.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); uploadFiles(event.dataTransfer.files); });
 window.addEventListener('keydown', event => {
   if (event.ctrlKey && event.code === 'Space') { event.preventDefault(); toggleVoiceRecording().catch(error=>toast(error.message,true)); return; }
-  if (event.key === 'Escape') { closeModal(); stopVoicePlayback(); if (state.voice.recording) stopVoiceRecording(); if (state.editingMessageId) cancelMessageEdit(false); }
+  if (event.key === 'Tab' && modalIsOpen()) { trapModalFocus(event); return; }
+  if (event.key === 'Escape') {
+    if (modalIsOpen()) { event.preventDefault(); closeModal(); return; }
+    stopVoicePlayback();
+    if (state.voice.recording) stopVoiceRecording();
+    if (state.editingMessageId) cancelMessageEdit(false);
+  }
 });
 
 function syncViewportHeight() {
