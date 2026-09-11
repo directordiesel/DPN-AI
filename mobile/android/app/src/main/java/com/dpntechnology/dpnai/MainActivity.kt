@@ -147,7 +147,7 @@ class MainActivity : Activity() {
                     },
                     onFailure = {
                         setCapabilityButtons(false)
-                        "Connection unavailable - ${it.message?.take(180) ?: "unknown error"}"
+                        "Connection unavailable. Make sure DPN AI is running and this device is paired, then retry. Open Diagnostics & Status for technical details."
                     },
                 )
             }
