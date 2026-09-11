@@ -13,17 +13,23 @@ import json
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import settings
-from app.main import app, db, agent
+from app.main import APP_VERSION, app, db, agent
+from desktop.update_client import (
+    GitHubReleaseUpdateClient,
+    UpdateClientError,
+    load_packaged_update_trust_root,
+)
 from mobile.auth_boundary import MobileDeviceAuthBoundary
 from mobile.device_registry import DeviceRegistryError
 
 
 DESKTOP_API_VERSION = "v1"
 _mobile_auth = MobileDeviceAuthBoundary(db)
+_update_download_lock = asyncio.Lock()
 
 
 def _count_status(items: list[dict[str, Any]], status: str) -> int:
@@ -119,6 +125,60 @@ def desktop_summary() -> dict[str, Any]:
 @app.get("/api/v1/desktop/summary")
 def get_desktop_summary() -> dict[str, Any]:
     return desktop_summary()
+
+
+def _secure_update_client() -> GitHubReleaseUpdateClient:
+    try:
+        trust_root = load_packaged_update_trust_root()
+    except UpdateClientError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Secure updates are unavailable in this build: {exc}",
+        ) from exc
+    return GitHubReleaseUpdateClient(trust_root)
+
+
+@app.get("/api/v1/desktop/updates/check")
+async def desktop_update_check(channel: str = "stable") -> dict[str, Any]:
+    """Check the official release feed and trust only a valid signed update manifest."""
+    try:
+        candidate = await _secure_update_client().check_for_update(APP_VERSION, channel=channel)
+    except UpdateClientError as exc:
+        raise HTTPException(status_code=502, detail=f"Secure update check failed: {exc}") from exc
+    if candidate is None:
+        return {
+            "configured": True,
+            "available": False,
+            "current_version": APP_VERSION,
+            "channel": channel,
+        }
+    return {
+        "configured": True,
+        "current_version": APP_VERSION,
+        **candidate.safe_summary(),
+    }
+
+
+@app.post("/api/v1/desktop/updates/download")
+async def desktop_update_download(channel: str = "stable") -> dict[str, Any]:
+    """Download and verify a newer installer without executing it."""
+    async with _update_download_lock:
+        client = _secure_update_client()
+        try:
+            candidate = await client.check_for_update(APP_VERSION, channel=channel)
+            if candidate is None:
+                raise HTTPException(status_code=409, detail="No newer verified update is available.")
+            result = await client.download_verified_installer(candidate)
+        except HTTPException:
+            raise
+        except UpdateClientError as exc:
+            raise HTTPException(status_code=502, detail=f"Verified update download failed: {exc}") from exc
+    return {
+        "current_version": APP_VERSION,
+        **result.safe_summary(),
+        "installation_started": False,
+        "next_step": "Review and explicitly launch the verified installer when ready.",
+    }
 
 
 async def _desktop_event_stream(request: Request) -> AsyncIterator[str]:
