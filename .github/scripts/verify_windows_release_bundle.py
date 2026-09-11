@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -94,10 +95,19 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("source build manifest does not record production signing")
     if str(source_manifest.get("signer_thumbprint") or "").replace(" ", "").upper() != thumbprint:
         raise ValueError("source executable signer does not match installer signer")
+    if source_manifest.get("update_trust_configured") is not True:
+        raise ValueError("source build manifest does not record a packaged update trust root")
+    trust_file_digest = str(source_manifest.get("update_trust_root_sha256") or "").strip().lower()
+    if SHA256_RE.fullmatch(trust_file_digest) is None:
+        raise ValueError("source build manifest update trust-root hash is invalid")
 
     public_hex = str(public_key_hex or "").strip().lower()
     if len(public_hex) != 64 or any(ch not in "0123456789abcdef" for ch in public_hex):
         raise ValueError("configured update public key is invalid")
+    expected_key_fingerprint = hashlib.sha256(bytes.fromhex(public_hex)).hexdigest()
+    manifest_key_fingerprint = str(source_manifest.get("update_trust_public_key_sha256") or "").strip().lower()
+    if not hmac.compare_digest(manifest_key_fingerprint, expected_key_fingerprint):
+        raise ValueError("packaged update trust root does not match configured public key")
     update_manifest = SignedUpdateManifest.parse((root / "update-manifest.json").read_text(encoding="utf-8"))
     if not verify_manifest_signature(update_manifest, bytes.fromhex(public_hex)):
         raise ValueError("update manifest Ed25519 verification failed")
