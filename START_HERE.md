@@ -1,35 +1,70 @@
-# Start Here — DPN AI v5.0.7
+# Start Here - DPN AI v10.0.1
 
-## Upgrade a working v5.0.6 installation
+DPN AI v10.0.1 is the active maintenance candidate built on the published v10.0.0 platform.
 
-Use `DPN_AI_v5.0.7_INTERFACE_VOICE_PATCH.zip` and run:
+## Windows installation
 
-```text
-apply_interface_voice_upgrade_windows.bat
-```
-
-Then restart DPN AI, reopen the browser, and press `Ctrl+F5`.
-
-For the improved male voice, run:
+1. Extract the complete repository or release package to a writable folder. Do not run the installer from inside a ZIP preview.
+2. Run:
 
 ```text
-install_sentinel_hd_windows.bat
+install_windows.bat
 ```
 
-## Clean installation
+The installer reads the current version from `VERSION`, builds or repairs the isolated Python environment, installs required dependencies, validates the application core, and preserves an existing `.env` file.
 
-Extract the complete release to a writable folder such as `C:\DPN-AI`, then run:
+For a core-only installation without model or voice downloads, run:
+
+```text
+install_core_only_windows.bat
+```
+
+## Start DPN AI
+
+Run:
+
+```text
+run_dpn_ai.bat
+```
+
+The local Control Center is normally available at:
+
+```text
+http://127.0.0.1:8787
+```
+
+Local-only API access remains restricted to loopback. Configure a strong `DPN_ACCESS_TOKEN` before enabling non-loopback API access.
+
+## Repair or diagnose
+
+Repair the installation:
 
 ```text
 repair_windows.bat
 ```
 
-After installation, run `run_dpn_ai.bat` and open `http://127.0.0.1:8787`.
+Run diagnostics:
 
-## Recommended Sentinel settings
+```text
+doctor_windows.bat
+```
 
-- Voice: DPN Sentinel
-- Pace: 0.89x
-- Tone: Clear
+Diagnostic and installer logs are written under `runtime_logs` and `install_logs`. Do not post logs publicly until they have been reviewed for sensitive information.
 
-Choose Warm for longer narration or Natural for general conversation.
+## Local AI
+
+Ollama is the default local model provider. DPN AI can also use an explicitly configured OpenAI-compatible endpoint.
+
+Provider credentials belong in **Connectors & Secrets**. System Settings stores only the name of the encrypted SecretVault entry, not the credential value itself.
+
+## Voice
+
+Optional local voice support can be installed through the main installer or later with the voice installation scripts. The Sentinel HD helper reads the application version from `VERSION` and does not represent a separate legacy release line.
+
+## Android
+
+The Android client requires HTTPS, secure pairing, device-scoped credentials, and the DPN AI desktop/mobile authorization boundary. Credentials are protected with Android Keystore AES-256/GCM and authenticated mobile requests are validated against the desktop device registry.
+
+## Before reporting a problem
+
+Use the version shown in DPN AI or the repository `VERSION` file. Include sanitized reproduction steps and never publish access tokens, API keys, vault material, device credentials, private prompts, or sensitive local paths.
