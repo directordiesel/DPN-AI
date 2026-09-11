@@ -88,6 +88,8 @@ def test_release_pipeline_uses_immutable_actions_and_least_privilege():
     assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in RELEASE
     assert "actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131" in RELEASE
     assert "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" in RELEASE
+    assert RELEASE.count("create-storage-record: false") == 2
+    assert "artifact-metadata: write" not in RELEASE
     assert "@v4" not in RELEASE
     assert "@v7" not in RELEASE
 
