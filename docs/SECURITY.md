@@ -1,17 +1,17 @@
-# DPN AI v5 Security Guide
+# DPN AI v10 Security Guide
 
 ## Default boundaries
 
 - The web server binds to `127.0.0.1` by default.
-- Remote API requests require `DPN_ACCESS_TOKEN`.
-- File tools are confined to the configured workspace.
+- Remote API requests require `DPN_ACCESS_TOKEN`; token comparison is constant-time and browser API requests are same-origin guarded.
+- File tools are confined to the configured workspace and snapshot/indexing paths reject or skip unsafe symlinks.
 - Safe mode blocks execution and external/destructive actions.
 - Standard mode pauses destructive, external, and desktop actions for approval.
 - Autonomous mode uses all explicitly enabled tools; it does not bypass workspace or resource limits.
 
 ## Sandboxes
 
-Docker is the only isolation boundary provided by the code sandbox. Network access is rejected. The host fallback is disabled by default and must be treated as ordinary local process execution, not containment.
+Docker is the isolation boundary provided by the code sandbox. Sandbox networking is disabled, runtime images are never pulled implicitly, and host fallback is disabled by default. Host fallback must be treated as ordinary local process execution, not containment.
 
 ## MCP and connectors
 
