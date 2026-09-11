@@ -40,7 +40,7 @@ class SnapshotService:
         candidates = [source] if source.is_file() else source.rglob("*")
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
             for candidate in candidates:
-                if not candidate.is_file():
+                if candidate.is_symlink() or not candidate.is_file():
                     continue
                 if any(part in {".git", ".venv", "node_modules", "__pycache__"} for part in candidate.parts):
                     continue
