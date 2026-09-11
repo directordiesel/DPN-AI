@@ -14,6 +14,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
@@ -34,7 +35,14 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
         api = DesktopApiClient(SecureCredentialStore(this))
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { it.setRecognitionListener(this) }
         tts = TextToSpeech(this, this)
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
     }
 
     private fun buildUi(): LinearLayout = LinearLayout(this).apply {
@@ -68,8 +76,10 @@ class VoiceActivity : Activity(), RecognitionListener, TextToSpeech.OnInitListen
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.rgb(18, 16, 27))
             setPadding(24, 24, 24, 24)
+            minLines = 8
+            setTextIsSelectable(true)
         }
-        addView(transcript, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        addView(transcript, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         talkButton = Button(this@VoiceActivity).apply {
             text = "Tap to Talk"
             setOnClickListener { if (listening) stopListening() else requestMicrophoneAndListen() }
