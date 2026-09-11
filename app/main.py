@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import mimetypes
 import traceback
@@ -24,6 +25,7 @@ from app.model_gateway import ModelGateway
 from app.job_supervisor import JobSupervisor
 from app.ollama_client import OllamaError
 from app.orchestrator import MissionOrchestrator
+from app.persistence_security import sanitize_for_persistence
 from app.workflows import WorkflowEngine
 from app.profiles import list_profiles
 from app.schemas import (
@@ -157,8 +159,8 @@ async def _intelligence_keeper() -> None:
                 db.set_setting("intelligence_warm_status", {"ok": True, **result})
         except asyncio.CancelledError:
             raise
-        except Exception as exc:  # noqa: BLE001
-            db.set_setting("intelligence_warm_status", {"ok": False, "error": str(exc)[:1000]})
+        except Exception as exc:  # Keeper must survive provider/runtime failures.
+            db.set_setting("intelligence_warm_status", {"ok": False, "error": sanitize_for_persistence(str(exc))})
         await asyncio.sleep(900)
 
 
@@ -185,11 +187,12 @@ def _write_server_error(error_id: str, request: Request, exc: Exception) -> None
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / "errors.log"
     stamp = datetime.now(timezone.utc).isoformat()
-    entry = (
-        f"\n[{stamp}] ERROR {error_id} {request.method} {request.url.path}\n"
+    raw_detail = (
         f"{type(exc).__name__}: {exc}\n"
-        f"{''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}\n"
+        f"{''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}"
     )
+    safe_detail = str(sanitize_for_persistence(raw_detail))
+    entry = f"\n[{stamp}] ERROR {error_id} {request.method} {request.url.path}\n{safe_detail}\n"
     with log_path.open("a", encoding="utf-8") as handle:
         handle.write(entry)
 
@@ -199,12 +202,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     error_id = uuid.uuid4().hex[:10].upper()
     try:
         _write_server_error(error_id, request, exc)
-    except Exception:
+    except OSError:
         pass
-    detail = (
-        f"DPN AI encountered {type(exc).__name__}: {str(exc)[:500] or 'No details were returned'}. "
-        f"Error ID {error_id}. See runtime_logs\\errors.log."
-    )
+    detail = f"DPN AI encountered an internal error. Error ID {error_id}. See runtime_logs\\errors.log."
     return JSONResponse(status_code=500, content={"detail": detail, "error_id": error_id})
 
 
@@ -215,7 +215,7 @@ async def local_access_boundary(request: Request, call_next):
         is_loopback = client_host in {"127.0.0.1", "::1", "localhost", "testclient"}
         supplied = request.headers.get("X-DPN-Token", "")
         if settings.access_token:
-            if supplied != settings.access_token:
+            if not hmac.compare_digest(supplied, settings.access_token):
                 return JSONResponse(status_code=401, content={"detail": "A valid X-DPN-Token is required."})
         elif not is_loopback:
             return JSONResponse(status_code=503, content={"detail": "Remote API access is disabled until DPN_ACCESS_TOKEN is configured."})
@@ -1121,8 +1121,8 @@ async def upload_comfyui_workflow(file: UploadFile = File(...)) -> dict[str, Any
         raise HTTPException(status_code=413, detail="Workflow exceeds the 5 MB limit")
     try:
         workflow = json.loads(data.decode("utf-8"))
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON workflow: {exc}") from exc
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON workflow") from exc
     if not isinstance(workflow, dict) or not workflow:
         raise HTTPException(status_code=400, detail="Workflow must be a non-empty ComfyUI API-format JSON object")
     target = settings.comfyui_workflow_path
@@ -1141,8 +1141,8 @@ async def upload_files(files: list[UploadFile] = File(...)) -> dict[str, Any]:
             if len(data) > 100 * 1024 * 1024:
                 raise ValueError("File exceeds the 100 MB upload limit")
             uploaded.append(tools.fs.upload_bytes(upload.filename or "upload.bin", data))
-        except Exception as exc:  # noqa: BLE001
-            failed.append({"filename": upload.filename or "unknown", "error": str(exc)})
+        except (OSError, RuntimeError, ValueError) as exc:
+            failed.append({"filename": upload.filename or "unknown", "error": str(sanitize_for_persistence(str(exc)))})
     index_result = tools.knowledge.index_workspace("uploads") if uploaded else None
     return {"uploaded": uploaded, "failed": failed, "index": index_result}
 
