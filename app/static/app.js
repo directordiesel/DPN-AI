@@ -1,5 +1,10 @@
-const initialToken = new URLSearchParams(location.search).get('token') || sessionStorage.getItem('dpnApiToken') || '';
-if (initialToken) { sessionStorage.setItem('dpnApiToken', initialToken); if (location.search.includes('token=')) history.replaceState({}, '', location.pathname); }
+const fragmentParams = new URLSearchParams(location.hash.startsWith('#') ? location.hash.slice(1) : location.hash);
+const fragmentToken = fragmentParams.get('token') || '';
+const initialToken = fragmentToken || sessionStorage.getItem('dpnApiToken') || '';
+if (fragmentToken) {
+  sessionStorage.setItem('dpnApiToken', fragmentToken);
+  history.replaceState({}, '', location.pathname + location.search);
+}
 
 const VOICE_PACE_VERSION = 3;
 const storedPaceVersion = Number(localStorage.getItem('dpnVoicePaceVersion') || 0);
