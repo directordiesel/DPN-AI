@@ -35,7 +35,7 @@ class SettingsPatch(BaseModel):
     model: str | None = None
     default_provider: Literal["ollama", "compatible"] | None = None
     compatible_api_url: str | None = Field(default=None, max_length=1000)
-    compatible_api_secret: str | None = Field(default=None, max_length=120)
+    compatible_api_secret: str | None = Field(default=None, min_length=1, max_length=100, pattern=r"^[A-Za-z_][A-Za-z0-9_.-]{0,99}$")
     allow_external_models: bool | None = None
     think_level: bool | str | None = None
     intelligence_mode: Literal["maximum", "balanced", "manual"] | None = None
