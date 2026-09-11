@@ -240,9 +240,7 @@ def _same_browser_origin(request: Request) -> bool:
     return hmac.compare_digest(origin_host, request_host) and origin_port == request_port
 
 
-@app.middleware("http")
-async def security_response_headers(request: Request, call_next):
-    response = await call_next(request)
+def _apply_security_response_headers(request: Request, response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
@@ -275,6 +273,19 @@ async def security_response_headers(request: Request, call_next):
     return response
 
 
+def _secured_api_error(request: Request, status_code: int, detail: str) -> JSONResponse:
+    return _apply_security_response_headers(
+        request,
+        JSONResponse(status_code=status_code, content={"detail": detail}),
+    )
+
+
+@app.middleware("http")
+async def security_response_headers(request: Request, call_next):
+    response = await call_next(request)
+    return _apply_security_response_headers(request, response)
+
+
 @app.middleware("http")
 async def local_access_boundary(request: Request, call_next):
     if request.url.path.startswith("/api"):
@@ -286,20 +297,20 @@ async def local_access_boundary(request: Request, call_next):
         # Origin, while a malicious website cannot use a cross-origin simple POST
         # against a local DPN AI process.
         if not _same_browser_origin(request):
-            return JSONResponse(status_code=403, content={"detail": "Cross-origin browser API requests are not allowed."})
+            return _secured_api_error(request, 403, "Cross-origin browser API requests are not allowed.")
 
         if settings.access_token:
             if not hmac.compare_digest(supplied, settings.access_token):
-                return JSONResponse(status_code=401, content={"detail": "A valid X-DPN-Token is required."})
+                return _secured_api_error(request, 401, "A valid X-DPN-Token is required.")
         else:
             # Local-only mode validates both the TCP peer and Host header. This
             # closes DNS-rebinding paths where an attacker-controlled hostname
             # resolves to loopback in the user's browser.
             requested_host = _normalized_hostname(request.headers.get("Host", ""))
             if not is_loopback:
-                return JSONResponse(status_code=503, content={"detail": "Remote API access is disabled until DPN_ACCESS_TOKEN is configured."})
+                return _secured_api_error(request, 503, "Remote API access is disabled until DPN_ACCESS_TOKEN is configured.")
             if requested_host not in _LOCAL_API_HOSTS:
-                return JSONResponse(status_code=403, content={"detail": "Untrusted Host header for local API access."})
+                return _secured_api_error(request, 403, "Untrusted Host header for local API access.")
     return await call_next(request)
 
 
