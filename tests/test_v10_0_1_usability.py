@@ -95,7 +95,8 @@ def test_settings_are_grouped_and_explained_in_plain_language():
 
     assert "Configure DPN AI without guessing" in js
     assert "Load Recommended Settings" in js
-    assert "Tool Server Connections (MCP)" in js
+    assert "Tool Server Connections" in js
+    assert "using the MCP standard" in js
     assert "Search and memory matching model" in js
     assert "High risk" in js
 
@@ -119,7 +120,8 @@ def test_sidebar_uses_plain_labels_instead_of_decorative_glyph_prefixes():
     assert "WINDOWS DESKTOP PLATFORM v8" not in html
     assert "DPN AI DESKTOP PLATFORM" in html
     assert "MCP Tool Bridge" not in html
-    assert "Tool Server Connections (MCP)" in html
+    assert ">Tool Server Connections</button>" in html
+    assert "Tool Server Connections (MCP)" not in html
 
     for glyph in ("◉", "▰", "⬢", "▧", "✧", "⇌", "⚠", "◆", "◷", "⌁", "⬡", "▣", "◈", "✦", "⇄"):
         assert glyph not in html
@@ -147,7 +149,7 @@ def test_primary_modules_explain_purpose_first_action_and_safety():
         "Knowledge Graph",
         "Sandbox Lab",
         "Capability Forge",
-        "Tool Server Connections (MCP)",
+        "Tool Server Connections",
         "Approval Inbox",
         "Skills & Workflows",
         "Connectors & Secrets",
@@ -376,3 +378,78 @@ def test_raw_json_is_labeled_as_technical_evidence_where_user_facing():
     assert "Technical validation evidence" in js
     assert "Exact action details - review before deciding" in js
     assert "<details open><summary>Goal contract</summary>" not in js
+
+
+def test_unavailable_capabilities_explain_recovery_in_plain_language():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    desktop = (STATIC / "v8-desktop.js").read_text(encoding="utf-8")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+    for guidance in (
+        "AI model service unavailable",
+        "Start the configured AI model service, or open Settings > AI Models",
+        "No AI model available - check AI Models settings",
+        "NEEDS SETUP",
+        "INSTALL REQUIRED",
+        "DOCKER NEEDED",
+        "install/start Docker or explicitly enable Direct host fallback in Settings",
+        "Tool server support is not installed in this DPN AI environment",
+        "install the optional MCP support dependencies and restart DPN AI",
+    ):
+        assert guidance in js
+
+    assert "Model Gateway Offline" not in js
+    assert "Model gateway offline" not in js
+    assert "Add Disabled-by-Allowlist Server" not in js
+    assert "MCP server configured with an empty allowlist." not in js
+    assert "Save Allowlist" not in js
+    assert "Desktop API is not responding" not in desktop
+    assert "DPN Core not responding" in desktop
+    assert "Make sure DPN AI is running. Status will reconnect automatically." in desktop
+    assert "Waiting for mission summary API" not in html
+    assert "Waiting for live mission status" in html
+
+
+def test_advanced_terms_are_secondary_to_plain_language_labels():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+    assert ">Tool Server Connections</button>" in html
+    assert "Tool Server Connections (MCP)" not in html
+    assert "Tool server support (MCP)" in js
+    assert "using the MCP standard" in js
+    assert "Local speech output" in js
+    assert "Recognition model" in js
+    assert "Neural TTS engine" not in js
+    assert "STT model" not in js
+    assert "Direct host fallback when Docker is unavailable" in js
+    assert "This specialized model converts text into numeric meaning representations" in js
+
+
+def test_structured_result_failures_use_safe_action_error_presenter():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "Promoting the capability" in js
+    assert "Restoring the plugin backup" in js
+    assert "Discovering tool server capabilities" in js
+    assert "Running the workflow" in js
+
+    assert "Capability promoted; restart DPN AI to load it.':r.error" not in js
+    assert "Plugin backup restored; restart DPN AI.':r.error" not in js
+    assert "tools.\`.:r.error" not in js
+    assert "Workflow completed.':result.error" not in js
+
+
+def test_expert_evidence_is_human_first_and_explicitly_labeled():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "Technical tool evidence -" in js
+    assert "Technical failure details" in js
+    assert "Technical result and request payload" in js
+    assert "Technical relationship data (JSON)" in js
+    assert "function formatSandboxResult(result = {})" in js
+    assert "Execution completed successfully." in js
+    assert "Program output:" in js
+    assert "Technical execution evidence:" in js
+    assert "output.textContent=formatSandboxResult(r)" in js
+    assert "output.textContent=JSON.stringify(r,null,2)" not in js
