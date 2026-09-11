@@ -301,7 +301,7 @@ async function loadVoiceProfiles() {
     setVoiceUi(state.settings?.allow_voice ? 'ready' : 'unavailable', state.settings?.allow_voice ? `${selectedVoiceProfile().name} - local speech` : 'Enable voice capabilities in Settings');
   } catch (error) {
     state.voice.voiceAvailable = false;
-    setVoiceUi('error', error.message);
+    setVoiceUi('error', `Voice setup failed. ${userSafeErrorDetail(error)}`);
   }
 }
 
@@ -337,7 +337,7 @@ async function speakText(text, voiceId = state.voice.selected) {
   audio.onended = () => {
     stopVoicePlayback(false);
     setVoiceUi('ready', 'Voice reply complete');
-    if (state.voice.handsFree) setTimeout(() => startVoiceRecording(true).catch(error => { setVoiceUi('error', error.message); toast(error.message,true); }), 450);
+    if (state.voice.handsFree) setTimeout(() => startVoiceRecording(true).catch(error => { setVoiceUi('error', `Hands-free listening could not restart. ${userSafeErrorDetail(error)}`); showActionError('Restarting hands-free listening', error, 'Check microphone permission and Voice settings, then try again.'); }), 450);
   };
   audio.onerror = () => { stopVoicePlayback(); toast('The generated voice audio could not be played.', true); };
   await audio.play();
@@ -378,8 +378,8 @@ async function processVoiceRecording(blob) {
       await sendMessage(text, {fromVoice:true});
     }
   } catch (error) {
-    setVoiceUi('error', error.message);
-    toast(error.message, true);
+    setVoiceUi('error', `Voice transcription failed. ${userSafeErrorDetail(error)}`);
+    showActionError('Transcribing the voice request', error, 'Check microphone input, the selected speech model, and Voice settings, then try again.');
     if (state.voice.handsFree) setTimeout(() => startVoiceRecording(true).catch(() => {}), 1200);
   }
 }
@@ -478,8 +478,8 @@ async function showVoiceCenter() {
   document.querySelectorAll('[data-voice-speed]').forEach(input => input.oninput = () => { const voiceId=input.dataset.voiceSpeed; const value=setVoiceSpeed(voiceId,input.value); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (output) output.textContent=`${value.toFixed(2)}x`; });
   document.querySelectorAll('[data-voice-tone]').forEach(select => select.onchange = () => { const voiceId=select.dataset.voiceTone; const value=setVoiceTone(voiceId,select.value); toast(`${voiceProfile(voiceId).name} tone set to ${value}.`); });
   document.querySelectorAll('[data-voice-reset]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceReset; const value=resetVoiceSpeed(voiceId); const input=document.querySelector(`[data-voice-speed="${voiceId}"]`); const output=document.querySelector(`[data-voice-speed-output="${voiceId}"]`); if (input) input.value=String(value); if (output) output.textContent=`${value.toFixed(2)}x`; toast(`${voiceProfile(voiceId).name} restored to its natural narration pace.`); });
-  document.querySelectorAll('[data-voice-install]').forEach(button => button.onclick = async () => { try { await installVoiceProfile(button.dataset.voiceInstall); await showVoiceCenter(); } catch(error) { toast(error.message,true); } });
-  document.querySelectorAll('[data-voice-sample]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceSample; const sample=voiceId === 'aurora' ? 'Take a comfortable breath. I can read this slowly, gently, and clearly, with space between each thought.' : 'DPN AI voice systems are online. I will deliver each operation clearly, calmly, and at a measured pace.'; speakText(sample,voiceId).catch(error=>toast(error.message,true)); });
+  document.querySelectorAll('[data-voice-install]').forEach(button => button.onclick = async () => { try { await installVoiceProfile(button.dataset.voiceInstall); await showVoiceCenter(); } catch(error) { showActionError('Installing the local voice model', error, 'Check the network connection and available disk space, then try again.'); } });
+  document.querySelectorAll('[data-voice-sample]').forEach(button => button.onclick = () => { const voiceId=button.dataset.voiceSample; const sample=voiceId === 'aurora' ? 'Take a comfortable breath. I can read this slowly, gently, and clearly, with space between each thought.' : 'DPN AI voice systems are online. I will deliver each operation clearly, calmly, and at a measured pace.'; speakText(sample,voiceId).catch(error=>showActionError('Playing the voice sample', error, 'Check Voice settings and audio output, then try again.')); });
   $('clearVoiceCacheBtn').onclick = async () => { const result=await api('/api/voice/cache/clear',{method:'POST'}); toast(`Released ${result.piper_models_released + result.whisper_models_released} cached voice model(s).`); };
 }
 
@@ -561,7 +561,7 @@ function addMessage(role, content, metadata = {}) {
     const readButton = document.createElement('button');
     readButton.innerHTML = 'Read aloud';
     readButton.title = 'Read this response using the selected local voice';
-    readButton.onclick = () => speakText(content).catch(error => toast(error.message, true));
+    readButton.onclick = () => speakText(content).catch(error => showActionError('Reading the response aloud', error, 'Check Voice settings and audio output, then try again.'));
     const copyButton = document.createElement('button');
     copyButton.innerHTML = ' Copy';
     copyButton.onclick = async () => { await navigator.clipboard.writeText(content); toast('Response copied.'); };
@@ -822,9 +822,9 @@ async function sendMessage(forcedPrompt = null, options = {}) {
     const conversation = state.conversations.find(item => item.id === state.conversationId);
     els.activeTitle.textContent = conversation?.title || 'DPN Operation';
     if ((state.voice.autoSpeak || state.voice.handsFree || options.readReply) && state.settings?.allow_voice) {
-      try { await speakText(data.message); } catch (voiceError) { setVoiceUi('error', voiceError.message); toast(voiceError.message, true); }
+      try { await speakText(data.message); } catch (voiceError) { setVoiceUi('error', `Voice playback failed. ${userSafeErrorDetail(voiceError)}`); showActionError('Playing the AI response aloud', voiceError, 'Check Voice settings and audio output, then try again.'); }
     } else if (state.voice.handsFree && state.settings?.allow_voice) {
-      setTimeout(() => startVoiceRecording(true).catch(error => toast(error.message,true)), 500);
+      setTimeout(() => startVoiceRecording(true).catch(error => showActionError('Restarting hands-free listening', error, 'Check microphone permission and Voice settings, then try again.')), 500);
     } else if (options.fromVoice) {
       setVoiceUi('ready', 'Response complete');
     }
@@ -833,10 +833,11 @@ async function sendMessage(forcedPrompt = null, options = {}) {
     const recovery = error.status >= 500
       ? '\n\nOpen `runtime_logs\\errors.log` for the exact traceback, then restart DPN AI after correcting the reported model or configuration issue.'
       : '';
-    addMessage('assistant', `**Operation failed:** ${error.message}${recovery}`);
-    toast(error.message, true);
+    const safeDetail = userSafeErrorDetail(error);
+    addMessage('assistant', `**Operation failed.** DPN AI did not mark this work complete. ${error.status >= 500 ? 'Check System Diagnostics and the local runtime logs before retrying.' : 'Review the request and current permissions, then try again.'}\n\nTechnical details: ${safeDetail}${recovery}`);
+    showActionError('Running the operation', error, error.status >= 500 ? 'Open System Diagnostics and check the local runtime before retrying.' : 'Review the request and current permissions, then try again.');
     loadHealth().catch(() => {});
-    if (options.fromVoice) setVoiceUi('error', error.message);
+    if (options.fromVoice) setVoiceUi('error', `Operation failed. ${safeDetail}`);
   } finally {
     state.sending = false; els.sendBtn.disabled = false; els.promptInput.focus();
   }
@@ -851,7 +852,7 @@ async function uploadFiles(fileList) {
     const result = await api('/api/files/upload', {method:'POST', body:form});
     state.pendingAttachments = [...new Set([...state.pendingAttachments, ...result.uploaded])]; renderPendingAttachments();
     toast(`Uploaded and indexed ${result.uploaded.length} file(s).`);
-  } catch (error) { toast(error.message, true); }
+  } catch (error) { showActionError('Uploading the file', error, 'Check the file size, workspace availability, and DPN Core connection, then try again.'); }
   els.fileInput.value = '';
 }
 
@@ -989,7 +990,7 @@ async function showDiagnostics() {
       <section><h4>Database</h4>${Object.entries(counts).map(([key,value]) => `<p>${escapeHtml(key)}: <strong>${value}</strong></p>`).join('')}</section>
       <section><h4>Installed Models</h4>${(data.models || []).map(model => `<p>${escapeHtml(model.name || model.model)} - ${formatBytes(model.size || 0)}</p>`).join('') || '<p>No models detected.</p>'}</section>
     </div>
-    ${data.plugins?.errors?.length ? `<h4>Plugin Errors</h4><pre>${escapeHtml(JSON.stringify(data.plugins.errors,null,2))}</pre>` : ''}`, true);
+    ${data.plugins?.errors?.length ? `<details><summary>Technical plugin error details</summary><pre>${escapeHtml(JSON.stringify(data.plugins.errors,null,2))}</pre></details>` : ''}`, true);
 }
 
 
@@ -1001,7 +1002,7 @@ async function showMissions() {
     <div>${data.missions.map(m => `<div class="list-card"><header><strong>${escapeHtml(m.objective.slice(0,160))}</strong><span class="badge">${escapeHtml(m.status)}</span></header><p>Planner: ${escapeHtml(m.planner_model || 'default')} - Worker: ${escapeHtml(m.worker_model || 'default')} - Reviewer: ${escapeHtml(m.reviewer_model || 'default')}</p><small>${formatDate(m.created_at)} - ${escapeHtml(m.id)}</small><div class="modal-actions"><button class="secondary" data-mission-open="${m.id}">View Mission</button></div></div>`).join('') || '<div class="empty-state">No missions yet. Select Mission mode in Chat and send a complex goal that benefits from planning, checkpoints, and independent review.</div>'}</div>`, true);
   document.querySelectorAll('[data-mission-open]').forEach(button => button.onclick = async () => {
     const result = await api(`/api/missions/${button.dataset.missionOpen}`); const m=result.mission;
-    openModal('Mission Detail','CONTRACT - CHECKPOINTS - WORKERS - REVIEW QUORUM', `<div class="list-card"><h4>${escapeHtml(m.objective)}</h4><p>Status: <strong>${escapeHtml(m.status)}</strong></p><details open><summary>Goal contract</summary><pre>${escapeHtml(JSON.stringify(m.goal_contract?.contract||m.result?.contract||{},null,2))}</pre></details></div>${(m.steps||[]).map(step=>`<div class="list-card"><header><strong>${step.ordinal+1}. ${escapeHtml(step.title)}</strong><span class="badge">${escapeHtml(step.status)}</span></header><p>${escapeHtml(step.instructions)}</p><small>Attempts: ${step.attempts||0} - Dependencies: ${(step.dependencies||[]).length}</small><pre>${escapeHtml(JSON.stringify(step.result||{},null,2))}</pre></div>`).join('')}<h4>Mission Checkpoints</h4><pre>${escapeHtml(JSON.stringify(m.checkpoints||[],null,2))}</pre><h4>Independent Evaluations</h4><pre>${escapeHtml(JSON.stringify(m.evaluations||[],null,2))}</pre><h4>Consensus Review</h4><pre>${escapeHtml(JSON.stringify(m.result?.review||{},null,2))}</pre>`, true);
+    openModal('Mission Detail','CONTRACT - CHECKPOINTS - WORKERS - REVIEW QUORUM', `<div class="list-card"><h4>${escapeHtml(m.objective)}</h4><p>Status: <strong>${escapeHtml(m.status)}</strong></p><details><summary>Technical goal contract</summary><pre>${escapeHtml(JSON.stringify(m.goal_contract?.contract||m.result?.contract||{},null,2))}</pre></details></div>${(m.steps||[]).map(step=>`<div class="list-card"><header><strong>${step.ordinal+1}. ${escapeHtml(step.title)}</strong><span class="badge">${escapeHtml(step.status)}</span></header><p>${escapeHtml(step.instructions)}</p><small>Attempts: ${step.attempts||0} - Dependencies: ${(step.dependencies||[]).length}</small><details><summary>Technical step evidence</summary><pre>${escapeHtml(JSON.stringify(step.result||{},null,2))}</pre></details></div>`).join('')}<details><summary>Mission checkpoint evidence</summary><pre>${escapeHtml(JSON.stringify(m.checkpoints||[],null,2))}</pre></details><details><summary>Independent evaluation evidence</summary><pre>${escapeHtml(JSON.stringify(m.evaluations||[],null,2))}</pre></details><details><summary>Consensus review evidence</summary><pre>${escapeHtml(JSON.stringify(m.result?.review||{},null,2))}</pre></details>`, true);
   });
 }
 
@@ -1050,7 +1051,7 @@ async function showCapabilityForge() {
     ${moduleIntro('Capability Forge', 'Stage and validate local DPN AI plugins before they are promoted into the active capability set.', 'Stage a small capability, validate it, inspect the result, and only then request promotion.', 'Promotion can expand what DPN AI can do, so it remains approval-controlled and restart-gated. Validation does not equal authorization.')}
     <div class="metric-grid"><div><strong>${(data.active||[]).length}</strong><span>Active plugins</span></div><div><strong>${(data.staged||[]).length}</strong><span>Staged</span></div><div><strong>AST + COMPILE</strong><span>Validation</span></div><div><strong>APPROVAL</strong><span>Promotion boundary</span></div></div>
     <div class="list-card"><h4>Stage a local capability</h4><input id="forgeId" placeholder="capability-id"><input id="forgeDescription" placeholder="Purpose and trust assumptions"><textarea id="forgeCode" rows="13" spellcheck="false">def register(registry):\n    registry.register(\n        "my_capability",\n        "Describe exactly what this tool does.",\n        {"type": "object", "properties": {}},\n        lambda: {"ok": True, "message": "Capability ready"},\n    )</textarea><div class="modal-actions"><button class="primary compact" id="stageCapabilityBtn">Stage Only</button></div></div>
-    <h4>Staged capabilities</h4>${(data.staged||[]).map(c=>`<div class="list-card"><header><strong>${escapeHtml(c.id)}</strong><span class="badge">${c.validation?.valid?'VALID':c.validation?'REJECTED':'UNVALIDATED'}</span></header><p>${escapeHtml(c.description||'')}</p><small>SHA-256 ${escapeHtml(c.sha256||'')}</small>${c.validation?`<pre>${escapeHtml(JSON.stringify(c.validation,null,2))}</pre>`:''}<div class="modal-actions"><button class="secondary" data-forge-validate="${c.id}">Validate</button><button class="primary compact" data-forge-promote="${c.id}">Promote</button></div></div>`).join('')||'<div class="empty-state">No capabilities are staged. Add a small local capability above, validate it, inspect the result, and only then request promotion.</div>'}<h4>Active plugins</h4><div class="capability-strip">${(data.active||[]).map(name=>`<span>${escapeHtml(name)}</span>`).join('')||'<span>No custom plugins active</span>'}</div><h4>Rollback backups</h4>${(data.backups||[]).map(item=>`<div class="list-card"><header><strong>${escapeHtml(item.name)}</strong><button data-forge-rollback="${escapeHtml(item.name.split('-')[0])}" data-backup-name="${escapeHtml(item.name)}">Restore Backup</button></header><small>${formatBytes(item.size_bytes)} - ${formatDate(new Date(item.modified_at*1000).toISOString())}</small></div>`).join('')||'<div class="empty-state">No rollback backups exist yet. A preserved prior version will appear here when a promoted plugin has something to restore.</div>'}`, true);
+    <h4>Staged capabilities</h4>${(data.staged||[]).map(c=>`<div class="list-card"><header><strong>${escapeHtml(c.id)}</strong><span class="badge">${c.validation?.valid?'VALID':c.validation?'REJECTED':'UNVALIDATED'}</span></header><p>${escapeHtml(c.description||'')}</p><small>SHA-256 ${escapeHtml(c.sha256||'')}</small>${c.validation?`<details><summary>Technical validation evidence</summary><pre>${escapeHtml(JSON.stringify(c.validation,null,2))}</pre></details>`:''}<div class="modal-actions"><button class="secondary" data-forge-validate="${c.id}">Validate</button><button class="primary compact" data-forge-promote="${c.id}">Promote</button></div></div>`).join('')||'<div class="empty-state">No capabilities are staged. Add a small local capability above, validate it, inspect the result, and only then request promotion.</div>'}<h4>Active plugins</h4><div class="capability-strip">${(data.active||[]).map(name=>`<span>${escapeHtml(name)}</span>`).join('')||'<span>No custom plugins active</span>'}</div><h4>Rollback backups</h4>${(data.backups||[]).map(item=>`<div class="list-card"><header><strong>${escapeHtml(item.name)}</strong><button data-forge-rollback="${escapeHtml(item.name.split('-')[0])}" data-backup-name="${escapeHtml(item.name)}">Restore Backup</button></header><small>${formatBytes(item.size_bytes)} - ${formatDate(new Date(item.modified_at*1000).toISOString())}</small></div>`).join('')||'<div class="empty-state">No rollback backups exist yet. A preserved prior version will appear here when a promoted plugin has something to restore.</div>'}`, true);
   $('stageCapabilityBtn').onclick=async()=>{const payload={capability_id:$('forgeId').value.trim(),description:$('forgeDescription').value.trim(),code:$('forgeCode').value,overwrite:false};if(!payload.capability_id)return toast('Enter a capability id.',true);await api('/api/capability-forge/stage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});toast('Capability staged but not activated.');await showCapabilityForge();};
   document.querySelectorAll('[data-forge-validate]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/capability-forge/${b.dataset.forgeValidate}/validate`,{method:'POST'});toast(r.valid?'Capability validation passed.':'Capability validation rejected.',!r.valid);await showCapabilityForge();});
   document.querySelectorAll('[data-forge-promote]').forEach(b=>b.onclick=async()=>{const r=await api(`/api/capability-forge/${b.dataset.forgePromote}/promote`,{method:'POST'});if(r.approval_required)toast('Promotion is waiting in the Approval Inbox.');else toast(r.ok?'Capability promoted; restart DPN AI to load it.':r.error,!r.ok);});
@@ -1073,7 +1074,7 @@ async function showMCP() {
 
 async function showApprovals() {
   const data = await api('/api/approvals?status=pending');
-  openModal('Approval Inbox','HUMAN CONTROL BOUNDARY', `${moduleIntro('Approval Inbox', 'Review actions that DPN AI is not allowed to perform until a human explicitly approves or denies them.', 'Read the tool name, risk, reason, and arguments before making a decision.', 'Approving may execute the exact deferred action. Deny anything you do not fully understand or intend.')}<div class="toolbar"><span>${data.approvals.length} pending decision(s)</span><small>External, destructive, and desktop actions pause here in Standard mode.</small></div>${data.approvals.map(a=>`<div class="list-card"><header><strong>${escapeHtml(a.tool_name)}</strong><span class="badge">${escapeHtml(a.risk)}</span></header><p>${escapeHtml(a.reason)}</p><pre>${escapeHtml(JSON.stringify(a.arguments,null,2))}</pre><div class="modal-actions"><button class="primary compact" data-approve="${a.id}">Approve & Execute</button><button class="danger" data-deny="${a.id}">Deny</button></div></div>`).join('') || '<div class="empty-state">Nothing needs your approval right now. Protected actions will appear here automatically before DPN AI is allowed to execute them.</div>'}`, true);
+  openModal('Approval Inbox','HUMAN CONTROL BOUNDARY', `${moduleIntro('Approval Inbox', 'Review actions that DPN AI is not allowed to perform until a human explicitly approves or denies them.', 'Read the tool name, risk, reason, and arguments before making a decision.', 'Approving may execute the exact deferred action. Deny anything you do not fully understand or intend.')}<div class="toolbar"><span>${data.approvals.length} pending decision(s)</span><small>External, destructive, and desktop actions pause here in Standard mode.</small></div>${data.approvals.map(a=>`<div class="list-card"><header><strong>${escapeHtml(a.tool_name)}</strong><span class="badge">${escapeHtml(a.risk)}</span></header><p>${escapeHtml(a.reason)}</p><details open><summary>Exact action details - review before deciding</summary><pre>${escapeHtml(JSON.stringify(a.arguments,null,2))}</pre></details><div class="modal-actions"><button class="primary compact" data-approve="${a.id}">Approve & Execute</button><button class="danger" data-deny="${a.id}">Deny</button></div></div>`).join('') || '<div class="empty-state">Nothing needs your approval right now. Protected actions will appear here automatically before DPN AI is allowed to execute them.</div>'}`, true);
   document.querySelectorAll('[data-approve]').forEach(button=>button.onclick=async()=>{ const r=await api(`/api/approvals/${button.dataset.approve}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:'approved'})}); toast(r.execution?.ok?'Approved action completed.':'Approved action failed.',!r.execution?.ok); await showApprovals(); });
   document.querySelectorAll('[data-deny]').forEach(button=>button.onclick=async()=>{ await api(`/api/approvals/${button.dataset.deny}/decision`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:'denied'})}); await showApprovals(); });
 }
@@ -1293,14 +1294,14 @@ if (els.diagnosticsBtn) els.diagnosticsBtn.onclick = () => showDiagnostics().cat
 if (els.settingsBtn) els.settingsBtn.onclick = () => showSettings().catch(error => showActionError('Opening System Settings', error, 'Check the local DPN Core connection, then try again.'));
 if (els.voiceBtn) els.voiceBtn.onclick = () => showVoiceCenter().catch(error => showActionError('Opening Voice Command Center', error, 'Check Voice is enabled in Settings and the local runtime is available.'));
 if (els.voiceSettingsBtn) els.voiceSettingsBtn.onclick = () => showVoiceCenter().catch(error => showActionError('Opening Voice Command Center', error, 'Check Voice is enabled in Settings and the local runtime is available.'));
-if (els.micBtn) els.micBtn.onclick = () => toggleVoiceRecording().catch(error => { setVoiceUi('error',error.message); toast(error.message,true); });
+if (els.micBtn) els.micBtn.onclick = () => toggleVoiceRecording().catch(error => { setVoiceUi('error', `Voice input could not start. ${userSafeErrorDetail(error)}`); showActionError('Starting voice input', error, 'Check microphone permission and Voice settings, then try again.'); });
 if (els.stopVoiceBtn) els.stopVoiceBtn.onclick = () => { stopVoiceRecording(); stopVoicePlayback(); };
 if (els.voiceSelect) els.voiceSelect.onchange = event => { state.voice.selected=event.target.value; localStorage.setItem('dpnVoiceProfile',state.voice.selected); setVoiceUi('ready',`${selectedVoiceProfile().name} selected`); };
 if (els.autoSpeakToggle) els.autoSpeakToggle.onchange = event => { state.voice.autoSpeak=event.target.checked; localStorage.setItem('dpnAutoSpeak',String(state.voice.autoSpeak)); };
 if (els.voiceReviewToggle) els.voiceReviewToggle.onchange = event => { state.voice.reviewBeforeSend=event.target.checked; localStorage.setItem('dpnVoiceReview',String(state.voice.reviewBeforeSend)); };
 if (els.handsFreeToggle) els.handsFreeToggle.onchange = event => {
   state.voice.handsFree=event.target.checked; localStorage.setItem('dpnHandsFree',String(state.voice.handsFree));
-  if (state.voice.handsFree) { state.voice.autoSpeak=true; els.autoSpeakToggle.checked=true; localStorage.setItem('dpnAutoSpeak','true'); startVoiceRecording(true).catch(error=>{ state.voice.handsFree=false; els.handsFreeToggle.checked=false; localStorage.setItem('dpnHandsFree','false'); setVoiceUi('error',error.message); toast(error.message,true); }); }
+  if (state.voice.handsFree) { state.voice.autoSpeak=true; els.autoSpeakToggle.checked=true; localStorage.setItem('dpnAutoSpeak','true'); startVoiceRecording(true).catch(error=>{ state.voice.handsFree=false; els.handsFreeToggle.checked=false; localStorage.setItem('dpnHandsFree','false'); setVoiceUi('error', `Hands-free mode could not start. ${userSafeErrorDetail(error)}`); showActionError('Starting hands-free voice mode', error, 'Check microphone permission and Voice settings. Hands-free mode has been turned back off.'); }); }
   else { stopVoiceRecording(); stopVoicePlayback(); }
 };
 if (els.indexBtn) els.indexBtn.onclick = async () => { try { toast('Reindexing workspace...'); const result = await api('/api/knowledge/index?force=true',{method:'POST'}); toast(`Indexed ${result.indexed} files into ${result.chunks} chunks.`); } catch(error) { showActionError('Reindexing the workspace', error, 'Check the workspace path and DPN Core status, then try again.'); } };
@@ -1316,7 +1317,7 @@ window.addEventListener('dragover', event => event.preventDefault());
 window.addEventListener('dragleave', event => { event.preventDefault(); dragDepth -= 1; if (dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
 window.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging'); uploadFiles(event.dataTransfer.files); });
 window.addEventListener('keydown', event => {
-  if (event.ctrlKey && event.code === 'Space') { event.preventDefault(); toggleVoiceRecording().catch(error=>toast(error.message,true)); return; }
+  if (event.ctrlKey && event.code === 'Space') { event.preventDefault(); toggleVoiceRecording().catch(error=>showActionError('Starting voice input', error, 'Check microphone permission and Voice settings, then try again.')); return; }
   if (event.key === 'Tab' && modalIsOpen()) { trapModalFocus(event); return; }
   if (event.key === 'Escape') {
     if (modalIsOpen()) { event.preventDefault(); closeModal(); return; }
