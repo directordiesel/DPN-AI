@@ -11,6 +11,7 @@ def test_ui_assets_are_cache_busted():
     assert f'/styles.css?v={VERSION}' in HTML
     assert f'/app.js?v={VERSION}' in HTML
     assert f"dpn-ai-v{VERSION}-ui-shell" in SW
+    assert "dpn-ai-v10.0.0-ui-shell" not in SW
 
 
 def test_sidebar_and_chat_are_explicit_scroll_regions():

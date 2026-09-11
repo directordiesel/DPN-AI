@@ -53,7 +53,7 @@ class MissionsActivity : Activity() {
             textSize = 13f; setPadding(0, 4, 0, 24); setTextColor(Color.rgb(167, 139, 250))
         })
 
-        status = TextView(this).apply { setTextColor(Color.LTGRAY); text = "Loading missions…"; setPadding(0, 0, 0, 18) }
+        status = TextView(this).apply { setTextColor(Color.LTGRAY); text = "Loading missions..."; setPadding(0, 0, 0, 18) }
         root.addView(status)
 
         objectiveInput = EditText(this).apply {
@@ -101,7 +101,7 @@ class MissionsActivity : Activity() {
     }
 
     private fun refreshMissions() {
-        setBusy(true, "Refreshing missions…")
+        setBusy(true, "Refreshing missions...")
         thread(name = "dpn-mobile-missions-list") {
             val result = runCatching { missionClient.listMissions(limit = 100) }
             runOnUiThread {
@@ -130,7 +130,7 @@ class MissionsActivity : Activity() {
             setTextColor(Color.WHITE)
         })
         row.addView(TextView(this).apply {
-            text = "${mission.status.uppercase()} • ${mission.id.take(8)}${mission.projectId?.let { " • project ${it.take(8)}" } ?: ""}"
+            text = "${mission.status.uppercase()} - ${mission.id.take(8)}${mission.projectId?.let { " - project ${it.take(8)}" } ?: ""}"
             textSize = 12f
             setTextColor(Color.rgb(167, 139, 250))
         })
@@ -148,7 +148,7 @@ class MissionsActivity : Activity() {
             return
         }
         val projectId = projectInput.text?.toString().orEmpty().trim().ifBlank { null }
-        setBusy(true, "Launching mission on desktop runtime…")
+        setBusy(true, "Launching mission on desktop runtime...")
         thread(name = "dpn-mobile-mission-launch") {
             val result = runCatching {
                 if (projectId != null) {
@@ -168,7 +168,7 @@ class MissionsActivity : Activity() {
     }
 
     private fun loadMissionDetail(missionId: String) {
-        setBusy(true, "Loading mission details…")
+        setBusy(true, "Loading mission details...")
         thread(name = "dpn-mobile-mission-detail") {
             val result = runCatching { missionClient.getMission(missionId) }
             runOnUiThread {
@@ -176,7 +176,7 @@ class MissionsActivity : Activity() {
                     val steps = detail.raw.optJSONArray("steps")?.length() ?: 0
                     val verification = detail.raw.optJSONObject("verification") ?: detail.raw.optJSONObject("review")
                     val verificationText = verification?.optString("status")?.ifBlank { null } ?: "not reported"
-                    setBusy(false, "Mission ${detail.summary.id.take(8)} • ${detail.summary.status} • $steps steps • verification $verificationText")
+                    setBusy(false, "Mission ${detail.summary.id.take(8)} - ${detail.summary.status} - $steps steps - verification $verificationText")
                 }.onFailure { setBusy(false, "Mission detail failed: ${it.message ?: "unknown error"}") }
             }
         }

@@ -45,12 +45,12 @@ class NotificationsActivity : Activity() {
             layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
         root.addView(TextView(this).apply {
-            text = "DPN AI • Notifications"
+            text = "DPN AI - Notifications"
             textSize = 25f
             setTextColor(Color.WHITE)
         })
         root.addView(TextView(this).apply {
-            text = "Missions • Approvals • Explicit refresh only"
+            text = "Missions - Approvals - Explicit refresh only"
             textSize = 12f
             setTextColor(Color.rgb(167, 139, 250))
             setPadding(0, 4, 0, 20)
@@ -61,7 +61,7 @@ class NotificationsActivity : Activity() {
         }
         root.addView(refreshButton)
         status = TextView(this).apply {
-            text = "Loading current DPN AI state…"
+            text = "Loading current DPN AI state..."
             setTextColor(Color.LTGRAY)
             setPadding(0, 18, 0, 14)
         }
@@ -74,7 +74,7 @@ class NotificationsActivity : Activity() {
 
     private fun refreshFeed(postSystemNotifications: Boolean) {
         refreshButton.isEnabled = false
-        status.text = "Synchronizing missions and approvals…"
+        status.text = "Synchronizing missions and approvals..."
         thread(name = "dpn-mobile-notification-refresh") {
             val result = runCatching {
                 val missions = MissionApiClient(credentialStore).listMissions(limit = 50)
@@ -85,7 +85,7 @@ class NotificationsActivity : Activity() {
                 refreshButton.isEnabled = true
                 result.onSuccess { (missions, approvals) ->
                     renderFeed(missions, approvals)
-                    status.text = "${approvals.size} pending approvals • ${missions.size} recent missions"
+                    status.text = "${approvals.size} pending approvals - ${missions.size} recent missions"
                     if (postSystemNotifications) maybePostNotifications(missions, approvals)
                 }.onFailure { error ->
                     feed.removeAllViews()
@@ -108,7 +108,7 @@ class NotificationsActivity : Activity() {
             addFeedItem("APPROVAL REQUIRED\n${approval.action}\n${approval.reason.take(320)}")
         }
         missions.take(20).forEach { mission ->
-            addFeedItem("MISSION • ${mission.status.uppercase()}\n${mission.objective.take(420)}")
+            addFeedItem("MISSION - ${mission.status.uppercase()}\n${mission.objective.take(420)}")
         }
     }
 

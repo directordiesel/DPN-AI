@@ -99,7 +99,7 @@ def test_ui_exposes_editable_voice_and_maximum_model_controls():
     assert 'value="auto" selected>Smart Auto' in html
     assert 'id="voiceReviewToggle"' in html
     assert 'id="editBanner"' in html
-    assert "AUTO — Strongest Installed Model" in desktop_js
+    assert "AUTO - Strongest Installed Model" in desktop_js
     assert "normalizeModelAutoLabel" in desktop_js
     assert "Edit & resend" in js
     assert "edit_message_id" in js

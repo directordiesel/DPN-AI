@@ -9,6 +9,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import com.dpntechnology.dpnai.network.DesktopApiClient
@@ -28,7 +29,14 @@ class ProjectsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         api = DesktopApiClient(SecureCredentialStore(this))
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
         refreshProjects()
     }
 
@@ -40,7 +48,7 @@ class ProjectsActivity : Activity() {
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         addView(TextView(this@ProjectsActivity).apply {
-            text = "DPN AI • Projects & Tasks"
+            text = "DPN AI - Projects & Tasks"
             textSize = 25f
             setTextColor(Color.WHITE)
         })
@@ -96,7 +104,7 @@ class ProjectsActivity : Activity() {
         })
 
         status = TextView(this@ProjectsActivity).apply {
-            text = "Syncing projects…"
+            text = "Syncing projects..."
             setTextColor(Color.LTGRAY)
             setPadding(0, 22, 0, 0)
         }
@@ -104,14 +112,14 @@ class ProjectsActivity : Activity() {
     }
 
     private fun refreshProjects(selectId: String? = null) {
-        status.text = "Syncing projects…"
+        status.text = "Syncing projects..."
         thread(name = "dpn-mobile-project-sync") {
             val result = runCatching { api.listProjects() }
             runOnUiThread {
                 result.onSuccess { items ->
                     projects = items
                     projectSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-                        if (items.isEmpty()) listOf("No projects") else items.map { "${it.name} • ${it.status}" })
+                        if (items.isEmpty()) listOf("No projects") else items.map { "${it.name} - ${it.status}" })
                     val index = selectId?.let { id -> items.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: 0
                     if (items.isNotEmpty()) {
                         projectSpinner.setSelection(index)
@@ -132,15 +140,15 @@ class ProjectsActivity : Activity() {
     }
 
     private fun loadProject(project: DesktopApiClient.ProjectSummary) {
-        status.text = "Loading ${project.name} task board…"
+        status.text = "Loading ${project.name} task board..."
         thread(name = "dpn-mobile-task-sync") {
             val result = runCatching { api.getProjectTasks(project.id) }
             runOnUiThread {
                 result.onSuccess { items ->
                     tasks = items
                     taskSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-                        if (items.isEmpty()) listOf("No tasks") else items.map { "[${it.status}] ${it.title} • ${it.priority}" })
-                    status.text = "${project.name} • ${items.size} tasks synced"
+                        if (items.isEmpty()) listOf("No tasks") else items.map { "[${it.status}] ${it.title} - ${it.priority}" })
+                    status.text = "${project.name} - ${items.size} tasks synced"
                 }.onFailure { status.text = "Task sync failed: ${it.message ?: "unknown error"}" }
             }
         }
@@ -149,7 +157,7 @@ class ProjectsActivity : Activity() {
     private fun createProject() {
         val name = projectName.text.toString().trim()
         if (name.isEmpty()) return
-        status.text = "Creating project…"
+        status.text = "Creating project..."
         thread(name = "dpn-mobile-project-create") {
             val result = runCatching { api.createProject(name) }
             runOnUiThread {
@@ -163,7 +171,7 @@ class ProjectsActivity : Activity() {
         val project = projects.getOrNull(projectSpinner.selectedItemPosition) ?: return
         val title = taskTitle.text.toString().trim()
         if (title.isEmpty()) return
-        status.text = "Creating task…"
+        status.text = "Creating task..."
         thread(name = "dpn-mobile-task-create") {
             val result = runCatching { api.createTask(project.id, title) }
             runOnUiThread {
@@ -176,7 +184,7 @@ class ProjectsActivity : Activity() {
     private fun updateSelectedTask(nextStatus: String) {
         val project = projects.getOrNull(projectSpinner.selectedItemPosition) ?: return
         val task = tasks.getOrNull(taskSpinner.selectedItemPosition) ?: return
-        status.text = "Updating ${task.title}…"
+        status.text = "Updating ${task.title}..."
         thread(name = "dpn-mobile-task-update") {
             val result = runCatching { api.updateTaskStatus(task.id, nextStatus) }
             runOnUiThread {

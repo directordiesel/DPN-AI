@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
@@ -33,7 +34,14 @@ class VisionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         api = DesktopApiClient(SecureCredentialStore(this))
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
     }
 
     private fun buildUi(): LinearLayout = LinearLayout(this).apply {
@@ -44,7 +52,7 @@ class VisionActivity : Activity() {
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         addView(TextView(this@VisionActivity).apply {
-            text = "DPN AI • Vision"
+            text = "DPN AI - Vision"
             textSize = 25f
             setTextColor(Color.WHITE)
         })
@@ -80,8 +88,10 @@ class VisionActivity : Activity() {
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             setBackgroundColor(Color.rgb(16, 16, 20))
             contentDescription = "Selected image preview"
+            minimumHeight = (280 * resources.displayMetrics.density).toInt()
+            adjustViewBounds = true
         }
-        addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        addView(preview, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         prompt = EditText(this@VisionActivity).apply {
             hint = "What should DPN AI inspect?"
@@ -180,7 +190,7 @@ class VisionActivity : Activity() {
         selectedImage = uri
         preview.setImageURI(uri)
         analyzeButton.isEnabled = true
-        status.text = "Image ready • ${displayName(uri)} • ${mime.removePrefix("image/").uppercase()}"
+        status.text = "Image ready - ${displayName(uri)} - ${mime.removePrefix("image/").uppercase()}"
         result.text = ""
     }
 
@@ -192,7 +202,7 @@ class VisionActivity : Activity() {
             return
         }
         analyzeButton.isEnabled = false
-        status.text = "Uploading image through the encrypted DPN AI connection…"
+        status.text = "Uploading image through the encrypted DPN AI connection..."
         result.text = ""
         thread(name = "dpn-mobile-vision") {
             val outcome = runCatching {
@@ -212,10 +222,10 @@ class VisionActivity : Activity() {
             runOnUiThread {
                 analyzeButton.isEnabled = selectedImage != null
                 outcome.onSuccess { reply ->
-                    status.text = "Vision analysis synchronized • conversation ${reply.conversationId}"
+                    status.text = "Vision analysis synchronized - conversation ${reply.conversationId}"
                     result.text = "DPN AI\n${reply.message}"
                 }.onFailure { error ->
-                    status.text = "Vision request failed — nothing was marked complete."
+                    status.text = "Vision request failed - nothing was marked complete."
                     result.text = "SYSTEM\n${error.message ?: "Unknown vision error"}"
                 }
             }

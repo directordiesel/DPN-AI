@@ -22,7 +22,7 @@ def test_microphone_permission_is_runtime_gated():
     assert 'android.permission.RECORD_AUDIO' in MANIFEST
     assert 'checkSelfPermission(Manifest.permission.RECORD_AUDIO)' in VOICE
     assert 'requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO)' in VOICE
-    assert 'Microphone permission denied — voice capture remains off.' in VOICE
+    assert 'Microphone permission denied - voice capture remains off.' in VOICE
 
 
 def test_voice_request_uses_unified_ai_chat_runtime():

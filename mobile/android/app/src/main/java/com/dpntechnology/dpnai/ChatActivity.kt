@@ -44,7 +44,7 @@ class ChatActivity : Activity() {
         }
 
         root.addView(TextView(this).apply {
-            text = "DPN AI • Unified Chat"
+            text = "DPN AI - Unified Chat"
             textSize = 24f
             setTextColor(Color.WHITE)
         })
@@ -82,7 +82,7 @@ class ChatActivity : Activity() {
         root.addView(actionRow)
 
         status = TextView(this).apply {
-            text = "Loading conversations…"
+            text = "Loading conversations..."
             setTextColor(Color.LTGRAY)
             setPadding(0, 12, 0, 12)
         }
@@ -96,7 +96,7 @@ class ChatActivity : Activity() {
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         input = EditText(this).apply {
-            hint = "Message DPN AI…"
+            hint = "Message DPN AI..."
             setHintTextColor(Color.GRAY)
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.rgb(18, 16, 27))
@@ -116,7 +116,7 @@ class ChatActivity : Activity() {
     }
 
     private fun refreshConversations(selectId: String? = activeConversationId) {
-        setBusy(true, "Syncing conversations…")
+        setBusy(true, "Syncing conversations...")
         thread(name = "dpn-mobile-conversation-sync") {
             val result = runCatching { api.listConversations() }
             runOnUiThread {
@@ -132,7 +132,7 @@ class ChatActivity : Activity() {
                     } else {
                         activeConversationId = null
                         transcript.removeAllViews()
-                        setBusy(false, "No conversations yet — create one to begin.")
+                        setBusy(false, "No conversations yet - create one to begin.")
                     }
                 }.onFailure { error ->
                     setBusy(false, "Conversation sync failed: ${error.message ?: "unknown error"}")
@@ -142,7 +142,7 @@ class ChatActivity : Activity() {
     }
 
     private fun createConversation() {
-        setBusy(true, "Creating conversation…")
+        setBusy(true, "Creating conversation...")
         thread(name = "dpn-mobile-new-chat") {
             val result = runCatching { api.createConversation("Mobile conversation") }
             runOnUiThread {
@@ -158,7 +158,7 @@ class ChatActivity : Activity() {
 
     private fun loadConversation(conversationId: String) {
         activeConversationId = conversationId
-        setBusy(true, "Loading shared history…")
+        setBusy(true, "Loading shared history...")
         thread(name = "dpn-mobile-chat-history") {
             val result = runCatching { api.getConversation(conversationId) }
             runOnUiThread {
@@ -180,7 +180,7 @@ class ChatActivity : Activity() {
         val conversationId = selected?.id ?: activeConversationId
         input.setText("")
         addMessage("user", message)
-        setBusy(true, "DPN AI is working…")
+        setBusy(true, "DPN AI is working...")
         thread(name = "dpn-mobile-chat-send") {
             val result = runCatching {
                 api.sendChat(
@@ -195,11 +195,11 @@ class ChatActivity : Activity() {
                 result.onSuccess { reply ->
                     activeConversationId = reply.conversationId
                     addMessage("assistant", reply.message)
-                    setBusy(false, "Synced • ${reply.model ?: "active model"}${reply.runId?.let { " • run $it" } ?: ""}")
+                    setBusy(false, "Synced - ${reply.model ?: "active model"}${reply.runId?.let { " - run $it" } ?: ""}")
                     if (conversationId == null) refreshConversations(reply.conversationId)
                 }.onFailure { error ->
                     addMessage("system", "Send failed: ${error.message ?: "unknown error"}")
-                    setBusy(false, "Message failed — nothing was hidden or marked complete.")
+                    setBusy(false, "Message failed - nothing was hidden or marked complete.")
                 }
             }
         }

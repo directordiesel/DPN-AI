@@ -47,3 +47,76 @@ def test_diagnostics_has_no_external_reporting_or_background_worker():
     combined = DIAG + STORE
     for forbidden in ("WorkManager", "JobService", "AlarmManager", "FirebaseCrashlytics", "Sentry"):
         assert forbidden not in combined
+
+
+
+ANDROID_UI = ROOT / "mobile/android/app/src/main/java/com/dpntechnology/dpnai"
+PRIMARY_ACTIVITIES = (
+    "MainActivity.kt",
+    "GatewayActivity.kt",
+    "ChatActivity.kt",
+    "ApprovalsActivity.kt",
+    "MissionsActivity.kt",
+    "ProjectsActivity.kt",
+    "FileActivity.kt",
+    "VoiceActivity.kt",
+    "VisionActivity.kt",
+    "NotificationsActivity.kt",
+    "DiagnosticsActivity.kt",
+)
+
+
+def test_every_primary_android_screen_is_scrollable():
+    missing = []
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        if "ScrollView" not in text:
+            missing.append(name)
+    assert missing == []
+
+
+def test_primary_android_ui_copy_is_plain_ascii():
+    failures = {}
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        chars = sorted({char for char in text if ord(char) > 127})
+        if chars:
+            failures[name] = chars
+    assert failures == {}
+
+
+def test_programmatic_android_buttons_have_click_handlers():
+    failures = {}
+    for name in PRIMARY_ACTIVITIES:
+        text = (ANDROID_UI / name).read_text(encoding="utf-8")
+        buttons = text.count("Button(")
+        handlers = text.count("setOnClickListener")
+        if handlers < buttons:
+            failures[name] = {"buttons": buttons, "handlers": handlers}
+    assert failures == {}
+
+
+
+def test_mobile_connection_failures_direct_users_to_safe_diagnostics():
+    main = (ANDROID_UI / "MainActivity.kt").read_text(encoding="utf-8")
+    gateway = (ANDROID_UI / "GatewayActivity.kt").read_text(encoding="utf-8")
+
+    assert "Make sure DPN AI is running and this device is paired, then retry." in main
+    assert "Open Diagnostics & Status for technical details." in main
+    assert "Connection unavailable - ${it.message" not in main
+
+    assert 'MobileDiagnostics.recordError(this, "gateway-save", it)' in gateway
+    assert 'MobileDiagnostics.recordError(this, "gateway-mode", it)' in gateway
+    assert 'MobileDiagnostics.recordError(this, "gateway-test", it)' in gateway
+    assert "Technical details are available in Diagnostics & Status." in gateway
+    assert "Gateway rejected: ${it.message}" not in gateway
+    assert "Mode switch failed: ${it.message}" not in gateway
+    assert "Connection test failed: ${it.message}" not in gateway
+
+
+def test_mobile_voice_unavailability_has_a_recovery_path():
+    voice = (ANDROID_UI / "VoiceActivity.kt").read_text(encoding="utf-8")
+
+    assert "Speech recognition is not available on this device." in voice
+    assert "Use Unified Chat" in voice
+    assert "enable/install a supported Android speech service" in voice

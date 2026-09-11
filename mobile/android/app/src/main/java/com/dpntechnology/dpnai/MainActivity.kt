@@ -49,7 +49,7 @@ class MainActivity : Activity() {
 
         root.addView(TextView(this).apply { text = "DPN AI"; textSize = 32f; setTextColor(Color.WHITE) })
         root.addView(TextView(this).apply {
-            text = "MOBILE CONTROL CENTER • ${BuildConfig.VERSION_NAME}"
+            text = "MOBILE CONTROL CENTER - ${BuildConfig.VERSION_NAME}"
             textSize = 12f
             setTextColor(Color.rgb(167, 139, 250))
         })
@@ -87,7 +87,7 @@ class MainActivity : Activity() {
         }
         root.addView(diagnosticsButton)
         root.addView(TextView(this).apply {
-            text = "DPN Technology • Secure shared-runtime mobile client"
+            text = "DPN Technology - Secure shared-runtime mobile client"
             textSize = 12f
             setPadding(0, 28, 0, 0)
             gravity = Gravity.CENTER
@@ -124,18 +124,18 @@ class MainActivity : Activity() {
         setCapabilityButtons(active)
         gatewayButton.isEnabled = locallyPaired && sessionCurrent && !revoked
         status.text = when {
-            revoked -> "DEVICE REVOKED • re-pairing required"
-            !sessionCurrent && localCredential == null -> "SESSION EXPIRED • secure re-pairing required"
-            !locallyPaired -> "Not paired • secure local desktop pairing required"
-            credentialStore.isRemoteMode() -> "REMOTE GATEWAY • trusted encrypted session active"
-            else -> "LOCAL DESKTOP • trusted encrypted session active"
+            revoked -> "DEVICE REVOKED - re-pairing required"
+            !sessionCurrent && localCredential == null -> "SESSION EXPIRED - secure re-pairing required"
+            !locallyPaired -> "Not paired - secure local desktop pairing required"
+            credentialStore.isRemoteMode() -> "REMOTE GATEWAY - trusted encrypted session active"
+            else -> "LOCAL DESKTOP - trusted encrypted session active"
         }
     }
 
     private fun setCapabilityButtons(enabled: Boolean) = capabilityButtons.forEach { it.isEnabled = enabled }
 
     private fun checkDesktopConnection() {
-        status.text = "Checking active trusted encrypted connection…"
+        status.text = "Checking active trusted encrypted connection..."
         thread(name = "dpn-mobile-health") {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "connection-check", it) }
@@ -143,11 +143,11 @@ class MainActivity : Activity() {
                 status.text = result.fold(
                     onSuccess = {
                         setCapabilityButtons(true)
-                        if (credentialStore.isRemoteMode()) "REMOTE GATEWAY • authenticated and reachable" else "LOCAL DESKTOP • authenticated and reachable"
+                        if (credentialStore.isRemoteMode()) "REMOTE GATEWAY - authenticated and reachable" else "LOCAL DESKTOP - authenticated and reachable"
                     },
                     onFailure = {
                         setCapabilityButtons(false)
-                        "Connection unavailable • ${it.message?.take(180) ?: "unknown error"}"
+                        "Connection unavailable. Make sure DPN AI is running and this device is paired, then retry. Open Diagnostics & Status for technical details."
                     },
                 )
             }

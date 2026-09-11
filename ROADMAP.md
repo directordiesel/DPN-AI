@@ -1,11 +1,11 @@
 # DPN AI Engineering Roadmap
 
 > Current stable baseline: **v10.0.0**
-> Active engineering direction: **v10.0.0 stable-release validation and production refinement**
+> Active engineering direction: **v10.0.1 maintenance hardening and release-candidate validation**
 
-DPN AI v9.0.0 established the current stable architecture across intelligence, coding, tools, permissions, memory/RAG, research, artifacts, image generation, automation, voice, desktop, Android, model routing, security, recovery, integrations, evaluations, and release engineering.
+DPN AI v10.0.0 is the published stable architecture across intelligence, coding, tools, permissions, memory/RAG, research, artifacts, image generation, automation, voice, desktop, Android, model routing, security, recovery, integrations, evaluations, and release engineering.
 
-The v9.1 cycle is focused on making those systems deeper, more reliable, easier to operate, and more measurable without discarding the stable v9 foundation.
+The v10.0.x maintenance cycle is focused on making those systems more reliable, understandable, recoverable, and measurable without discarding the published v10.0.0 foundation.
 
 ## Engineering Principles
 
@@ -20,7 +20,7 @@ The v9.1 cycle is focused on making those systems deeper, more reliable, easier 
 9. Keep secrets, private runtime state, databases, backups, keys, and credentials out of source control.
 10. Separate capability architecture from actual provider availability.
 
-## v9.1 Workstreams
+## v10.0.x Maintenance Workstreams
 
 ### 1. Post-release baseline and reliability
 - Verify v9.0.0 release/tag/main integrity.
@@ -170,9 +170,9 @@ The v9.1 cycle is focused on making those systems deeper, more reliable, easier 
 - Add capability-state reporting: Available / Configurable / Degraded / Unavailable.
 - Improve developer/API/SDK documentation.
 
-## v9.1 Production-Readiness Gate
+## v10.0.x Maintenance-Readiness Gate
 
-Before a v9.1 release candidate can be considered ready, the exact candidate head should pass the applicable combination of:
+Before a v10.0.x maintenance candidate can be considered ready, the exact candidate head should pass the applicable combination of:
 
 - repository/version guard
 - Python compilation
@@ -181,7 +181,7 @@ Before a v9.1 release candidate can be considered ready, the exact candidate hea
 - Runtime & Recovery Assurance
 - desktop/package validation
 - Android/mobile validation
-- v9 evaluation/production-readiness suite
+- v10 evaluation/production-readiness suite
 - release engineering validation
 - SBOM/checksum/manifest requirements
 - rollback/recovery evidence
@@ -205,8 +205,8 @@ A previous green run must never be substituted for a newer commit.
 
 | Release | State | Role |
 | --- | --- | --- |
-| **v9.0.0** | Stable / published | Current production baseline |
-| **v9.1.x** | In development | Hardening and capability-expansion line |
+| **v10.0.0** | Stable / published | Current production baseline |
+| **v10.0.1** | Maintenance candidate | Usability, reliability, mobile, and release hardening |
 
 ---
 

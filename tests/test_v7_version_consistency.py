@@ -13,8 +13,8 @@ def test_runtime_version_matches_version_file():
     assert match.group(1) == VERSION, f"Runtime APP_VERSION {match.group(1)!r} does not match VERSION {VERSION!r}"
 
 
-def test_ui_identifies_stable_core_version():
-    assert f"STABLE CORE v{VERSION}" in INDEX
+def test_ui_identifies_current_candidate_version():
+    assert f"MAINTENANCE CANDIDATE v{VERSION}" in INDEX
 
 
 def test_ui_no_longer_advertises_v5_runtime():

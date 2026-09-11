@@ -6,7 +6,7 @@
     summary: '/api/v1/desktop/summary',
     events: '/api/v1/desktop/events',
   };
-  const MODEL_AUTO_LABEL = 'AUTO — Strongest Installed Model';
+  const MODEL_AUTO_LABEL = 'AUTO - Strongest Installed Model';
   let streamAbort = null;
   let reconnectTimer = null;
 
@@ -56,13 +56,13 @@
       'desktopCoreCard',
       'healthy',
       'Online',
-      `Desktop API ${summary?.api_version || 'v1'} • unified local runtime`,
+      `Local control service ${summary?.api_version || 'v1'} - DPN Core connected`,
     );
     setState(
       'desktopMissionCard',
       Number(missions.failed || 0) > 0 ? 'warning' : 'healthy',
       `${Number(missions.running || 0)} running`,
-      `${Number(missions.queued || 0)} queued • ${Number(missions.total || 0)} total`,
+      `${Number(missions.queued || 0)} queued - ${Number(missions.total || 0)} total`,
     );
     setState(
       'desktopApprovalCard',
@@ -74,7 +74,7 @@
       'desktopModelCard',
       model?.warm_status?.ok ? 'healthy' : 'unknown',
       String(model.active || 'warming'),
-      model?.warm_status?.ok ? 'Active intelligence model ready' : 'Model runtime warming or unavailable',
+      model?.warm_status?.ok ? 'Active intelligence model ready' : 'AI model is still loading or unavailable. Check AI Models settings if this persists.',
     );
     setState(
       'desktopAutomationCard',
@@ -91,7 +91,7 @@
   }
 
   async function probeDesktopSummary() {
-    setState('desktopCoreCard', 'unknown', 'Checking…', 'Versioned local desktop API probe');
+    setState('desktopCoreCard', 'unknown', 'Checking...', 'Connecting to the local DPN Core service');
     try {
       const response = await fetch(STATUS_ENDPOINTS.summary, {
         cache: 'no-store',
@@ -101,7 +101,7 @@
       renderSummary(await response.json());
       return true;
     } catch (_) {
-      setState('desktopCoreCard', 'blocked', 'Unavailable', 'Desktop API is not responding');
+      setState('desktopCoreCard', 'blocked', 'DPN Core not responding', 'Make sure DPN AI is running. Status will reconnect automatically.');
       return false;
     }
   }
@@ -162,7 +162,6 @@
 
   function bindWorkspaceTabs() {
     const map = {
-      chat: 'newChatBtn',
       missions: 'missionsBtn',
       projects: 'projectsBtn',
       creator: 'capabilityForgeBtn',
@@ -174,8 +173,13 @@
       tab.addEventListener('click', () => {
         document.querySelectorAll('.desktop-workspace-tab').forEach((item) => item.classList.remove('active'));
         tab.classList.add('active');
-        const target = map[tab.dataset.workspace];
-        if (target) invokeExisting(target);
+        if (tab.dataset.workspace === 'chat') {
+          invokeExisting('closeModalBtn');
+          document.getElementById('promptInput')?.focus();
+        } else {
+          const target = map[tab.dataset.workspace];
+          if (target) invokeExisting(target);
+        }
         try {
           localStorage.setItem('dpn-ai-v8-workspace', tab.dataset.workspace || 'chat');
         } catch (_) {}

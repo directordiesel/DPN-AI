@@ -35,7 +35,7 @@ class DiagnosticsActivity : Activity() {
         }
         scroll.addView(root)
         root.addView(TextView(this).apply { text = "DPN AI Diagnostics"; textSize = 26f; setTextColor(Color.WHITE) })
-        root.addView(TextView(this).apply { text = "BUILD • CONNECTION • SECURITY"; textSize = 12f; setTextColor(Color.rgb(167, 139, 250)); setPadding(0, 4, 0, 24) })
+        root.addView(TextView(this).apply { text = "BUILD - CONNECTION - SECURITY"; textSize = 12f; setTextColor(Color.rgb(167, 139, 250)); setPadding(0, 4, 0, 24) })
         body = TextView(this).apply { textSize = 14f; setTextColor(Color.LTGRAY); setPadding(0, 0, 0, 24) }
         root.addView(body)
         root.addView(Button(this).apply { text = "Run Connection Diagnostic"; setOnClickListener { runConnectionDiagnostic() } })
@@ -70,15 +70,15 @@ class DiagnosticsActivity : Activity() {
     }
 
     private fun runConnectionDiagnostic() {
-        renderLocalStatus("Connection diagnostic running…")
+        renderLocalStatus("Connection diagnostic running...")
         thread(name = "dpn-mobile-diagnostics") {
             val result = runCatching { DesktopApiClient(credentialStore).fetchDesktopSummary() }
             result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "diagnostics", it) }
             runOnUiThread {
                 renderLocalStatus(
                     result.fold(
-                        onSuccess = { "Connection diagnostic: PASS — authenticated desktop runtime reachable." },
-                        onFailure = { "Connection diagnostic: FAIL — ${it.message?.take(240) ?: "unknown error"}" },
+                        onSuccess = { "Connection diagnostic: PASS - authenticated desktop runtime reachable." },
+                        onFailure = { "Connection diagnostic: FAIL - ${it.message?.take(240) ?: "unknown error"}" },
                     )
                 )
             }

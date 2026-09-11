@@ -8,7 +8,9 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
+import com.dpntechnology.dpnai.diagnostics.MobileDiagnostics
 import com.dpntechnology.dpnai.network.DesktopApiClient
 import com.dpntechnology.dpnai.security.SecureCredentialStore
 import kotlin.concurrent.thread
@@ -22,7 +24,14 @@ class GatewayActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = SecureCredentialStore(this)
-        setContentView(buildUi())
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(7, 7, 10))
+            addView(
+                buildUi(),
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            )
+        })
         refreshStatus()
     }
 
@@ -33,7 +42,7 @@ class GatewayActivity : Activity() {
         setBackgroundColor(Color.rgb(7, 7, 10))
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
-        addView(TextView(this@GatewayActivity).apply { text = "DPN AI • Secure Remote Gateway"; textSize = 24f; setTextColor(Color.WHITE) })
+        addView(TextView(this@GatewayActivity).apply { text = "DPN AI - Secure Remote Gateway"; textSize = 24f; setTextColor(Color.WHITE) })
         addView(TextView(this@GatewayActivity).apply {
             text = "Remote mode requires an HTTPS gateway and explicit DPN access token. Pair locally first."
             setTextColor(Color.LTGRAY); setPadding(0, 12, 0, 24)
@@ -53,20 +62,34 @@ class GatewayActivity : Activity() {
 
     private fun saveGateway() {
         val result = runCatching { store.saveRemoteGateway(endpoint.text.toString(), token.text.toString()) }
-        status.text = result.fold({ "Remote gateway saved securely. It is not active until you choose Use Remote Gateway." }, { "Gateway rejected: ${it.message}" })
+        result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-save", it) }
+        status.text = result.fold(
+            { "Remote connection saved securely. It is not active until you choose Use Remote Gateway." },
+            { "Remote connection settings were rejected. Check the HTTPS address and access token, then try again. Technical details are available in Diagnostics & Status." },
+        )
         if (result.isSuccess) token.text.clear()
     }
 
     private fun switchMode(remote: Boolean) {
         val result = runCatching { store.setRemoteMode(remote) }
-        status.text = result.fold({ if (remote) "Remote gateway mode active." else "Local desktop mode active." }, { "Mode switch failed: ${it.message}" })
+        result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-mode", it) }
+        status.text = result.fold(
+            { if (remote) "Remote connection mode active." else "Local desktop mode active." },
+            { "Could not change connection mode. Confirm pairing and saved remote connection settings, then try again. Technical details are available in Diagnostics & Status." },
+        )
     }
 
     private fun testConnection() {
-        status.text = "Testing active encrypted connection…"
+        status.text = "Testing active encrypted connection..."
         thread(name = "dpn-gateway-test") {
             val result = runCatching { DesktopApiClient(store).fetchDesktopSummary() }
-            runOnUiThread { status.text = result.fold({ "Active connection authenticated and reachable." }, { "Connection test failed: ${it.message}" }) }
+            result.exceptionOrNull()?.let { MobileDiagnostics.recordError(this, "gateway-test", it) }
+            runOnUiThread {
+                status.text = result.fold(
+                    { "Active connection authenticated and reachable." },
+                    { "Connection test failed. Confirm DPN AI is running, verify the selected local/remote mode, and try again. Technical details are available in Diagnostics & Status." },
+                )
+            }
         }
     }
 
@@ -74,8 +97,8 @@ class GatewayActivity : Activity() {
         status.text = when {
             store.loadLocalCredential() == null -> "Local pairing is required before remote gateway setup."
             store.isRemoteMode() -> "Current mode: REMOTE GATEWAY"
-            store.hasRemoteGateway() -> "Current mode: LOCAL DESKTOP • Remote gateway configured"
-            else -> "Current mode: LOCAL DESKTOP • Remote gateway not configured"
+            store.hasRemoteGateway() -> "Current mode: LOCAL DESKTOP - Remote gateway configured"
+            else -> "Current mode: LOCAL DESKTOP - Remote gateway not configured"
         }
     }
 }

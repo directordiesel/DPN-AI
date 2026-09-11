@@ -1,5 +1,44 @@
 # DPN AI Changelog
 
+## v10.0.1 - Maintenance Candidate
+
+v10.0.1 is the current unreleased maintenance candidate on top of the published v10.0.0 baseline.
+
+### Usability and desktop interaction
+- Removed known UI encoding corruption, decorative symbol-only controls, stale legacy product labels, and the redundant Live Activity rail.
+- Reorganized System Settings around user tasks and replaced normal-user raw model-route JSON with structured model preferences.
+- Added semantic modal behavior, keyboard focus trapping, Escape handling, focus restoration, bounded scrolling, and stronger primary-shell validation.
+- Audited literal DOM references, duplicate IDs, persistent shell controls, destructive actions, and workspace shortcut routing.
+- Replaced vague empty states and naked backend errors with actionable recovery guidance and bounded/redacted technical details.
+- Kept exact approval details visible for safety while moving other raw evidence behind clearly labeled technical sections.
+
+### Capability honesty and recovery
+- Added recovery guidance for unavailable AI model services, local voice dependencies, Docker isolation, direct host fallback, Tool Server/MCP support, connector/runtime failures, and workflow/capability failures.
+- Replaced developer-first MCP/STT/TTS/allowlist wording with plain-language primary labels while retaining technical standards as secondary detail.
+- Changed Sandbox results, graph relationships, tool traces, and background-job failures to human-first presentation with exact technical evidence retained.
+
+### Android
+- Normalized primary Activity UI copy to plain ASCII.
+- Made Gateway, Projects, Files, Voice, and Vision scroll-safe on smaller displays and with larger text.
+- Preserved useful Voice transcript and Vision preview sizing inside scroll containers.
+- Routed mobile connection failures to bounded local diagnostics instead of displaying raw exceptions.
+- Added explicit fallback/setup guidance when Android speech recognition is unavailable.
+
+### Release readiness
+- Promoted active candidate identity to 10.0.1 while preserving v10.0.0 as the published stable baseline.
+- Added a dedicated fail-closed v10.0.1 maintenance release contract, exact-test CI runner, repository version-surface audit, and CI gate.
+- Maintenance readiness never authorizes execution, merge, deployment, capability activation, or release publication.
+
+## v10.0.0 - Stable
+
+DPN AI v10.0.0 is the published stable Autonomous Intelligence Platform baseline. It completed the v10 program across model intelligence, autonomous coding, computer/browser control, multimodal reasoning, long-horizon missions, governed connectors, deep research, layered memory, professional artifacts, low-latency voice, proactive intelligence, specialist agents, controlled capabilities, benchmark-gated self-improvement, full-system integration, security/regression hardening, performance optimization, and production readiness.
+
+### Stable release publication
+- Published `v10.0.0` from exact main commit `43811b3dd2afb77b6b5a803eb158c8515f82a4b5`.
+- Published source archive: `DPN-AI-v10.0.0-source.zip`.
+- Published `SHA256SUMS.txt`, `SOURCE_SHA256SUMS.txt`, `SBOM.spdx.json`, `RELEASE_MANIFEST.txt`, and `DEPENDENCY_INVENTORY.txt`.
+- Historical Batch 8-18 release-readiness evidence remains part of the immutable v10.0.0 development and publication record.
+
 ## v9.0.0 — Stable
 
 DPN AI v9.0.0 is the current published stable release. It consolidates the v9 development program into one local-first, permission-aware, evidence-driven AI operations platform.
@@ -142,4 +181,4 @@ The v8 desktop work established the native Windows desktop launcher/supervisor, 
 
 ---
 
-For the active engineering direction after v9.0.0, see [`ROADMAP.md`](ROADMAP.md).
+For the active v10.0.x maintenance direction, see [`ROADMAP.md`](ROADMAP.md).
