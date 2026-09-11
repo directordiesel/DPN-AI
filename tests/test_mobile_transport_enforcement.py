@@ -69,6 +69,7 @@ def test_desktop_service_enforces_device_registry_before_internal_token_translat
     assert 'status_code=401' in source
     assert "settings.access_token.encode" in source
     assert 'request.scope["client"] = ("127.0.0.1", 0)' in source
+    assert '_replace_header(request.scope, b"host", b"localhost")' in source
 
     auth_pos = source.index("_mobile_auth.authenticate")
     translate_pos = source.index("settings.access_token.encode")
