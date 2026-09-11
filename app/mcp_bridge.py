@@ -38,7 +38,7 @@ class MCPBridge:
         try:
             import mcp  # noqa: F401
             available = True
-        except Exception:
+        except ImportError:
             available = False
         return {
             "ok": True,
