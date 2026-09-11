@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -12,7 +13,123 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 _SECRET_REF = re.compile(r"\{\{secret:([A-Za-z0-9_.-]{1,100})\}\}")
+_DPAPI_PREFIX = b"DPN-AI-DPAPI1:"
 _LOCKS_GUARD = threading.Lock()
+
+
+def _windows_dpapi_protect(payload: bytes) -> bytes:
+    """Protect bytes to the current Windows user without storing another key."""
+    if os.name != "nt":
+        raise RuntimeError("Windows DPAPI is unavailable on this platform")
+    import ctypes
+    from ctypes import wintypes
+
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+    buffer = (ctypes.c_ubyte * len(payload)).from_buffer_copy(payload)
+    input_blob = DATA_BLOB(len(payload), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    output_blob = DATA_BLOB()
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32.CryptProtectData.argtypes = [
+        ctypes.POINTER(DATA_BLOB),
+        wintypes.LPCWSTR,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(DATA_BLOB),
+    ]
+    crypt32.CryptProtectData.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    CRYPTPROTECT_UI_FORBIDDEN = 0x1
+    if not crypt32.CryptProtectData(
+        ctypes.byref(input_blob),
+        "DPN AI SecretVault master key",
+        None,
+        None,
+        None,
+        CRYPTPROTECT_UI_FORBIDDEN,
+        ctypes.byref(output_blob),
+    ):
+        error = ctypes.get_last_error()
+        raise OSError(error, "Windows DPAPI could not protect the DPN AI vault key")
+    try:
+        return ctypes.string_at(output_blob.pbData, output_blob.cbData)
+    finally:
+        kernel32.LocalFree(output_blob.pbData)
+
+
+def _windows_dpapi_unprotect(payload: bytes) -> bytes:
+    """Unprotect bytes previously bound to the current Windows user."""
+    if os.name != "nt":
+        raise RuntimeError("Windows DPAPI is unavailable on this platform")
+    import ctypes
+    from ctypes import wintypes
+
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+    buffer = (ctypes.c_ubyte * len(payload)).from_buffer_copy(payload)
+    input_blob = DATA_BLOB(len(payload), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    output_blob = DATA_BLOB()
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    crypt32.CryptUnprotectData.argtypes = [
+        ctypes.POINTER(DATA_BLOB),
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(DATA_BLOB),
+    ]
+    crypt32.CryptUnprotectData.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    CRYPTPROTECT_UI_FORBIDDEN = 0x1
+    if not crypt32.CryptUnprotectData(
+        ctypes.byref(input_blob),
+        None,
+        None,
+        None,
+        None,
+        CRYPTPROTECT_UI_FORBIDDEN,
+        ctypes.byref(output_blob),
+    ):
+        error = ctypes.get_last_error()
+        raise OSError(error, "Windows DPAPI could not unprotect the DPN AI vault key")
+    try:
+        return ctypes.string_at(output_blob.pbData, output_blob.cbData)
+    finally:
+        kernel32.LocalFree(output_blob.pbData)
+
+
+def _encode_master_key_for_storage(key: bytes) -> bytes:
+    if os.name != "nt":
+        return key
+    protected = _windows_dpapi_protect(key)
+    return _DPAPI_PREFIX + base64.b64encode(protected)
+
+
+def _decode_master_key_from_storage(stored: bytes) -> tuple[bytes, bool]:
+    """Return (raw Fernet key, needs_windows_migration)."""
+    if stored.startswith(_DPAPI_PREFIX):
+        if os.name != "nt":
+            raise ValueError("This vault key is protected by Windows DPAPI and can only be opened by its Windows user")
+        encoded = stored[len(_DPAPI_PREFIX):]
+        try:
+            protected = base64.b64decode(encoded, validate=True)
+            key = _windows_dpapi_unprotect(protected)
+        except (ValueError, OSError) as exc:
+            raise ValueError("Windows could not unlock the DPN AI SecretVault master key") from exc
+        return key, False
+    return stored, os.name == "nt"
+
 _PATH_LOCKS: dict[str, threading.RLock] = {}
 
 
@@ -45,14 +162,15 @@ class SecretVault:
         self._reject_unsafe_paths()
         with self._lock:
             if not self.key_path.exists():
-                key = Fernet.generate_key()
+                raw_key = Fernet.generate_key()
+                stored_key = _encode_master_key_for_storage(raw_key)
                 try:
                     fd = os.open(self.key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
                 except FileExistsError:
                     pass
                 else:
                     with os.fdopen(fd, "wb") as handle:
-                        handle.write(key)
+                        handle.write(stored_key)
                         handle.flush()
                         os.fsync(handle.fileno())
             self._reject_unsafe_paths()
@@ -60,7 +178,48 @@ class SecretVault:
                 os.chmod(self.key_path, 0o600)
             except OSError:
                 pass
-            self.fernet = Fernet(self.key_path.read_bytes().strip())
+
+            stored_key = self.key_path.read_bytes().strip()
+            raw_key, migrate_windows_key = _decode_master_key_from_storage(stored_key)
+            try:
+                self.fernet = Fernet(raw_key)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Secret vault master key is invalid; refusing to continue") from exc
+
+            # Legacy Windows vaults stored the Fernet key directly because chmod
+            # does not provide a Unix-style owner-only boundary on NTFS. Once the
+            # existing key has been validated, rewrap it with current-user DPAPI
+            # and atomically replace only the key file. Vault ciphertext remains
+            # unchanged because the underlying Fernet key does not rotate.
+            if migrate_windows_key:
+                self._replace_key_file(_encode_master_key_for_storage(raw_key))
+
+    def _replace_key_file(self, payload: bytes) -> None:
+        self._reject_unsafe_paths()
+        fd, temp_name = tempfile.mkstemp(prefix=f".{self.key_path.name}.", suffix=".tmp", dir=self.key_path.parent)
+        temp_path = Path(temp_name)
+        try:
+            try:
+                os.chmod(temp_path, 0o600)
+            except OSError:
+                pass
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            if self.key_path.is_symlink():
+                raise ValueError("Secret vault key path cannot be a symlink")
+            os.replace(temp_path, self.key_path)
+            try:
+                os.chmod(self.key_path, 0o600)
+            except OSError:
+                pass
+        except Exception:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     def _reject_unsafe_paths(self) -> None:
         for label, path in (("vault key", self.key_path), ("vault data", self.data_path)):
