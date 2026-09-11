@@ -75,3 +75,50 @@ def test_activity_overlay_cleanup_does_not_leave_orphaned_focus_ui():
     assert "v9FocusClose" not in js
     assert ".v9-focus-drawer" not in css
     assert ".v9-focus-grid" not in css
+
+
+def test_settings_are_grouped_and_explained_in_plain_language():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+    for section in (
+        "General",
+        "AI Models",
+        "Permissions & Safety",
+        "Web & Browser",
+        "Voice & Media",
+        "Automations",
+        "Connectors",
+        "Files & Workspace",
+        "Advanced",
+    ):
+        assert "title:'" + section + "'" in js
+
+    assert "Configure DPN AI without guessing" in js
+    assert "Load Recommended Settings" in js
+    assert "Tool Server Connections (MCP)" in js
+    assert "Search and memory matching model" in js
+    assert "High risk" in js
+
+
+def test_normal_settings_do_not_require_raw_model_route_json():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="settingModelRoutes"' not in js
+    assert "JSON.parse($('settingModelRoutes')" not in js
+    assert "data-model-route-row" in js
+    assert "data-route-profile" in js
+    assert "data-route-model" in js
+    assert "addModelRouteBtn" in js
+    assert "collectSettingsModelRoutes" in js
+    assert "A work profile can only have one preferred model" in js
+
+
+def test_sidebar_uses_plain_labels_instead_of_decorative_glyph_prefixes():
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+
+    assert "WINDOWS DESKTOP PLATFORM v8" not in html
+    assert "DPN AI DESKTOP PLATFORM" in html
+    assert "MCP Tool Bridge" not in html
+    assert "Tool Server Connections (MCP)" in html
+
+    for glyph in ("◉", "▰", "⬢", "▧", "✧", "⇌", "⚠", "◆", "◷", "⌁", "⬡", "▣", "◈", "✦", "⇄"):
+        assert glyph not in html
