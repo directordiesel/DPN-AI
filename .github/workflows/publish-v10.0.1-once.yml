@@ -1,0 +1,148 @@
+name: Publish v10.0.1 Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/publish-v10.0.1-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v10.0.1-once
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SHA: ed53edfbfae7184d6642f3686051e04d7c16072f
+      VERSION_TAG: v10.0.1
+      ARTIFACT_BASENAME: DPN-AI
+
+    steps:
+      - name: Check out exact verified release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact release identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$TARGET_SHA" || { echo "::error::Wrong release commit: $actual"; exit 1; }
+          repository_version="$(tr -d '\r\n ' < VERSION)"
+          test "$repository_version" = "10.0.1" || { echo "::error::VERSION is $repository_version, expected 10.0.1"; exit 1; }
+          python .github/scripts/validate_release_request.py \
+            --version "$repository_version" \
+            --tag "$VERSION_TAG" \
+            --prerelease false
+
+      - name: Ensure release does not already exist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $VERSION_TAG already exists."
+            exit 1
+          fi
+          if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION_TAG already exists."
+            exit 1
+          fi
+
+      - name: Run repository and version guard
+        run: python .github/scripts/ci_repository_guard.py
+
+      - name: Reject tracked runtime secrets and private state
+        shell: bash
+        run: |
+          sensitive="$(git ls-files | grep -Ei '(^|/)\.env$|(^|/)(vault|master)[^/]*\.key$|(^|/)FIRST_RUN_LOGIN\.txt$|(^|/)data/.*\.(sqlite|sqlite3|db|enc)$|(^|/)backups/|(^|/)runtime_logs/|(^|/)install_logs/|(^|/)workspace/generated/|(^|/)workspace/uploads/' || true)"
+          test -z "$sensitive" || { echo "::error::Sensitive/runtime files are tracked:"; echo "$sensitive"; exit 1; }
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Compile sources
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts
+
+      - name: Run full release tests
+        run: pytest -q
+
+      - name: Run v10.0.1 maintenance readiness gate
+        run: python .github/scripts/maintenance_release_readiness_v10.py
+
+      - name: Generate release SBOM and source manifest
+        env:
+          DPN_VERSION: ${{ env.VERSION_TAG }}
+        run: python .github/scripts/generate_supply_chain.py
+
+      - name: Build exact source archive and release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$ARTIFACT_BASENAME-$VERSION_TAG-source.zip"
+          git archive --format=zip --output "$archive" "$TARGET_SHA"
+          sha256sum "$archive" > SHA256SUMS.txt
+          {
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Version: $VERSION_TAG"
+            echo "Commit: $TARGET_SHA"
+            echo "Workflow run: $GITHUB_RUN_ID"
+            echo "Generated UTC: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > RELEASE_MANIFEST.txt
+
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          archive="$ARTIFACT_BASENAME-$VERSION_TAG-source.zip"
+          gh release create "$VERSION_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --title "$ARTIFACT_BASENAME $VERSION_TAG" \
+            --generate-notes \
+            "$archive" \
+            "SHA256SUMS.txt" \
+            "RELEASE_MANIFEST.txt" \
+            "SBOM.spdx.json" \
+            "SOURCE_SHA256SUMS.txt" \
+            "DEPENDENCY_INVENTORY.txt"
+
+      - name: Verify published release target and assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$VERSION_TAG" --repo "$GITHUB_REPOSITORY" --json tagName,targetCommitish,isDraft,isPrerelease,url
+          test "$(git rev-list -n 1 "$VERSION_TAG")" = "$TARGET_SHA"
+
+      - name: Publication summary
+        shell: bash
+        run: |
+          {
+            echo "## DPN AI v10.0.1 published"
+            echo ""
+            echo "- Tag: $VERSION_TAG"
+            echo "- Exact released commit: $TARGET_SHA"
+            echo "- Full tests and v10.0.1 maintenance readiness passed before publication"
+            echo "- Source archive, checksum, release manifest, SBOM, source hash manifest, and dependency inventory attached"
+          } >> "$GITHUB_STEP_SUMMARY"
