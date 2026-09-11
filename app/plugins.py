@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from app.persistence_security import sanitize_for_persistence
 from app.tools.image_runtime import install_image_tools
 from app.tools.research import install_research_tools
 from app.tools.voice_session import install_voice_session_tools
@@ -65,6 +66,7 @@ def load_plugins(plugin_dir: Path, registry: Any) -> list[dict[str, str]]:
             continue
         try:
             _load_plugin(path, configured_root, registry)
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"plugin": path.name, "error": f"plugin failed: {type(exc).__name__}: {exc}"})
+        except Exception as exc:  # Plugin boundary isolates one extension failure from core startup.
+            detail = str(sanitize_for_persistence(str(exc)))
+            errors.append({"plugin": path.name, "error": f"plugin failed: {type(exc).__name__}: {detail}"})
     return errors
