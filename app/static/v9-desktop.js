@@ -239,7 +239,6 @@
     const dashboard = document.querySelector('.desktop-status-grid');
     if (!dashboard) return;
     new MutationObserver(() => {
-      mirrorDesktopSummary();
       const live = $('v9LiveRegion');
       const approvals = $('desktopApprovalCard')?.querySelector('strong')?.textContent;
       if (live && approvals) live.textContent = `Approval status updated: ${approvals}`;
