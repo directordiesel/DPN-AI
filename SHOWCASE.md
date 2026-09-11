@@ -6,10 +6,11 @@
 
 ## Product Snapshot
 
-**Current release:** v5.0.7 — Adaptive Interface and Sentinel HD  
+**Published stable release:** v10.0.0  
+**Active maintenance candidate:** v10.0.1  
 **Publisher:** DPN Technology  
-**Primary stack:** Python · Local AI · Missions · Tools · Voice · MCP  
-**Development state:** Active
+**Primary stack:** Python · Local AI · Desktop · Android · Agents · Tools · Voice · Connectors  
+**Development state:** Active v10.0.x security, quality, and reliability hardening
 
 DPN AI is built as an execution platform rather than a chat-only interface. It combines conversational AI with persistent missions, project workspaces, memory, knowledge indexing, document/media tooling, background jobs, approvals, plugins, HTTP connectors, MCP integration, model routing, and local voice capabilities.
 
