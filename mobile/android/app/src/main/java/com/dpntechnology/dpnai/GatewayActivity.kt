@@ -3,8 +3,11 @@ package com.dpntechnology.dpnai
 import android.app.Activity
 import android.graphics.Color
 import android.os.Bundle
+import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -23,6 +26,7 @@ class GatewayActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         store = SecureCredentialStore(this)
         setContentView(ScrollView(this).apply {
             isFillViewport = true
@@ -49,7 +53,15 @@ class GatewayActivity : Activity() {
         })
         endpoint = EditText(this@GatewayActivity).apply { hint = "https://gateway.example.com/"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY) }
         addView(endpoint, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        token = EditText(this@GatewayActivity).apply { hint = "Gateway / DPN access token"; setTextColor(Color.WHITE); setHintTextColor(Color.GRAY) }
+        token = EditText(this@GatewayActivity).apply {
+            hint = "Gateway / DPN access token"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.GRAY)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
+            isSaveEnabled = false
+            setSingleLine(true)
+        }
         addView(token, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         addView(Button(this@GatewayActivity).apply { text = "Save Remote Gateway"; setOnClickListener { saveGateway() } })
         addView(Button(this@GatewayActivity).apply { text = "Use Remote Gateway"; setOnClickListener { switchMode(true) } })
