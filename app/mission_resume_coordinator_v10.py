@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from app.persistence_security import sanitize_for_persistence
 from app.long_horizon_mission_runtime_v10 import (
     LongHorizonMissionError,
     LongHorizonMissionRuntime,
@@ -282,8 +283,9 @@ class MissionResumeCoordinator:
                     revision += 1
                     completed = True
                     break
-                except Exception as exc:  # noqa: BLE001
-                    last_error = f"{type(exc).__name__}: {exc}"
+                except Exception as exc:  # Step boundary retries arbitrary provider/tool failures.
+                    detail = str(sanitize_for_persistence(str(exc)))
+                    last_error = f"{type(exc).__name__}: {detail}"
             if not completed:
                 self.db.update_mission_step(step_id, "failed", {"error": last_error, "rollback": step.get("rollback", "")})
                 elapsed = prior_elapsed + int(time.monotonic() - mission_started)
