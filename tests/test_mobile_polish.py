@@ -120,3 +120,19 @@ def test_mobile_voice_unavailability_has_a_recovery_path():
     assert "Speech recognition is not available on this device." in voice
     assert "Use Unified Chat" in voice
     assert "enable/install a supported Android speech service" in voice
+
+
+def test_gateway_credential_entry_is_private_and_not_restored():
+    gateway = (ANDROID_UI / "GatewayActivity.kt").read_text(encoding="utf-8")
+
+    assert "WindowManager.LayoutParams.FLAG_SECURE" in gateway
+    assert "InputType.TYPE_TEXT_VARIATION_PASSWORD" in gateway
+    assert "View.IMPORTANT_FOR_AUTOFILL_NO" in gateway
+    assert "isSaveEnabled = false" in gateway
+    assert "setSingleLine(true)" in gateway
+
+
+def test_mobile_diagnostics_redact_bearer_and_api_key_credentials():
+    assert 'Regex("(?i)\\\\bBearer\\\\s+' in STORE
+    assert "Bearer <redacted>" in STORE
+    assert "api[-_]?key" in STORE
