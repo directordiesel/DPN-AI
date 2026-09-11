@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -208,17 +209,62 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": detail, "error_id": error_id})
 
 
+_LOCAL_API_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}
+
+
+def _normalized_hostname(value: str) -> str:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return ""
+    try:
+        parsed = urlparse(f"//{candidate}")
+    except ValueError:
+        return ""
+    return str(parsed.hostname or "").rstrip(".").lower()
+
+
+def _same_browser_origin(request: Request) -> bool:
+    origin = str(request.headers.get("Origin") or "").strip()
+    if not origin:
+        return True
+    try:
+        parsed = urlparse(origin)
+        origin_host = str(parsed.hostname or "").rstrip(".").lower()
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return False
+    if parsed.scheme not in {"http", "https"} or not origin_host:
+        return False
+    request_host = str(request.url.hostname or "").rstrip(".").lower()
+    request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
+    return hmac.compare_digest(origin_host, request_host) and origin_port == request_port
+
+
 @app.middleware("http")
 async def local_access_boundary(request: Request, call_next):
     if request.url.path.startswith("/api"):
         client_host = request.client.host if request.client else ""
         is_loopback = client_host in {"127.0.0.1", "::1", "localhost", "testclient"}
         supplied = request.headers.get("X-DPN-Token", "")
+
+        # Browser API access is same-origin only. Native/mobile clients do not send
+        # Origin, while a malicious website cannot use a cross-origin simple POST
+        # against a local DPN AI process.
+        if not _same_browser_origin(request):
+            return JSONResponse(status_code=403, content={"detail": "Cross-origin browser API requests are not allowed."})
+
         if settings.access_token:
             if not hmac.compare_digest(supplied, settings.access_token):
                 return JSONResponse(status_code=401, content={"detail": "A valid X-DPN-Token is required."})
-        elif not is_loopback:
-            return JSONResponse(status_code=503, content={"detail": "Remote API access is disabled until DPN_ACCESS_TOKEN is configured."})
+        else:
+            # Local-only mode validates both the TCP peer and Host header. This
+            # closes DNS-rebinding paths where an attacker-controlled hostname
+            # resolves to loopback in the user's browser.
+            requested_host = _normalized_hostname(request.headers.get("Host", ""))
+            if not is_loopback:
+                return JSONResponse(status_code=503, content={"detail": "Remote API access is disabled until DPN_ACCESS_TOKEN is configured."})
+            if requested_host not in _LOCAL_API_HOSTS:
+                return JSONResponse(status_code=403, content={"detail": "Untrusted Host header for local API access."})
     return await call_next(request)
 
 
