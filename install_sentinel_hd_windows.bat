@@ -1,11 +1,13 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title DPN AI v5.0.7 Sentinel HD Voice Upgrade
+set "DPN_VERSION=unknown"
+if exist "VERSION" set /p DPN_VERSION=<"VERSION"
+title DPN AI v%DPN_VERSION% Sentinel HD Voice Upgrade
 color 0C
 
 echo ============================================================
-echo       DPN AI v5.0.7 - SENTINEL HD VOICE UPGRADE
+echo       DPN AI v%DPN_VERSION% - SENTINEL HD VOICE UPGRADE
 echo ============================================================
 echo.
 if not exist ".venv\Scripts\python.exe" (
