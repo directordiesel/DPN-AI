@@ -4,6 +4,8 @@ import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from app.services import SnapshotService
 from app.tools.filesystem import WorkspaceFS
 
@@ -100,3 +102,23 @@ def test_snapshot_with_unexpected_file_is_rejected_before_restore(tmp_path: Path
     assert restored == {"ok": False, "error": "Snapshot archive does not match its manifest"}
     assert target.read_text(encoding="utf-8") == "current-live-data"
     assert not (workspace / "unexpected.txt").exists()
+
+
+def test_snapshot_creation_does_not_follow_workspace_symlinks(tmp_path: Path) -> None:
+    service, _db, workspace = make_service(tmp_path)
+    (workspace / "safe.txt").write_text("safe", encoding="utf-8")
+    outside = tmp_path / "outside-secret.txt"
+    outside.write_text("must-not-enter-snapshot", encoding="utf-8")
+    link = workspace / "outside-link.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlink creation is unavailable on this platform")
+
+    created = service.create("symlink-boundary")
+    assert created["ok"] is True
+
+    with zipfile.ZipFile(created["archive_path"], "r") as zf:
+        assert "safe.txt" in zf.namelist()
+        assert "outside-link.txt" not in zf.namelist()
+        assert b"must-not-enter-snapshot" not in b"".join(zf.read(name) for name in zf.namelist())
