@@ -69,20 +69,6 @@
           <div id="v9CommandResults" class="v9-command-results" role="listbox"></div>
         </div>
       </div>
-      <aside id="v9ActivityRail" class="v9-activity-rail" aria-label="Live activity">
-        <header><div><span>LIVE ACTIVITY</span><strong id="v9ActivityState">Ready</strong></div><button id="v9ActivityToggle" aria-label="Toggle activity rail" aria-expanded="true">×</button></header>
-        <div class="v9-activity-grid">
-          <button data-target="missionsBtn"><span>MISSIONS</span><strong id="v9MissionCount">0</strong></button>
-          <button data-target="approvalsBtn"><span>APPROVALS</span><strong id="v9ApprovalCount">0</strong></button>
-          <button data-target="automationsBtn"><span>AUTOMATIONS</span><strong id="v9AutomationCount">0</strong></button>
-          <button data-target="connectorsBtn"><span>CONNECTORS</span><strong id="v9ConnectorCount">0</strong></button>
-        </div>
-        <div class="v9-focus-actions">
-          <button id="v9TaskCenterBtn"><span>TASK CENTER</span><small>Queue, runs, pause/resume/cancel controls</small></button>
-          <button id="v9ApprovalCenterBtn"><span>APPROVAL CENTER</span><small>Human decisions before sensitive actions</small></button>
-          <button id="v9AgentActivityBtn"><span>AGENT ACTIVITY</span><small>Operational summaries and evidence only</small></button>
-        </div>
-      </aside>
       <section id="v9FocusDrawer" class="v9-focus-drawer hidden" role="dialog" aria-modal="true" aria-label="Desktop focus center" aria-live="polite" aria-hidden="true" tabindex="-1">
         <header><div><span id="v9FocusEyebrow">DPN AI</span><strong id="v9FocusTitle">Focus Center</strong></div><button id="v9FocusClose" aria-label="Close focus center">×</button></header>
         <div id="v9FocusBody" class="v9-focus-body"></div>
@@ -92,17 +78,6 @@
     `);
 
     $('v9PaletteButton')?.addEventListener('click', openPalette);
-    $('v9ActivityToggle')?.addEventListener('click', () => {
-      const rail = $('v9ActivityRail');
-      rail?.classList.toggle('collapsed');
-      $('v9ActivityToggle')?.setAttribute('aria-expanded', String(!rail?.classList.contains('collapsed')));
-    });
-    $('v9ActivityRail')?.querySelectorAll('[data-target]').forEach((button) => {
-      button.addEventListener('click', () => invoke(button.dataset.target));
-    });
-    $('v9TaskCenterBtn')?.addEventListener('click', () => openFocus('tasks'));
-    $('v9ApprovalCenterBtn')?.addEventListener('click', () => openFocus('approvals'));
-    $('v9AgentActivityBtn')?.addEventListener('click', () => openFocus('agents'));
     $('v9FocusClose')?.addEventListener('click', closeFocus);
     $('v9FocusDrawer')?.addEventListener('keydown', (event) => trapFocus(event, $('v9FocusDrawer')));
     $('v9CommandPalette')?.addEventListener('click', (event) => {
@@ -260,23 +235,6 @@
     });
   }
 
-  function mirrorDesktopSummary() {
-    const sourceMap = [
-      ['desktopMissionCard', 'v9MissionCount'],
-      ['desktopApprovalCard', 'v9ApprovalCount'],
-      ['desktopAutomationCard', 'v9AutomationCount'],
-      ['desktopConnectorCard', 'v9ConnectorCount'],
-    ];
-    for (const [sourceId, destId] of sourceMap) {
-      const source = $(sourceId)?.querySelector('strong')?.textContent || '0';
-      const numeric = source.match(/\d+/)?.[0] || source;
-      if ($(destId)) $(destId).textContent = numeric;
-    }
-    const core = $('desktopCoreCard');
-    const state = core?.dataset.state || 'unknown';
-    if ($('v9ActivityState')) $('v9ActivityState').textContent = state === 'healthy' ? 'Online' : state;
-  }
-
   function observeSummary() {
     const dashboard = document.querySelector('.desktop-status-grid');
     if (!dashboard) return;
@@ -286,7 +244,6 @@
       const approvals = $('desktopApprovalCard')?.querySelector('strong')?.textContent;
       if (live && approvals) live.textContent = `Approval status updated: ${approvals}`;
     }).observe(dashboard, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['data-state'] });
-    mirrorDesktopSummary();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
