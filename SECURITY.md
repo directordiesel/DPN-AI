@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The current `main` branch and current DPN AI v5 release line are the supported development targets.
+The current `main` branch, the published v10.0.0 stable release, and the active v10.0.x maintenance line are the supported development targets.
 
 ## Reporting a Security Issue
 
