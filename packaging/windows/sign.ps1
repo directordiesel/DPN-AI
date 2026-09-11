@@ -2,7 +2,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$FilePath,
     [Parameter(Mandatory=$true)][string]$CertificateThumbprint,
-    [string]$TimestampUrl = "http://timestamp.digicert.com"
+    [string]$TimestampUrl = "https://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,8 +32,8 @@ $thumbprint = ($CertificateThumbprint -replace '\s','').ToUpperInvariant()
 if ($thumbprint -notmatch '^[A-F0-9]{40,64}$') {
     throw "Certificate thumbprint must be a 40-64 character hexadecimal value."
 }
-if (-not $TimestampUrl.StartsWith("https://") -and -not $TimestampUrl.StartsWith("http://")) {
-    throw "TimestampUrl must be an HTTP(S) URL."
+if (-not $TimestampUrl.StartsWith("https://")) {
+    throw "TimestampUrl must use HTTPS."
 }
 
 $signTool = Resolve-SignTool
