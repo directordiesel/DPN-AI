@@ -15,6 +15,7 @@ on:
       - "packaging/windows/**"
       - ".github/scripts/sign_update_manifest.py"
       - ".github/scripts/verify_windows_release_bundle.py"
+      - ".github/scripts/write_update_trust_root.py"
       - ".github/workflows/release.yml"
       - "*.bat"
   workflow_dispatch:
@@ -55,10 +56,10 @@ jobs:
         run: python .github\scripts\ci_repository_guard.py
       - name: Compile DPN AI sources on Windows
         shell: cmd
-        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github\scripts\ci_repository_guard.py .github\scripts\sign_update_manifest.py .github\scripts\verify_windows_release_bundle.py
+        run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github\scripts\ci_repository_guard.py .github\scripts\sign_update_manifest.py .github\scripts\verify_windows_release_bundle.py .github\scripts\write_update_trust_root.py
       - name: Run focused Windows regression suite
         shell: cmd
-        run: python -m pytest -q tests\test_authorization_boundaries.py tests\test_v5_chat_recovery.py tests\test_security.py tests\test_release_update_signing.py tests\test_release_signing_pipeline.py tests\test_v8_windows_installer.py
+        run: python -m pytest -q tests\test_authorization_boundaries.py tests\test_v5_chat_recovery.py tests\test_security.py tests\test_release_update_signing.py tests\test_release_signing_pipeline.py tests\test_desktop_update_client.py tests\test_v8_windows_installer.py tests\test_v8_windows_packaging.py tests\test_v8_desktop_service_api.py
       - name: Verify production PowerShell scripts parse
         shell: python
         run: |
