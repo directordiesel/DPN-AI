@@ -4,7 +4,7 @@ param(
     [switch]$SkipInstall,
     [switch]$SkipTests,
     [string]$CertificateThumbprint,
-    [string]$TimestampUrl = "http://timestamp.digicert.com",
+    [string]$TimestampUrl = "https://timestamp.digicert.com",
     [switch]$RequireSigned
 )
 
