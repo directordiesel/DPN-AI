@@ -299,3 +299,80 @@ def test_workspace_shortcuts_are_truthful_and_chat_preserves_context():
     assert "document.getElementById('promptInput')?.focus()" in desktop_js
     assert "creator: 'capabilityForgeBtn'" in desktop_js
     assert "research: 'mcpBtn'" in desktop_js
+
+
+
+def test_errors_are_actionable_bounded_and_redacted():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "function userSafeErrorDetail(error)" in js
+    assert "function showActionError(action, error, nextStep" in js
+    assert "detail.length > 260" in js
+    assert "[redacted]" in js
+    assert "Bearer [redacted]" in js
+    assert "Check DPN Core status and try again." in js
+    assert "Opening Workspace Files" in js
+    assert "Opening System Settings" in js
+    assert "Starting voice input" in js
+    assert "Uploading the file" in js
+    assert "Running the operation" in js
+
+    raw_backend_toasts = [
+        line for line in js.splitlines()
+        if "toast(error.message" in line
+    ]
+    assert raw_backend_toasts == [
+        next(line for line in js.splitlines() if "collectSettingsModelRoutes()" in line and "toast(error.message" in line)
+    ]
+
+
+def test_empty_states_explain_a_next_action():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    expected_guidance = (
+        "Upload a file in Chat or add files to the configured workspace, then choose Reindex.",
+        "Add a clearly named preference, fact, or decision above",
+        "Enter a project name, describe the goal and constraints, then choose Create Project.",
+        "Complete the schedule and operation form above",
+        "Send a chat request, run a mission, or start an automation",
+        "Create one before major edits, upgrades, or autonomous coding work",
+        "Select Mission mode in Chat and send a complex goal",
+        "Enter a complete goal above, choose Chat or Mission work",
+        "Search for an existing subject, or add a sourced fact",
+        "Add a small local capability above, validate it",
+        "Add a trusted server above, discover its tools",
+        "Protected actions will appear here automatically",
+        "DPN AI can still operate normally",
+        "Create one through an approved workflow-building operation",
+        "Approved service connections will appear here",
+    )
+    for guidance in expected_guidance:
+        assert guidance in js
+
+    for vague in (
+        "Workspace is empty.",
+        "No durable memories saved.",
+        "No local automations configured.",
+        "No operation runs yet.",
+        "No snapshots yet.",
+        "No background jobs yet.",
+        "No MCP servers configured.",
+        "No actions are awaiting approval.",
+        "No workflows created. The API and agent tools can create them.",
+        "No connectors configured.",
+    ):
+        assert vague not in js
+
+
+def test_raw_json_is_labeled_as_technical_evidence_where_user_facing():
+    js = (STATIC / "app.js").read_text(encoding="utf-8")
+
+    assert "Technical goal contract" in js
+    assert "Technical step evidence" in js
+    assert "Mission checkpoint evidence" in js
+    assert "Independent evaluation evidence" in js
+    assert "Consensus review evidence" in js
+    assert "Technical plugin error details" in js
+    assert "Technical validation evidence" in js
+    assert "Exact action details - review before deciding" in js
+    assert "<details open><summary>Goal contract</summary>" not in js
