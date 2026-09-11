@@ -27,8 +27,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-      id-token: write
-      attestations: write
     env:
       DISPATCH_VERSION: ${{ github.event.inputs.version }}
       DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
@@ -79,6 +77,8 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+      id-token: write
+      attestations: write
     env:
       DISPATCH_VERSION: ${{ github.event.inputs.version }}
       DISPATCH_PRERELEASE: ${{ github.event.inputs.prerelease }}
