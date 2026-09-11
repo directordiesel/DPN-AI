@@ -9,6 +9,9 @@ BROWSER = (ROOT / "app" / "browser_adapter.py").read_text(encoding="utf-8")
 CODEQL = (ROOT / ".github" / "workflows" / "codeql-advanced.yml").read_text(encoding="utf-8")
 DEPENDABOT = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
 DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+TOOL_RISK = (ROOT / "app" / "tool_risk.py").read_text(encoding="utf-8")
+TOOL_REGISTRY = (ROOT / "app" / "tools" / "registry.py").read_text(encoding="utf-8")
+SANDBOX = (ROOT / "app" / "sandbox.py").read_text(encoding="utf-8")
 
 
 def test_api_token_comparison_is_constant_time():
@@ -67,3 +70,17 @@ def test_local_api_blocks_cross_origin_browser_requests_and_dns_rebinding():
     assert "_normalized_hostname(request.headers.get(\"Host\", \"\"))" in MAIN
     assert "Untrusted Host header for local API access." in MAIN
     assert '_LOCAL_API_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient", "testserver"}' in MAIN
+
+
+def test_command_execution_is_classified_as_external_risk():
+    assert '"run_command": ToolRiskProfile(RiskLevel.EXTERNAL, network_effect=True, host_effect=True)' in TOOL_RISK
+    assert 'self.shell.run, gate="commands", risk="external"' in TOOL_REGISTRY
+
+
+def test_tool_failure_boundary_redacts_exception_text():
+    assert "sanitize_for_persistence(str(exc))" in TOOL_REGISTRY
+
+
+def test_sandbox_never_implicitly_pulls_runtime_image():
+    assert '"--pull=never"' in SANDBOX
+    assert '"image_auto_pull": False' in SANDBOX
