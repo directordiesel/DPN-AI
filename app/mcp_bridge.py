@@ -253,7 +253,7 @@ class MCPBridge:
         try:
             json.dumps(value)
             return value
-        except Exception:
+        except (TypeError, ValueError):
             return str(value)
 
     async def discover(self, server_id: str) -> dict[str, Any]:
