@@ -2,6 +2,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ RELEASE = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 BUILDER = (ROOT / "packaging/windows/build-release-assets.ps1").read_text(encoding="utf-8")
 BUILD_SCRIPT = (ROOT / "packaging/windows/build.ps1").read_text(encoding="utf-8")
 INSTALLER_SCRIPT = (ROOT / "packaging/windows/build-installer.ps1").read_text(encoding="utf-8")
+SOURCE_COMMIT = os.getenv("GITHUB_SHA", "c" * 40).strip().lower()
 
 SIGNER_SPEC = importlib.util.spec_from_file_location(
     "dpn_release_signer",
@@ -149,6 +151,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
         "signer_thumbprint": thumbprint,
         "source_dependency_lock_sha256": lock_sha256,
         "source_dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
+        "source_commit_sha": SOURCE_COMMIT,
     }
     (tmp_path / "installer-manifest.json").write_text(json.dumps(installer_manifest), encoding="utf-8")
     (tmp_path / "source-build-manifest.json").write_text(
@@ -160,6 +163,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
                 "signer_thumbprint": thumbprint,
                 "dependency_lock_sha256": lock_sha256,
                 "dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
+                "source_commit_sha": SOURCE_COMMIT,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "1" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -217,6 +221,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "signer_thumbprint": thumbprint,
                 "source_dependency_lock_sha256": lock_sha256,
                 "source_dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
+        "source_commit_sha": SOURCE_COMMIT,
             }
         ),
         encoding="utf-8",
@@ -229,6 +234,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "signer_thumbprint": thumbprint,
                 "dependency_lock_sha256": lock_sha256,
                 "dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
+                "source_commit_sha": SOURCE_COMMIT,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "2" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -328,5 +334,9 @@ def test_production_builder_uses_isolated_exact_release_lock():
     assert "dependency_wheel_hash_lock_sha256" in BUILD_SCRIPT
     assert "source_dependency_lock_sha256" in INSTALLER_SCRIPT
     assert "source_dependency_wheel_hash_lock_sha256" in INSTALLER_SCRIPT
+    assert "source_commit_sha" in BUILD_SCRIPT
+    assert "source_commit_sha" in INSTALLER_SCRIPT
+    assert "GITHUB_SHA" in BUILD_SCRIPT
+    assert "GITHUB_SHA" in INSTALLER_SCRIPT
     install_block = BUILD_SCRIPT.split("if (-not $SkipInstall)", 1)[1].split("if (-not $SkipTests)", 1)[0]
     assert "-r requirements-build.txt" not in install_block
