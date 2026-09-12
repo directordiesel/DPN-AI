@@ -18,11 +18,12 @@ def test_browser_rejects_embedded_credentials(tmp_path: Path):
 
 
 def test_browser_public_mode_rejects_private_host(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr("app.browser_adapter.ConnectorHub._is_private_host", lambda host: host == "internal.test")
+    private_address = [(2, 1, 6, "", ("127.0.0.1", 443))]
+    monkeypatch.setattr("app.network_security.socket.getaddrinfo", lambda *args, **kwargs: private_address)
     adapter = BrowserAdapter(tmp_path / "workspace", allow_private_network=False)
     ok, reason = adapter._validate_url("https://internal.test/")
     assert ok is False
-    assert "private" in reason.lower()
+    assert "private" in reason.lower() or "loopback" in reason.lower()
 
 
 def test_browser_screenshot_target_rejects_symlink(tmp_path: Path):

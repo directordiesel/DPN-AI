@@ -27,7 +27,10 @@ def _normalize_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     if "%" in raw:
         raise NetworkSecurityError("Scoped IP addresses are not allowed")
     try:
-        return ipaddress.ip_address(raw)
+        address = ipaddress.ip_address(raw)
+        if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+            return address.ipv4_mapped
+        return address
     except ValueError as exc:
         raise NetworkSecurityError("Endpoint resolved to an invalid IP address") from exc
 

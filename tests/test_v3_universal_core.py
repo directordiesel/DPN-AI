@@ -54,10 +54,12 @@ def test_vault_encrypts_values(tmp_path: Path):
     assert vault.resolve({"Authorization": "Bearer {{secret:API_TOKEN}}"})["Authorization"] == "Bearer super-secret-value"
 
 
-def test_connector_prevents_host_escape(tmp_path: Path):
+def test_connector_prevents_host_escape(monkeypatch, tmp_path: Path):
     db = Database(tmp_path / "data.sqlite3")
     vault = SecretVault(tmp_path / "vault.key", tmp_path / "vault.json")
     hub = ConnectorHub(db, vault, allow_private_network=True)
+    public_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    monkeypatch.setattr("app.network_security.socket.getaddrinfo", lambda *args, **kwargs: public_address)
     connector = hub.create("Test", "https://example.com/api", allowed_methods=["GET"])["connector"]
     assert connector["config"]["allowed_methods"] == ["GET"]
 

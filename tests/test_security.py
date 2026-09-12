@@ -166,6 +166,14 @@ def _connector_hub(tmp_path: Path) -> ConnectorHub:
     return ConnectorHub(db, vault)
 
 
+def test_public_connector_rejects_plaintext_http(tmp_path: Path) -> None:
+    hub = _connector_hub(tmp_path)
+    result = hub.create("unsafe-http", "http://example.test/api")
+    assert result["ok"] is False
+    assert "https" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
 def test_connector_rejects_embedded_credentials(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     result = hub.create("unsafe", "https://user:secret@example.test/api")
@@ -177,7 +185,7 @@ def test_connector_rejects_embedded_credentials(tmp_path: Path) -> None:
 def test_connector_rejects_private_resolution(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("127.0.0.1", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create("unsafe", "https://internal.example.test/api")
     assert result["ok"] is False
     assert "private" in result["error"].lower() or "reserved" in result["error"].lower()
@@ -186,7 +194,7 @@ def test_connector_rejects_private_resolution(tmp_path: Path) -> None:
 
 def test_connector_fails_closed_on_unresolved_host(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
-    with mock.patch("app.connectors.socket.getaddrinfo", side_effect=OSError("dns unavailable")):
+    with mock.patch("app.network_security.socket.getaddrinfo", side_effect=OSError("dns unavailable")):
         result = hub.create("unknown", "https://unresolved.example.test/api")
     assert result["ok"] is False
     hub.db.create_connector.assert_not_called()
@@ -195,7 +203,7 @@ def test_connector_fails_closed_on_unresolved_host(tmp_path: Path) -> None:
 def test_connector_rejects_dangerous_http_methods(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create("trace", "https://example.test/api", allowed_methods=["GET", "TRACE"])
     assert result["ok"] is False
     assert "unsupported" in result["error"].lower()
@@ -206,7 +214,7 @@ def test_connector_rejects_dangerous_http_methods(tmp_path: Path) -> None:
 def test_connector_rejects_plaintext_sensitive_headers(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create(
             "unsafe-secret",
             "https://example.test/api",
@@ -220,7 +228,7 @@ def test_connector_rejects_plaintext_sensitive_headers(tmp_path: Path) -> None:
 def test_connector_accepts_secret_references_for_sensitive_headers(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create(
             "safe-secret",
             "https://example.test/api",
@@ -234,7 +242,7 @@ def test_connector_accepts_secret_references_for_sensitive_headers(tmp_path: Pat
 def test_connector_rejects_header_injection(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create(
             "bad-header",
             "https://example.test/api",
@@ -246,7 +254,7 @@ def test_connector_rejects_header_injection(tmp_path: Path) -> None:
 def test_connector_accepts_public_allowlisted_configuration(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.connectors.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         result = hub.create("public", "https://example.test/api", allowed_methods=["GET", "POST"])
     assert result["ok"] is True
     hub.db.create_connector.assert_called_once()

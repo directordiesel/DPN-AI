@@ -93,3 +93,11 @@ def test_peer_verification_rejects_unexpected_public_address_too():
     )
     with pytest.raises(NetworkSecurityError, match="pre-resolved"):
         verify_peer_address("1.1.1.1", endpoint)
+
+
+def test_ipv4_mapped_ipv6_peer_normalizes_to_approved_ipv4():
+    endpoint = resolve_url_endpoint(
+        "https://example.test",
+        resolver=_resolver("8.8.8.8"),
+    )
+    assert verify_peer_address("::ffff:8.8.8.8", endpoint) == "8.8.8.8"

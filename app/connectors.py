@@ -93,6 +93,8 @@ class ConnectorHub:
             return False, "Connector base_url must not contain a URL fragment"
         if parsed.query:
             return False, "Connector base_url must not contain a query string"
+        if not self.allow_private_network and parsed.scheme != "https":
+            return False, "Public connector endpoints must use HTTPS"
         try:
             resolve_url_endpoint(base_url, allow_private=self.allow_private_network)
         except NetworkSecurityError as exc:
