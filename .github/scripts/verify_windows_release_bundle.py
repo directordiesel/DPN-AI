@@ -143,6 +143,8 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("update manifest version mismatch")
     if update_manifest.artifact.channel != channel:
         raise ValueError("update manifest channel mismatch")
+    if not hmac.compare_digest(update_manifest.artifact.signer_thumbprint, thumbprint):
+        raise ValueError("signed update manifest Authenticode signer does not match installer signer")
 
     return expected
 
