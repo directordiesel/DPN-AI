@@ -30,10 +30,28 @@ def test_public_endpoint_resolution_returns_exact_approved_set():
     assert endpoint.is_private is False
 
 
-@pytest.mark.parametrize("address", ["127.0.0.1", "10.0.0.8", "169.254.169.254", "::1", "fe80::1"])
+@pytest.mark.parametrize(
+    "address",
+    [
+        "127.0.0.1",
+        "10.0.0.8",
+        "100.64.0.1",
+        "169.254.169.254",
+        "::1",
+        "fe80::1",
+    ],
+)
 def test_public_endpoint_resolution_blocks_non_public_addresses(address: str):
     with pytest.raises(NetworkSecurityError):
         resolve_url_endpoint("https://example.test", resolver=_resolver(address))
+
+
+def test_public_endpoint_resolution_blocks_non_global_special_use_ranges():
+    with pytest.raises(NetworkSecurityError, match="Non-global special-purpose"):
+        resolve_url_endpoint(
+            "https://example.test",
+            resolver=_resolver("100.64.0.1"),
+        )
 
 
 def test_mixed_public_private_dns_answers_fail_closed():
