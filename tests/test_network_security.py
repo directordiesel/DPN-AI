@@ -5,6 +5,7 @@ import pytest
 
 from app.network_security import (
     NetworkSecurityError,
+    PinnedAsyncHTTPTransport,
     resolve_url_endpoint,
     verify_httpx_response_peer,
     verify_peer_address,
@@ -119,3 +120,58 @@ def test_ipv4_mapped_ipv6_peer_normalizes_to_approved_ipv4():
         resolver=_resolver("8.8.8.8"),
     )
     assert verify_peer_address("::ffff:8.8.8.8", endpoint) == "8.8.8.8"
+
+
+
+@pytest.mark.asyncio
+async def test_pinned_transport_connects_to_approved_ip_and_preserves_tls_identity():
+    endpoint = resolve_url_endpoint(
+        "https://example.test/resource",
+        resolver=_resolver("8.8.8.8"),
+    )
+    seen: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["host"] = request.headers.get("host")
+        seen["sni"] = request.extensions.get("sni_hostname")
+        return httpx.Response(200, content=b"ok")
+
+    transport = PinnedAsyncHTTPTransport(
+        endpoint,
+        transport=httpx.MockTransport(handler),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        response = await client.get(
+            "https://example.test/resource",
+            headers={"Host": "internal.attacker.test"},
+        )
+
+    assert response.status_code == 200
+    assert seen["url"] == "https://8.8.8.8/resource"
+    assert seen["host"] == "example.test"
+    assert seen["sni"] == "example.test"
+
+
+@pytest.mark.asyncio
+async def test_pinned_transport_rejects_host_switch_before_inner_transport():
+    endpoint = resolve_url_endpoint(
+        "https://example.test/resource",
+        resolver=_resolver("8.8.8.8"),
+    )
+    called = False
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal called
+        called = True
+        return httpx.Response(200, content=b"unexpected")
+
+    transport = PinnedAsyncHTTPTransport(
+        endpoint,
+        transport=httpx.MockTransport(handler),
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(NetworkSecurityError, match="approved endpoint"):
+            await client.get("https://other.test/resource")
+
+    assert called is False
