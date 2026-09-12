@@ -168,9 +168,12 @@ def test_core_http_clients_ignore_ambient_proxy_environment():
     for path in paths:
         source = path.read_text(encoding="utf-8")
         assert "httpx.AsyncClient(" in source
-        for line in source.splitlines():
-            if "httpx.AsyncClient(" in line:
-                assert "trust_env=False" in line
+        starts = [index for index in range(len(source)) if source.startswith("httpx.AsyncClient(", index)]
+        for start in starts:
+            end = source.find(")", start)
+            assert end > start
+            call = source[start:end + 1]
+            assert "trust_env=False" in call
 
 
 
