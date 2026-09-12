@@ -1,10 +1,10 @@
 """DPN AI updater and rollback security contracts.
 
 Production update manifests use an Ed25519-signed schema that binds the
-artifact to the official repository, signing-key identity, and verification-key
-fingerprint. Legacy artifact-only manifests remain parseable for development
-compatibility, but production callers must explicitly require the current trust
-binding.
+artifact to the official repository, signing-key identity, verification-key
+fingerprint, and expected Windows Authenticode signer. Legacy manifests remain
+parseable for development compatibility, but production callers must explicitly
+require the current trust binding.
 """
 
 from __future__ import annotations
@@ -23,11 +23,12 @@ from typing import Any
 
 ALLOWED_CHANNELS = {"stable", "beta", "dev"}
 HASH_CHUNK_BYTES = 1024 * 1024
-UPDATE_MANIFEST_SCHEMA_VERSION = 2
+UPDATE_MANIFEST_SCHEMA_VERSION = 3
 UPDATE_REPOSITORY = "directordiesel/DPN-AI"
 UPDATE_KEY_ID = "release-ed25519-v1"
 _KEY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_THUMBPRINT_RE = re.compile(r"^[A-F0-9]{40,64}$")
 
 
 def _sha256_file(path: Path) -> str:
@@ -48,6 +49,7 @@ class UpdateArtifact:
     filename: str
     sha256: str
     size: int
+    signer_thumbprint: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UpdateArtifact":
@@ -57,9 +59,10 @@ class UpdateArtifact:
             filename=str(data.get("filename", "")).strip(),
             sha256=str(data.get("sha256", "")).strip().lower(),
             size=int(data.get("size", 0)),
+            signer_thumbprint=str(data.get("signer_thumbprint", "")).replace(" ", "").strip().upper(),
         )
 
-    def validate(self) -> None:
+    def validate(self, *, require_signer_thumbprint: bool = False) -> None:
         if not self.version:
             raise ValueError("update version is required")
         if self.channel not in ALLOWED_CHANNELS:
@@ -70,15 +73,22 @@ class UpdateArtifact:
             raise ValueError("update sha256 must be a lowercase 64-character digest")
         if self.size <= 0:
             raise ValueError("update artifact size must be positive")
+        if self.signer_thumbprint and _THUMBPRINT_RE.fullmatch(self.signer_thumbprint) is None:
+            raise ValueError("update Authenticode signer thumbprint is invalid")
+        if require_signer_thumbprint and not self.signer_thumbprint:
+            raise ValueError("production update manifest must bind the Authenticode signer thumbprint")
 
     def canonical_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "channel": self.channel,
             "filename": self.filename,
             "sha256": self.sha256,
             "size": self.size,
             "version": self.version,
         }
+        if self.signer_thumbprint:
+            payload["signer_thumbprint"] = self.signer_thumbprint
+        return payload
 
 
 @dataclass(frozen=True)
@@ -103,13 +113,13 @@ class SignedUpdateManifest:
             schema_version = int(data.get("schema_version", 1))
         except (TypeError, ValueError) as exc:
             raise ValueError("update manifest schema version is invalid") from exc
-        if schema_version not in {1, UPDATE_MANIFEST_SCHEMA_VERSION}:
+        if schema_version not in {1, 2, UPDATE_MANIFEST_SCHEMA_VERSION}:
             raise ValueError("unsupported update manifest schema version")
 
         repository = str(data.get("repository") or "").strip()
         key_id = str(data.get("key_id") or "").strip()
         fingerprint = str(data.get("signing_key_fingerprint_sha256") or "").strip().lower()
-        if schema_version == UPDATE_MANIFEST_SCHEMA_VERSION:
+        if schema_version >= 2:
             if not repository or "/" not in repository:
                 raise ValueError("update manifest repository binding is invalid")
             if _KEY_ID_RE.fullmatch(key_id) is None:
@@ -128,7 +138,9 @@ class SignedUpdateManifest:
             key_id=key_id,
             signing_key_fingerprint_sha256=fingerprint,
         )
-        manifest.artifact.validate()
+        manifest.artifact.validate(require_signer_thumbprint=schema_version == UPDATE_MANIFEST_SCHEMA_VERSION)
+        if schema_version < UPDATE_MANIFEST_SCHEMA_VERSION and manifest.artifact.signer_thumbprint:
+            raise ValueError("legacy update manifest must not contain Authenticode signer metadata")
         if len(manifest.signature) != 128 or any(ch not in "0123456789abcdef" for ch in manifest.signature):
             raise ValueError("invalid Ed25519 update manifest signature")
         return manifest
@@ -174,6 +186,7 @@ def validate_manifest_trust_binding(
     """Require the current production schema and its signed trust identity."""
     if manifest.schema_version != UPDATE_MANIFEST_SCHEMA_VERSION:
         raise ValueError("production update manifest must use the current signed trust schema")
+    manifest.artifact.validate(require_signer_thumbprint=True)
     if not hmac.compare_digest(manifest.repository, str(repository)):
         raise ValueError("update manifest repository binding mismatch")
     if not hmac.compare_digest(manifest.key_id, str(key_id)):
