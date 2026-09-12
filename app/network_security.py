@@ -42,7 +42,10 @@ def _classify_addresses(addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Add
     for address in addresses:
         if address.is_link_local or address.is_multicast or address.is_reserved or address.is_unspecified:
             raise NetworkSecurityError("Link-local, multicast, reserved, or unspecified addresses are blocked")
-        private_flags.add(bool(address.is_private or address.is_loopback))
+        is_private = bool(address.is_private or address.is_loopback)
+        if not is_private and not address.is_global:
+            raise NetworkSecurityError("Non-global special-purpose network addresses are blocked")
+        private_flags.add(is_private)
     if len(private_flags) != 1:
         raise NetworkSecurityError("Mixed public/private DNS answers are blocked")
     return True in private_flags
