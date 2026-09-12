@@ -140,6 +140,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
     thumbprint = "A" * 40
 
     lock_sha256 = _sha256(ROOT / "requirements-release.lock")
+    hashed_lock_sha256 = _sha256(ROOT / "requirements-release-win312.lock")
     installer_manifest = {
         "version": version,
         "installer": installer.name,
@@ -147,6 +148,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
         "signing": "signed-production-installer",
         "signer_thumbprint": thumbprint,
         "source_dependency_lock_sha256": lock_sha256,
+        "source_dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
     }
     (tmp_path / "installer-manifest.json").write_text(json.dumps(installer_manifest), encoding="utf-8")
     (tmp_path / "source-build-manifest.json").write_text(
@@ -157,6 +159,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
                 "dependency_lock_sha256": lock_sha256,
+                "dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "1" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -202,6 +205,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
     installer.write_bytes(b"production-installer")
     thumbprint = "B" * 40
     lock_sha256 = _sha256(ROOT / "requirements-release.lock")
+    hashed_lock_sha256 = _sha256(ROOT / "requirements-release-win312.lock")
     manifest_path = tmp_path / "installer-manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -212,6 +216,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "signing": "signed-production-installer",
                 "signer_thumbprint": thumbprint,
                 "source_dependency_lock_sha256": lock_sha256,
+                "source_dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
             }
         ),
         encoding="utf-8",
@@ -223,6 +228,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
                 "dependency_lock_sha256": lock_sha256,
+                "dependency_wheel_hash_lock_sha256": hashed_lock_sha256,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "2" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -311,12 +317,16 @@ def test_production_builder_injects_and_cleans_public_update_trust_root():
 
 def test_production_builder_uses_isolated_exact_release_lock():
     assert "requirements-release.lock" in BUILDER
+    assert "requirements-release-win312.lock" in BUILDER
     assert "verify_release_lock.py" in BUILDER
     assert "-m venv" in BUILDER
+    assert "--require-hashes" in BUILDER
     assert "--no-deps" in BUILDER
     assert "--only-binary=:all:" in BUILDER
     assert "SkipInstall = $true" in BUILDER
     assert "dependency_lock_sha256" in BUILD_SCRIPT
+    assert "dependency_wheel_hash_lock_sha256" in BUILD_SCRIPT
     assert "source_dependency_lock_sha256" in INSTALLER_SCRIPT
+    assert "source_dependency_wheel_hash_lock_sha256" in INSTALLER_SCRIPT
     install_block = BUILD_SCRIPT.split("if (-not $SkipInstall)", 1)[1].split("if (-not $SkipTests)", 1)[0]
     assert "-r requirements-build.txt" not in install_block
