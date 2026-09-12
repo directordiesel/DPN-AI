@@ -19,6 +19,7 @@ from desktop.updater import (
 )
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RELEASE_LOCK_PATH = REPOSITORY_ROOT / "requirements-release.lock"
 HASHED_RELEASE_LOCK_PATH = REPOSITORY_ROOT / "requirements-release-win312.lock"
@@ -111,6 +112,10 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
     if re.fullmatch(r"[A-F0-9]{40,64}", thumbprint) is None:
         raise ValueError("installer signer thumbprint is invalid")
 
+    installer_source_commit = str(installer_manifest.get("source_commit_sha") or "").strip().lower()
+    if GIT_COMMIT_RE.fullmatch(installer_source_commit) is None:
+        raise ValueError("installer source commit SHA is invalid")
+
     source_manifest = json.loads((root / "source-build-manifest.json").read_text(encoding="utf-8-sig"))
     if not isinstance(source_manifest, dict):
         raise ValueError("source build manifest must be a JSON object")
@@ -132,6 +137,17 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("source build wheel hash lock does not match committed Windows hash lock")
     if not hmac.compare_digest(source_hashed_lock_digest, installer_hashed_lock_digest):
         raise ValueError("source and installer wheel hash lock identities differ")
+    source_commit = str(source_manifest.get("source_commit_sha") or "").strip().lower()
+    if GIT_COMMIT_RE.fullmatch(source_commit) is None:
+        raise ValueError("source build source commit SHA is invalid")
+    if not hmac.compare_digest(source_commit, installer_source_commit):
+        raise ValueError("source and installer commit identities differ")
+    workflow_commit = str(os.getenv("GITHUB_SHA") or "").strip().lower()
+    if workflow_commit:
+        if GIT_COMMIT_RE.fullmatch(workflow_commit) is None:
+            raise ValueError("workflow source commit SHA is invalid")
+        if not hmac.compare_digest(source_commit, workflow_commit):
+            raise ValueError("release bundle source commit does not match workflow commit")
     if source_manifest.get("update_trust_configured") is not True:
         raise ValueError("source build manifest does not record a packaged update trust root")
     trust_file_digest = str(source_manifest.get("update_trust_root_sha256") or "").strip().lower()
@@ -161,6 +177,8 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("update manifest channel mismatch")
     if not hmac.compare_digest(update_manifest.artifact.signer_thumbprint, thumbprint):
         raise ValueError("signed update manifest Authenticode signer does not match installer signer")
+    if not hmac.compare_digest(update_manifest.artifact.source_commit_sha, source_commit):
+        raise ValueError("signed update manifest source commit does not match release bundle")
 
     return expected
 
