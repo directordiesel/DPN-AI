@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RELEASE = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 BUILDER = (ROOT / "packaging/windows/build-release-assets.ps1").read_text(encoding="utf-8")
 BUILD_SCRIPT = (ROOT / "packaging/windows/build.ps1").read_text(encoding="utf-8")
+INSTALLER_SCRIPT = (ROOT / "packaging/windows/build-installer.ps1").read_text(encoding="utf-8")
 
 SIGNER_SPEC = importlib.util.spec_from_file_location(
     "dpn_release_signer",
@@ -138,12 +139,14 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
     installer.write_bytes(b"production-installer")
     thumbprint = "A" * 40
 
+    lock_sha256 = _sha256(ROOT / "requirements-release.lock")
     installer_manifest = {
         "version": version,
         "installer": installer.name,
         "sha256": _sha256(installer),
         "signing": "signed-production-installer",
         "signer_thumbprint": thumbprint,
+        "source_dependency_lock_sha256": lock_sha256,
     }
     (tmp_path / "installer-manifest.json").write_text(json.dumps(installer_manifest), encoding="utf-8")
     (tmp_path / "source-build-manifest.json").write_text(
@@ -153,6 +156,7 @@ def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
                 "sha256": "0" * 64,
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
+                "dependency_lock_sha256": lock_sha256,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "1" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -197,6 +201,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
     installer = tmp_path / f"DPN-AI-Setup-{version}.exe"
     installer.write_bytes(b"production-installer")
     thumbprint = "B" * 40
+    lock_sha256 = _sha256(ROOT / "requirements-release.lock")
     manifest_path = tmp_path / "installer-manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -206,6 +211,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "sha256": _sha256(installer),
                 "signing": "signed-production-installer",
                 "signer_thumbprint": thumbprint,
+                "source_dependency_lock_sha256": lock_sha256,
             }
         ),
         encoding="utf-8",
@@ -216,6 +222,7 @@ def test_linux_bundle_verifier_rejects_transfer_tampering(tmp_path: Path):
                 "version": version,
                 "signing": "signed-production-artifact",
                 "signer_thumbprint": thumbprint,
+                "dependency_lock_sha256": lock_sha256,
                 "update_trust_configured": True,
                 "update_trust_root_sha256": "2" * 64,
                 "update_trust_public_key_sha256": hashlib.sha256(bytes.fromhex(public_hex)).hexdigest(),
@@ -262,6 +269,7 @@ def test_release_security_preflight_audits_all_python_surfaces():
     for requirement in (
         "requirements.txt",
         "requirements-build.txt",
+        "requirements-release.lock",
         "requirements-browser.txt",
         "requirements-desktop.txt",
         "requirements-voice.txt",
@@ -299,3 +307,16 @@ def test_production_builder_injects_and_cleans_public_update_trust_root():
     assert "Production package trust-root hash does not match the generated trust root." in BUILDER
     assert 'Remove-Item -LiteralPath $TrustRootPath' in BUILDER
     assert 'Remove-Item Env:DPN_UPDATE_TRUST_FILE' in BUILDER
+
+
+def test_production_builder_uses_isolated_exact_release_lock():
+    assert "requirements-release.lock" in BUILDER
+    assert "verify_release_lock.py" in BUILDER
+    assert "-m venv" in BUILDER
+    assert "--no-deps" in BUILDER
+    assert "--only-binary=:all:" in BUILDER
+    assert "SkipInstall = $true" in BUILDER
+    assert "dependency_lock_sha256" in BUILD_SCRIPT
+    assert "source_dependency_lock_sha256" in INSTALLER_SCRIPT
+    install_block = BUILD_SCRIPT.split("if (-not $SkipInstall)", 1)[1].split("if (-not $SkipTests)", 1)[0]
+    assert "-r requirements-build.txt" not in install_block
