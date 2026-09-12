@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -39,3 +41,10 @@ def test_security_audit_toolchain_uses_exact_declared_closure_without_dependency
     assert "--disable-pip-version-check" in install_line
     assert "--no-deps" in install_line
     assert "--only-binary=:all:" in install_line
+
+
+def test_release_workflow_is_valid_yaml():
+    parsed = yaml.safe_load(RELEASE)
+    assert isinstance(parsed, dict)
+    assert "jobs" in parsed
+    assert {"security-preflight", "windows-release-assets", "release"}.issubset(parsed["jobs"])
