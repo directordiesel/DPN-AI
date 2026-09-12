@@ -10,6 +10,7 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.db import Database
+from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_httpx_response_peer
 from app.persistence_security import sanitize_for_persistence
 from app.vault import SecretVault
 
@@ -92,8 +93,10 @@ class ConnectorHub:
             return False, "Connector base_url must not contain a URL fragment"
         if parsed.query:
             return False, "Connector base_url must not contain a query string"
-        if not self.allow_private_network and self._is_private_host(parsed.hostname):
-            return False, "Private, reserved, or unresolved connector hosts are disabled"
+        try:
+            resolve_url_endpoint(base_url, allow_private=self.allow_private_network)
+        except NetworkSecurityError as exc:
+            return False, str(exc)
         return True, ""
 
     def create(self, name: str, base_url: str, headers: dict[str, str] | None = None,
@@ -144,14 +147,17 @@ class ConnectorHub:
             return {"ok": False, "error": "Connector path escaped the configured host"}
         if parsed_url.username or parsed_url.password:
             return {"ok": False, "error": "Connector request URL must not contain embedded credentials"}
-        if not self.allow_private_network and parsed_url.hostname and self._is_private_host(parsed_url.hostname):
-            return {"ok": False, "error": "Private, reserved, or unresolved connector hosts are disabled"}
+        try:
+            endpoint = resolve_url_endpoint(url, allow_private=self.allow_private_network)
+        except NetworkSecurityError as exc:
+            return {"ok": False, "error": str(exc)}
         try:
             headers = self.vault.resolve(config.get("headers", {}))
             body = self.vault.resolve(json_body)
             timeout = max(5, min(timeout_seconds, 120))
             async with httpx.AsyncClient(trust_env=False, timeout=timeout, follow_redirects=False) as client:
                 async with client.stream(method, url, params=params, json=body, headers=headers) as response:
+                    verify_httpx_response_peer(response, endpoint)
                     content_length = int(response.headers.get("content-length", "0") or 0)
                     if content_length > MAX_CONNECTOR_RESPONSE_BYTES:
                         return {"ok": False, "error": "Connector response exceeded the 2 MB safety limit"}

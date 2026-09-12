@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from app.connectors import ConnectorHub
+from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_peer_address
 
 
 class BrowserAdapter:
@@ -35,8 +35,10 @@ class BrowserAdapter:
             return False, "Browser URL must use HTTP or HTTPS"
         if parsed.username or parsed.password:
             return False, "Browser URL must not contain embedded credentials"
-        if not self.allow_private_network and ConnectorHub._is_private_host(parsed.hostname):
-            return False, "Private, reserved, or unresolved browser hosts are disabled"
+        try:
+            resolve_url_endpoint(url, allow_private=self.allow_private_network)
+        except NetworkSecurityError as exc:
+            return False, str(exc)
         return True, ""
 
     def _output_path(self, screenshot_name: str) -> Path:
@@ -94,8 +96,14 @@ class BrowserAdapter:
             # values. This blocks redirect/subresource pivots to private networks.
             await context.route("**/*", guard_route)
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
+                navigation_response = await page.goto(url, wait_until="domcontentloaded", timeout=60_000)
                 final_valid, final_reason = self._validate_url(page.url)
+                if navigation_response is not None:
+                    endpoint = resolve_url_endpoint(str(navigation_response.url), allow_private=self.allow_private_network)
+                    server = await navigation_response.server_addr()
+                    if not server or not server.get("ipAddress"):
+                        raise ValueError("Browser transport did not expose the connected peer address")
+                    verify_peer_address(str(server["ipAddress"]), endpoint)
                 if not final_valid:
                     raise ValueError(final_reason)
 
@@ -118,7 +126,13 @@ class BrowserAdapter:
                         target_valid, target_reason = self._validate_url(target)
                         if not target_valid:
                             raise ValueError(target_reason)
-                        await page.goto(target, wait_until="domcontentloaded", timeout=60_000)
+                        navigation_response = await page.goto(target, wait_until="domcontentloaded", timeout=60_000)
+                        if navigation_response is not None:
+                            endpoint = resolve_url_endpoint(str(navigation_response.url), allow_private=self.allow_private_network)
+                            server = await navigation_response.server_addr()
+                            if not server or not server.get("ipAddress"):
+                                raise ValueError("Browser transport did not expose the connected peer address")
+                            verify_peer_address(str(server["ipAddress"]), endpoint)
                     else:
                         events.append({"action": action, "status": "ignored"})
                         continue

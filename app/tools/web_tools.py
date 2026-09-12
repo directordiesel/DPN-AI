@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import ipaddress
-import socket
 from typing import Any
-from urllib.parse import quote_plus, urljoin, urlparse
+from urllib.parse import quote_plus, urljoin
 
 import httpx
 from bs4 import BeautifulSoup
 
+from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_httpx_response_peer
 from app.persistence_security import sanitize_for_persistence
 
 
@@ -17,54 +16,67 @@ MAX_REDIRECTS = 5
 
 
 def _safe_public_url(url: str) -> tuple[bool, str]:
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        return False, "Only public http/https URLs are allowed"
-    if parsed.username or parsed.password:
-        return False, "URLs with embedded credentials are blocked"
-    hostname = parsed.hostname.lower()
-    if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
-        return False, "Local network URLs are blocked"
     try:
-        addresses = {
-            item[4][0]
-            for item in socket.getaddrinfo(
-                hostname,
-                parsed.port or (443 if parsed.scheme == "https" else 80),
-                type=socket.SOCK_STREAM,
-            )
-        }
-    except socket.gaierror:
-        return False, "Hostname could not be resolved"
-    if not addresses:
-        return False, "Hostname could not be resolved"
-    for address in addresses:
-        try:
-            ip = ipaddress.ip_address(address)
-        except ValueError:
-            return False, "Hostname resolved to an invalid network address"
-        if (
-            ip.is_private
-            or ip.is_loopback
-            or ip.is_link_local
-            or ip.is_multicast
-            or ip.is_reserved
-            or ip.is_unspecified
-        ):
-            return False, "Private or reserved network addresses are blocked"
+        resolve_url_endpoint(url, allow_private=False)
+    except NetworkSecurityError as exc:
+        return False, str(exc)
     return True, ""
+
+
+async def _bounded_public_get(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    max_bytes: int,
+) -> tuple[bytes, str, str]:
+    current = str(url)
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        endpoint = resolve_url_endpoint(current, allow_private=False)
+        async with client.stream("GET", current) as response:
+            verify_httpx_response_peer(response, endpoint)
+            if response.is_redirect:
+                if redirect_count >= MAX_REDIRECTS:
+                    raise NetworkSecurityError("Too many redirects")
+                location = response.headers.get("location")
+                if not location:
+                    raise NetworkSecurityError("Redirect response did not include a Location header")
+                current = urljoin(str(response.url), location)
+                continue
+
+            response.raise_for_status()
+            declared = response.headers.get("content-length")
+            if declared:
+                try:
+                    if int(declared) > max_bytes:
+                        raise NetworkSecurityError("Response exceeds the allowed size")
+                except ValueError as exc:
+                    raise NetworkSecurityError("Response has an invalid Content-Length") from exc
+
+            content_type = response.headers.get("content-type", "")
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > max_bytes:
+                    raise NetworkSecurityError("Response exceeds the allowed size")
+            return bytes(body), str(response.url), content_type
+    raise NetworkSecurityError("Too many redirects")
 
 
 async def search_web(query: str, max_results: int = 6) -> dict[str, Any]:
     url = f"https://html.duckduckgo.com/html/?q={quote_plus(query)}"
     try:
-        async with httpx.AsyncClient(trust_env=False, timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
-            response = await client.get(url)
-            response.raise_for_status()
+        async with httpx.AsyncClient(
+            trust_env=False,
+            timeout=20,
+            follow_redirects=False,
+            headers={"User-Agent": USER_AGENT},
+        ) as client:
+            body, _, _ = await _bounded_public_get(client, url, max_bytes=MAX_RESPONSE_BYTES)
     except (httpx.HTTPError, OSError, ValueError) as exc:
         detail = str(sanitize_for_persistence(str(exc)))
         return {"ok": False, "error": f"Web search failed: {detail}"}
-    soup = BeautifulSoup(response.text, "html.parser")
+
+    soup = BeautifulSoup(body.decode("utf-8", errors="replace"), "html.parser")
     results: list[dict[str, str]] = []
     for result in soup.select(".result"):
         link = result.select_one(".result__a")
@@ -85,46 +97,21 @@ async def search_web(query: str, max_results: int = 6) -> dict[str, Any]:
 
 
 async def fetch_web_page(url: str, max_chars: int = 20_000) -> dict[str, Any]:
-    current_url = url
     try:
-        async with httpx.AsyncClient(trust_env=False, 
+        async with httpx.AsyncClient(
+            trust_env=False,
             timeout=25,
             follow_redirects=False,
             headers={"User-Agent": USER_AGENT},
         ) as client:
-            for redirect_count in range(MAX_REDIRECTS + 1):
-                safe, reason = _safe_public_url(current_url)
-                if not safe:
-                    return {"ok": False, "error": reason}
-
-                async with client.stream("GET", current_url) as response:
-                    if response.is_redirect:
-                        if redirect_count >= MAX_REDIRECTS:
-                            return {"ok": False, "error": "Too many redirects"}
-                        location = response.headers.get("location")
-                        if not location:
-                            return {"ok": False, "error": "Redirect response did not include a Location header"}
-                        current_url = urljoin(str(response.url), location)
-                        continue
-
-                    response.raise_for_status()
-                    content_length = int(response.headers.get("content-length", "0") or 0)
-                    if content_length > MAX_RESPONSE_BYTES:
-                        return {"ok": False, "error": "Page is larger than the 2 MB safety limit"}
-                    content_type = response.headers.get("content-type", "")
-                    if "text" not in content_type and "json" not in content_type and "xml" not in content_type:
-                        return {"ok": False, "error": f"Unsupported content type: {content_type}"}
-
-                    body = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > MAX_RESPONSE_BYTES:
-                            return {"ok": False, "error": "Page is larger than the 2 MB safety limit"}
-                    text_body = body.decode(response.encoding or "utf-8", errors="replace")
-                    final_url = str(response.url)
-                    break
-            else:  # pragma: no cover - defensive loop guard
-                return {"ok": False, "error": "Too many redirects"}
+            body, final_url, content_type = await _bounded_public_get(
+                client,
+                url,
+                max_bytes=MAX_RESPONSE_BYTES,
+            )
+        if "text" not in content_type and "json" not in content_type and "xml" not in content_type:
+            return {"ok": False, "error": f"Unsupported content type: {content_type}"}
+        text_body = body.decode("utf-8", errors="replace")
     except (httpx.HTTPError, OSError, ValueError) as exc:
         detail = str(sanitize_for_persistence(str(exc)))
         return {"ok": False, "error": f"Page fetch failed: {detail}"}

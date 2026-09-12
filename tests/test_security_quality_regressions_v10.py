@@ -7,6 +7,9 @@ MODEL_GATEWAY = (ROOT / "app" / "model_gateway.py").read_text(encoding="utf-8")
 SCHEMAS = (ROOT / "app" / "schemas.py").read_text(encoding="utf-8")
 SKILLS = (ROOT / "app" / "skills.py").read_text(encoding="utf-8")
 BROWSER = (ROOT / "app" / "browser_adapter.py").read_text(encoding="utf-8")
+NETWORK_SECURITY = (ROOT / "app" / "network_security.py").read_text(encoding="utf-8")
+WEB_TOOLS = (ROOT / "app" / "tools" / "web_tools.py").read_text(encoding="utf-8")
+CONNECTORS = (ROOT / "app" / "connectors.py").read_text(encoding="utf-8")
 CODEQL = (ROOT / ".github" / "workflows" / "codeql-advanced.yml").read_text(encoding="utf-8")
 DEPENDABOT = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
 DOCKERFILE = (ROOT / "Dockerfile").read_text(encoding="utf-8")
@@ -191,3 +194,10 @@ def test_early_api_denials_receive_security_headers():
     ):
         assert f'_secured_api_error(request,' in MAIN
         assert detail in MAIN
+
+
+def test_public_network_clients_enforce_dns_and_connected_peer_validation():
+    assert "Mixed public/private DNS answers are blocked" in NETWORK_SECURITY
+    assert "verify_httpx_response_peer(response, endpoint)" in WEB_TOOLS
+    assert "verify_httpx_response_peer(response, endpoint)" in CONNECTORS
+    assert "verify_peer_address(str(server[\"ipAddress\"]), endpoint)" in BROWSER

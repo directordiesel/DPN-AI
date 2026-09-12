@@ -26,6 +26,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_httpx_response_peer
 from desktop.updater import (
     UPDATE_KEY_ID,
     UPDATE_REPOSITORY,
@@ -243,6 +244,14 @@ class GitHubReleaseUpdateClient:
         self.timeout = float(timeout)
         self.transport = transport
 
+    def _resolved_transport_endpoint(self, url: str):
+        if self.transport is not None:
+            return None
+        try:
+            return resolve_url_endpoint(url, allow_private=False)
+        except NetworkSecurityError as exc:
+            raise UpdateClientError(f"update endpoint failed network validation: {exc}") from exc
+
     async def _fetch_bytes(
         self,
         url: str,
@@ -261,7 +270,13 @@ class GitHubReleaseUpdateClient:
             headers=headers,
         ) as client:
             for _ in range(MAX_REDIRECTS + 1):
+                endpoint = self._resolved_transport_endpoint(current)
                 async with client.stream("GET", current) as response:
+                    if endpoint is not None:
+                        try:
+                            verify_httpx_response_peer(response, endpoint)
+                        except NetworkSecurityError as exc:
+                            raise UpdateClientError(f"update transport peer validation failed: {exc}") from exc
                     if response.status_code in {301, 302, 303, 307, 308}:
                         location = response.headers.get("Location", "")
                         if not location:
@@ -445,7 +460,13 @@ class GitHubReleaseUpdateClient:
                     headers=headers,
                 ) as client:
                     for _ in range(MAX_REDIRECTS + 1):
+                        endpoint = self._resolved_transport_endpoint(current)
                         async with client.stream("GET", current) as response:
+                            if endpoint is not None:
+                                try:
+                                    verify_httpx_response_peer(response, endpoint)
+                                except NetworkSecurityError as exc:
+                                    raise UpdateClientError(f"installer transport peer validation failed: {exc}") from exc
                             if response.status_code in {301, 302, 303, 307, 308}:
                                 location = response.headers.get("Location", "")
                                 if not location:
