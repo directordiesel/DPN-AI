@@ -1,7 +1,24 @@
 * @directordiesel
 
+# Repository governance and supply chain
 /.github/ @directordiesel
+/.github/workflows/ @directordiesel
+/.github/scripts/ @directordiesel
+/.github/dependabot.yml @directordiesel
+/.github/CODEOWNERS @directordiesel
 /SECURITY.md @directordiesel
+/SUPPLY_CHAIN.md @directordiesel
+/RELEASE_PROCESS.md @directordiesel
+/Dockerfile @directordiesel
+/requirements*.txt @directordiesel
+/requirements*.lock @directordiesel
+/packaging/ @directordiesel
+
+# Update, network, secrets, execution and authorization boundaries
+/desktop/updater.py @directordiesel
+/desktop/update_client.py @directordiesel
+/app/network_security.py @directordiesel
+/app/connectors.py @directordiesel
 /app/vault.py @directordiesel
 /app/sandbox.py @directordiesel
 /app/mcp_bridge.py @directordiesel
@@ -9,6 +26,10 @@
 /app/capability_forge.py @directordiesel
 /app/browser_adapter.py @directordiesel
 /app/desktop_adapter.py @directordiesel
+/app/model_gateway.py @directordiesel
+/app/ollama_client.py @directordiesel
 /app/tools/ @directordiesel
+
+# Extensibility surfaces
 /plugins/ @directordiesel
 /skills/ @directordiesel

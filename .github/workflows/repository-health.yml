@@ -12,6 +12,14 @@ on:
       - "SECURITY.md"
       - "SUPPLY_CHAIN.md"
       - "RELEASE_PROCESS.md"
+      - "requirements*.txt"
+      - "requirements*.lock"
+      - "packaging/windows/**"
+      - "desktop/updater.py"
+      - "desktop/update_client.py"
+      - "app/network_security.py"
+      - "app/connectors.py"
+      - "app/browser_adapter.py"
   schedule:
     - cron: "17 12 * * 1"
   workflow_dispatch:
@@ -47,6 +55,46 @@ jobs:
           if missing:
               raise SystemExit("Missing required standards: " + ", ".join(missing))
           print(f"Validated {len(required)} required repository standards")
+      - name: Enforce code ownership of security-critical surfaces
+        shell: python
+        run: |
+          from pathlib import Path
+          codeowners = Path(".github/CODEOWNERS").read_text(encoding="utf-8")
+          required_patterns = (
+              "/.github/workflows/",
+              "/.github/scripts/",
+              "/.github/dependabot.yml",
+              "/.github/CODEOWNERS",
+              "/SECURITY.md",
+              "/SUPPLY_CHAIN.md",
+              "/RELEASE_PROCESS.md",
+              "/Dockerfile",
+              "/requirements*.txt",
+              "/requirements*.lock",
+              "/packaging/",
+              "/desktop/updater.py",
+              "/desktop/update_client.py",
+              "/app/network_security.py",
+              "/app/connectors.py",
+              "/app/vault.py",
+              "/app/sandbox.py",
+              "/app/browser_adapter.py",
+              "/app/model_gateway.py",
+              "/app/ollama_client.py",
+              "/app/tools/",
+              "/plugins/",
+              "/skills/",
+          )
+          missing = [pattern for pattern in required_patterns if pattern not in codeowners]
+          if missing:
+              raise SystemExit("Security-critical CODEOWNERS coverage is incomplete: " + ", ".join(missing))
+          for line in codeowners.splitlines():
+              stripped = line.strip()
+              if not stripped or stripped.startswith("#"):
+                  continue
+              if "@directordiesel" not in stripped:
+                  raise SystemExit("CODEOWNERS entry lacks the repository security owner: " + stripped)
+          print(f"Validated CODEOWNERS coverage for {len(required_patterns)} security-critical surfaces")
       - name: Enforce immutable GitHub Action references and checkout credential isolation
         shell: python
         run: |
