@@ -31,6 +31,11 @@ if (-not (Test-Path $DependencyLockPath -PathType Leaf)) {
     throw "Production dependency lock is missing: requirements-release.lock"
 }
 $DependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $DependencyLockPath).Hash.ToLowerInvariant()
+$HashedDependencyLockPath = Join-Path $RepoRoot "requirements-release-win312.lock"
+if (-not (Test-Path $HashedDependencyLockPath -PathType Leaf)) {
+    throw "Production wheel hash lock is missing: requirements-release-win312.lock"
+}
+$HashedDependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $HashedDependencyLockPath).Hash.ToLowerInvariant()
 
 if ($RequireSigned -and -not $CertificateThumbprint) {
     throw "Production signing is required but no CertificateThumbprint was supplied."
@@ -72,7 +77,7 @@ if ($RequireSigned -and -not $UpdateTrustConfigured) {
 }
 
 if (-not $SkipInstall) {
-    Invoke-Checked $Python -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r requirements-release.lock
+    Invoke-Checked $Python -m pip install --disable-pip-version-check --require-hashes --no-deps --only-binary=:all: -r requirements-release-win312.lock
 }
 Invoke-Checked $Python ".github/scripts/verify_release_lock.py" "--lock" "requirements-release.lock" "--requirements" "requirements-build.txt" "--verify-installed"
 Invoke-Checked $Python -m pip check
@@ -143,6 +148,7 @@ $Manifest = [ordered]@{
     update_trust_root_sha256 = $UpdateTrustRootSha256
     update_trust_public_key_sha256 = $UpdateTrustPublicKeySha256
     dependency_lock_sha256 = $DependencyLockSha256
+    dependency_wheel_hash_lock_sha256 = $HashedDependencyLockSha256
 }
 $ManifestPath = Join-Path $DistRoot "DPN-AI\build-manifest.json"
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
