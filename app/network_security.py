@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+
+import httpx
 from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.parse import urlparse
@@ -106,6 +108,80 @@ def resolve_url_endpoint(
     )
 
 
+def _preferred_endpoint_address(endpoint: ResolvedEndpoint) -> str:
+    addresses = [_normalize_ip(value) for value in endpoint.addresses]
+    if not addresses:
+        raise NetworkSecurityError("Endpoint has no approved addresses")
+    selected = sorted(addresses, key=lambda address: (address.version != 4, int(address)))[0]
+    return str(selected)
+
+
+def _ascii_host(host: str) -> str:
+    try:
+        return str(host).encode("idna").decode("ascii").lower()
+    except UnicodeError as exc:
+        raise NetworkSecurityError("Endpoint hostname is not valid IDNA") from exc
+
+
+def _host_header_value(endpoint: ResolvedEndpoint, scheme: str) -> str:
+    host = _ascii_host(endpoint.host)
+    rendered = f"[{host}]" if ":" in host else host
+    default_port = 443 if scheme == "https" else 80
+    return rendered if endpoint.port == default_port else f"{rendered}:{endpoint.port}"
+
+
+class PinnedAsyncHTTPTransport(httpx.AsyncBaseTransport):
+    """Connect HTTPX only to an address approved by the pre-connect resolver."""
+
+    def __init__(
+        self,
+        endpoint: ResolvedEndpoint,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self.endpoint = endpoint
+        self.address = _preferred_endpoint_address(endpoint)
+        self._transport = transport or httpx.AsyncHTTPTransport(retries=0)
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        expected = urlparse(self.endpoint.url)
+        request_host = str(request.url.host or "").rstrip(".").lower()
+        request_port = request.url.port or (443 if request.url.scheme == "https" else 80)
+        if (
+            request.url.scheme != expected.scheme
+            or request_host != self.endpoint.host
+            or int(request_port) != self.endpoint.port
+        ):
+            raise NetworkSecurityError("Pinned HTTP request does not match the approved endpoint")
+
+        extensions = dict(request.extensions)
+        if request.url.scheme == "https":
+            extensions["sni_hostname"] = _ascii_host(self.endpoint.host)
+
+        headers = [
+            (name, value)
+            for name, value in request.headers.raw
+            if name.lower() != b"host"
+        ]
+        headers.append(
+            (
+                b"host",
+                _host_header_value(self.endpoint, request.url.scheme).encode("ascii"),
+            )
+        )
+        pinned_request = httpx.Request(
+            method=request.method,
+            url=request.url.copy_with(host=self.address),
+            headers=headers,
+            stream=request.stream,
+            extensions=extensions,
+        )
+        return await self._transport.handle_async_request(pinned_request)
+
+    async def aclose(self) -> None:
+        await self._transport.aclose()
+
+
 def verify_peer_address(peer_address: str, endpoint: ResolvedEndpoint) -> str:
     """Require the connected peer to be one of the addresses approved before connect."""
     peer = _normalize_ip(peer_address)
@@ -149,6 +225,7 @@ def verify_httpx_response_peer(
 
 __all__ = [
     "NetworkSecurityError",
+    "PinnedAsyncHTTPTransport",
     "ResolvedEndpoint",
     "httpx_connected_peer",
     "resolve_url_endpoint",
