@@ -38,7 +38,14 @@ if (-not (Test-Path $HashedDependencyLockPath -PathType Leaf)) {
 $HashedDependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $HashedDependencyLockPath).Hash.ToLowerInvariant()
 
 $SourceCommitSha = ([string]$env:GITHUB_SHA).Trim().ToLowerInvariant()
-if ($SourceCommitSha -and $SourceCommitSha -notmatch '^[0-9a-f]{40,64}if ($RequireSigned -and -not $CertificateThumbprint) {
+if ($SourceCommitSha -and $SourceCommitSha -notmatch '^[0-9a-f]{40,64}$') {
+    throw "GITHUB_SHA is not a valid source commit identity."
+}
+if ($RequireSigned -and -not $SourceCommitSha) {
+    throw "Production builds require GITHUB_SHA so release artifacts are bound to the exact source commit."
+}
+
+if ($RequireSigned -and -not $CertificateThumbprint) {
     throw "Production signing is required but no CertificateThumbprint was supplied."
 }
 
