@@ -41,7 +41,7 @@ jobs:
       - name: Set up security Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
           cache: pip
 
       - name: Validate exact release request
@@ -96,7 +96,7 @@ jobs:
       - name: Set up release Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
           cache: pip
 
       - name: Validate exact release request
@@ -202,7 +202,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
           cache: pip
 
       - name: Install exact release dependency closure
