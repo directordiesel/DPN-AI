@@ -26,6 +26,7 @@ assert WRITER_SPEC and WRITER_SPEC.loader
 WRITER = importlib.util.module_from_spec(WRITER_SPEC)
 WRITER_SPEC.loader.exec_module(WRITER)
 SIGNER_THUMBPRINT = "A" * 40
+SOURCE_COMMIT = "c" * 40
 
 
 def _keypair() -> tuple[Ed25519PrivateKey, str]:
@@ -58,6 +59,7 @@ def _signed_manifest(private: Ed25519PrivateKey, payload: bytes, *, version: str
         "sha256": hashlib.sha256(payload).hexdigest(),
         "size": len(payload),
         "signer_thumbprint": SIGNER_THUMBPRINT,
+        "source_commit_sha": SOURCE_COMMIT,
     }
     public = private.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -67,7 +69,7 @@ def _signed_manifest(private: Ed25519PrivateKey, payload: bytes, *, version: str
         "artifact": artifact,
         "key_id": "release-ed25519-v1",
         "repository": "directordiesel/DPN-AI",
-        "schema_version": 3,
+        "schema_version": 4,
         "signing_key_fingerprint_sha256": hashlib.sha256(public).hexdigest(),
     }
     canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -87,6 +89,7 @@ def _release_payload(manifest_filename: str, installer_filename: str, *, version
             "draft": False,
             "prerelease": False,
             "tag_name": f"v{version}",
+            "target_commitish": SOURCE_COMMIT,
             "html_url": f"https://github.com/directordiesel/DPN-AI/releases/tag/v{version}",
             "assets": [
                 {
@@ -136,6 +139,7 @@ async def test_signed_release_discovery_and_streamed_download(tmp_path: Path):
     assert candidate is not None
     assert candidate.manifest.artifact.version == "10.0.2"
     assert candidate.manifest.artifact.signer_thumbprint == SIGNER_THUMBPRINT
+    assert candidate.manifest.artifact.source_commit_sha == SOURCE_COMMIT
 
     result = await client.download_verified_installer(
         candidate,
@@ -337,6 +341,68 @@ async def test_production_update_rejects_previous_schema_without_signed_windows_
     }
     canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
     previous = json.dumps({**signed, "signature_algorithm": "ed25519", "signature": private.sign(canonical).hex()})
+    release_json = _release_payload("update-manifest.json", artifact["filename"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.github.com":
+            return httpx.Response(200, json=release_json)
+        return httpx.Response(200, content=previous.encode("utf-8"))
+
+    client = GitHubReleaseUpdateClient(trust, transport=httpx.MockTransport(handler))
+    with pytest.raises(UpdateClientError, match="current signed trust schema"):
+        await client.check_for_update("10.0.1")
+
+
+
+@pytest.mark.asyncio
+async def test_production_update_rejects_release_target_mismatch():
+    private, public_hex = _keypair()
+    trust = _trust(private, public_hex)
+    installer = b"installer"
+    manifest = _signed_manifest(private, installer)
+    release_json = _release_payload("update-manifest.json", "DPN-AI-Setup-10.0.2.exe")
+    release_json[0]["target_commitish"] = "d" * 40
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.github.com":
+            return httpx.Response(200, json=release_json)
+        return httpx.Response(200, content=manifest.encode("utf-8"))
+
+    client = GitHubReleaseUpdateClient(trust, transport=httpx.MockTransport(handler))
+    with pytest.raises(UpdateClientError, match="target does not match signed source commit"):
+        await client.check_for_update("10.0.1")
+
+
+@pytest.mark.asyncio
+async def test_production_update_rejects_schema3_without_signed_source_commit():
+    private, public_hex = _keypair()
+    trust = _trust(private, public_hex)
+    installer = b"installer"
+    artifact = {
+        "version": "10.0.2",
+        "channel": "stable",
+        "filename": "DPN-AI-Setup-10.0.2.exe",
+        "sha256": hashlib.sha256(installer).hexdigest(),
+        "size": len(installer),
+        "signer_thumbprint": SIGNER_THUMBPRINT,
+    }
+    public = private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    signed = {
+        "artifact": artifact,
+        "key_id": "release-ed25519-v1",
+        "repository": "directordiesel/DPN-AI",
+        "schema_version": 3,
+        "signing_key_fingerprint_sha256": hashlib.sha256(public).hexdigest(),
+    }
+    canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    previous = json.dumps({
+        **signed,
+        "signature_algorithm": "ed25519",
+        "signature": private.sign(canonical).hex(),
+    })
     release_json = _release_payload("update-manifest.json", artifact["filename"])
 
     def handler(request: httpx.Request) -> httpx.Response:
