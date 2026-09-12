@@ -50,6 +50,11 @@ $DependencyLockPath = Join-Path $RepoRoot "requirements-release.lock"
 if (-not (Test-Path $DependencyLockPath -PathType Leaf)) {
     throw "Production dependency lock is missing."
 }
+$HashedDependencyLockPath = Join-Path $RepoRoot "requirements-release-win312.lock"
+if (-not (Test-Path $HashedDependencyLockPath -PathType Leaf)) {
+    throw "Production wheel hash lock is missing."
+}
+$ExpectedHashedDependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $HashedDependencyLockPath).Hash.ToLowerInvariant()
 
 Assert-SecretEnvironment
 
@@ -69,7 +74,7 @@ try {
     if (-not (Test-Path $BuildPython -PathType Leaf)) {
         throw "Isolated production release Python environment was not created."
     }
-    Invoke-Checked $BuildPython -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r $DependencyLockPath
+    Invoke-Checked $BuildPython -m pip install --disable-pip-version-check --require-hashes --no-deps --only-binary=:all: -r $HashedDependencyLockPath
     Invoke-Checked $BuildPython ".github/scripts/verify_release_lock.py" "--lock" "requirements-release.lock" "--requirements" "requirements-build.txt" "--verify-installed" "--require-windows-python312"
     Invoke-Checked $BuildPython -m pip check
     try {
@@ -155,6 +160,9 @@ try {
     }
     if ($SourceManifest.update_trust_public_key_sha256 -ne $TrustRootData.public_key_sha256) {
         throw "Production package trust root is not bound to the configured update verification key."
+    }
+    if ($SourceManifest.dependency_wheel_hash_lock_sha256 -ne $ExpectedHashedDependencyLockSha256) {
+        throw "Production package manifest does not match the committed Windows wheel hash lock."
     }
 
     Invoke-Checked $BuildPython ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
