@@ -8,6 +8,8 @@ on:
       - "app/**"
       - "tests/**"
       - "requirements*.txt"
+      - "requirements-release.lock"
+      - "requirements-release-win312.lock"
       - "launch.py"
       - "manage.py"
       - "installer_python_probe.py"
@@ -16,6 +18,7 @@ on:
       - ".github/scripts/sign_update_manifest.py"
       - ".github/scripts/verify_windows_release_bundle.py"
       - ".github/scripts/write_update_trust_root.py"
+      - ".github/scripts/generate_release_wheel_hash_lock.py"
       - ".github/workflows/release.yml"
       - "*.bat"
   workflow_dispatch:
@@ -38,7 +41,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.12"
+          python-version: "3.12.10"
           cache: pip
       - name: Verify configured Python
         shell: cmd
@@ -51,6 +54,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
+      - name: Emit production Windows wheel hash lock
+        shell: cmd
+        run: python .github\scripts\generate_release_wheel_hash_lock.py --requirements requirements-release.lock --output "%RUNNER_TEMP%\requirements-release-win312.lock" --emit
       - name: Run repository and version guard
         shell: cmd
         run: python .github\scripts\ci_repository_guard.py
@@ -93,4 +99,4 @@ jobs:
           echo - Runner: %RUNNER_NAME%>>"%GITHUB_STEP_SUMMARY%"
           echo - OS: %RUNNER_OS%>>"%GITHUB_STEP_SUMMARY%"
           echo - Architecture: %RUNNER_ARCH%>>"%GITHUB_STEP_SUMMARY%"
-          echo - Python: actions/setup-python 3.12>>"%GITHUB_STEP_SUMMARY%"
+          echo - Python: actions/setup-python 3.12.10>>"%GITHUB_STEP_SUMMARY%"
