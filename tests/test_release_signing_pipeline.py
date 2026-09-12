@@ -102,7 +102,12 @@ def test_windows_build_script_has_single_complete_update_trust_validation():
     assert "Update trust root key id is not authorized." in BUILD_SCRIPT
     assert "Update trust root public key is invalid." in BUILD_SCRIPT
     assert "Update trust root public-key fingerprint is invalid." in BUILD_SCRIPT
-    assert "'^[0-9a-f]{64}    assert "Import-PfxCertificate" in BUILDER
+    assert "^[0-9a-f]{64}$" in BUILD_SCRIPT
+    assert BUILD_SCRIPT.count("Production signing requires the packaged public update trust root.") == 1
+
+
+def test_production_builder_imports_nonexportable_cert_and_always_cleans_it():
+    assert "Import-PfxCertificate" in BUILDER
     assert "-Exportable:$false" in BUILDER
     assert "finally {" in BUILDER
     assert 'Remove-Item -LiteralPath $PfxPath' in BUILDER
