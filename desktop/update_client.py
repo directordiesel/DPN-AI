@@ -27,7 +27,12 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_httpx_response_peer
+from app.network_security import (
+    NetworkSecurityError,
+    PinnedAsyncHTTPTransport,
+    resolve_url_endpoint,
+    verify_httpx_response_peer,
+)
 from desktop.updater import (
     UPDATE_KEY_ID,
     UPDATE_REPOSITORY,
@@ -272,15 +277,16 @@ class GitHubReleaseUpdateClient:
     ) -> bytes:
         current = _validate_remote_url(url, initial_asset=initial_asset)
         headers = {"Accept": accept, "User-Agent": UPDATE_USER_AGENT}
-        async with httpx.AsyncClient(
-            trust_env=False,
-            timeout=self.timeout,
-            follow_redirects=False,
-            transport=self.transport,
-            headers=headers,
-        ) as client:
-            for _ in range(MAX_REDIRECTS + 1):
-                endpoint = self._resolved_transport_endpoint(current)
+        for _ in range(MAX_REDIRECTS + 1):
+            endpoint = self._resolved_transport_endpoint(current)
+            transport = self.transport if self.transport is not None else PinnedAsyncHTTPTransport(endpoint)
+            async with httpx.AsyncClient(
+                trust_env=False,
+                timeout=self.timeout,
+                follow_redirects=False,
+                transport=transport,
+                headers=headers,
+            ) as client:
                 async with client.stream("GET", current) as response:
                     if endpoint is not None:
                         try:
@@ -462,15 +468,16 @@ class GitHubReleaseUpdateClient:
                 temp_path = Path(handle.name)
                 digest = hashlib.sha256()
                 written = 0
-                async with httpx.AsyncClient(
-                    trust_env=False,
-                    timeout=self.timeout,
-                    follow_redirects=False,
-                    transport=self.transport,
-                    headers=headers,
-                ) as client:
-                    for _ in range(MAX_REDIRECTS + 1):
-                        endpoint = self._resolved_transport_endpoint(current)
+                for _ in range(MAX_REDIRECTS + 1):
+                    endpoint = self._resolved_transport_endpoint(current)
+                    transport = self.transport if self.transport is not None else PinnedAsyncHTTPTransport(endpoint)
+                    async with httpx.AsyncClient(
+                        trust_env=False,
+                        timeout=self.timeout,
+                        follow_redirects=False,
+                        transport=transport,
+                        headers=headers,
+                    ) as client:
                         async with client.stream("GET", current) as response:
                             if endpoint is not None:
                                 try:
@@ -501,8 +508,8 @@ class GitHubReleaseUpdateClient:
                                 digest.update(chunk)
                                 handle.write(chunk)
                             break
-                    else:
-                        raise UpdateClientError("GitHub installer redirect limit exceeded")
+                else:
+                    raise UpdateClientError("GitHub installer redirect limit exceeded")
                 handle.flush()
                 os.fsync(handle.fileno())
 
