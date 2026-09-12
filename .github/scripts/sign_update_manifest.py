@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ALLOWED_CHANNELS = {"stable", "beta"}
 HASH_CHUNK_BYTES = 1024 * 1024
-MANIFEST_SCHEMA_VERSION = 2
+MANIFEST_SCHEMA_VERSION = 3
 REPOSITORY = "directordiesel/DPN-AI"
 KEY_ID = "release-ed25519-v1"
+THUMBPRINT_RE = re.compile(r"^[A-F0-9]{40,64}$")
 
 
 def sha256_file(path: Path) -> str:
@@ -102,6 +104,9 @@ def build_signed_update_manifest(
         raise ValueError("installer manifest filename does not match release installer")
     if installer_manifest.get("signing") != "signed-production-installer":
         raise ValueError("release installer must be Authenticode-signed for production")
+    signer_thumbprint = str(installer_manifest.get("signer_thumbprint") or "").replace(" ", "").strip().upper()
+    if THUMBPRINT_RE.fullmatch(signer_thumbprint) is None:
+        raise ValueError("installer manifest Authenticode signer thumbprint is invalid")
 
     size = installer.stat().st_size
     if size <= 0:
@@ -120,6 +125,7 @@ def build_signed_update_manifest(
         "filename": installer.name,
         "sha256": digest,
         "size": size,
+        "signer_thumbprint": signer_thumbprint,
     }
     signed_payload = {
         "artifact": artifact,
