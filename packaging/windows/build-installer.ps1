@@ -52,6 +52,12 @@ if (-not (Test-Path $VersionPath)) { throw "VERSION file is missing." }
 $Version = (Get-Content $VersionPath -Raw).Trim()
 if (-not $Version) { throw "VERSION is empty." }
 
+$DependencyLockPath = Join-Path $RepoRoot "requirements-release.lock"
+if (-not (Test-Path $DependencyLockPath -PathType Leaf)) {
+    throw "Production dependency lock is missing."
+}
+$ExpectedDependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $DependencyLockPath).Hash.ToLowerInvariant()
+
 $PackageDir = Join-Path $RepoRoot "dist\DPN-AI"
 $PackageManifestPath = Join-Path $PackageDir "build-manifest.json"
 $PackageExe = Join-Path $PackageDir "DPN-AI.exe"
@@ -71,6 +77,13 @@ if ($RequireSigned -and $PackageManifest.signing -ne "signed-production-artifact
 $ActualPackageHash = (Get-FileHash -Algorithm SHA256 $PackageExe).Hash.ToLowerInvariant()
 if ($ActualPackageHash -ne $PackageManifest.sha256) {
     throw "Packaged executable SHA-256 does not match build-manifest.json."
+}
+$ManifestDependencyLockSha256 = ([string]$PackageManifest.dependency_lock_sha256).ToLowerInvariant()
+if ($ManifestDependencyLockSha256 -notmatch '^[0-9a-f]{64}$') {
+    throw "Package manifest dependency lock hash is invalid."
+}
+if ($ManifestDependencyLockSha256 -ne $ExpectedDependencyLockSha256) {
+    throw "Packaged executable was not built from the committed production dependency lock."
 }
 
 $VerifiedPackageSignerThumbprint = $null
@@ -149,6 +162,7 @@ $InstallerManifest = [ordered]@{
     source_executable_signing = $PackageManifest.signing
     source_executable_signer_thumbprint = $VerifiedPackageSignerThumbprint
     source_executable_signer_subject = $VerifiedPackageSignerSubject
+    source_dependency_lock_sha256 = $ManifestDependencyLockSha256
     architecture = "x64-compatible"
     scope = "per-user-default"
     upgrade_behavior = "same-app-id-in-place-upgrade-repair"

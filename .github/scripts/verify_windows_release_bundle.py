@@ -19,6 +19,8 @@ from desktop.updater import (
 )
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+RELEASE_LOCK_PATH = REPOSITORY_ROOT / "requirements-release.lock"
 
 
 def sha256_file(path: Path) -> str:
@@ -78,6 +80,10 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
     installer_name = installers[0]
     installer = root / installer_name
 
+    if RELEASE_LOCK_PATH.is_symlink() or not RELEASE_LOCK_PATH.is_file():
+        raise ValueError("committed production dependency lock is missing or unsafe")
+    expected_lock_digest = sha256_file(RELEASE_LOCK_PATH)
+
     installer_manifest = json.loads((root / "installer-manifest.json").read_text(encoding="utf-8-sig"))
     if not isinstance(installer_manifest, dict):
         raise ValueError("installer manifest must be a JSON object")
@@ -89,6 +95,9 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("installer manifest does not record production signing")
     if installer_manifest.get("sha256") != sha256_file(installer):
         raise ValueError("installer manifest SHA-256 mismatch")
+    installer_lock_digest = str(installer_manifest.get("source_dependency_lock_sha256") or "").strip().lower()
+    if not hmac.compare_digest(installer_lock_digest, expected_lock_digest):
+        raise ValueError("installer manifest dependency lock does not match committed release lock")
     thumbprint = str(installer_manifest.get("signer_thumbprint") or "").replace(" ", "").upper()
     if re.fullmatch(r"[A-F0-9]{40,64}", thumbprint) is None:
         raise ValueError("installer signer thumbprint is invalid")
@@ -102,6 +111,11 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("source build manifest does not record production signing")
     if str(source_manifest.get("signer_thumbprint") or "").replace(" ", "").upper() != thumbprint:
         raise ValueError("source executable signer does not match installer signer")
+    source_lock_digest = str(source_manifest.get("dependency_lock_sha256") or "").strip().lower()
+    if not hmac.compare_digest(source_lock_digest, expected_lock_digest):
+        raise ValueError("source build dependency lock does not match committed release lock")
+    if not hmac.compare_digest(source_lock_digest, installer_lock_digest):
+        raise ValueError("source and installer dependency lock identities differ")
     if source_manifest.get("update_trust_configured") is not True:
         raise ValueError("source build manifest does not record a packaged update trust root")
     trust_file_digest = str(source_manifest.get("update_trust_root_sha256") or "").strip().lower()
