@@ -24,9 +24,9 @@ def _resolver(*addresses: str):
 def test_public_endpoint_resolution_returns_exact_approved_set():
     endpoint = resolve_url_endpoint(
         "https://example.test/resource",
-        resolver=_resolver("203.0.113.10", "203.0.113.11"),
+        resolver=_resolver("8.8.8.8", "1.1.1.1"),
     )
-    assert endpoint.addresses == frozenset({"203.0.113.10", "203.0.113.11"})
+    assert endpoint.addresses == frozenset({"8.8.8.8", "1.1.1.1"})
     assert endpoint.is_private is False
 
 
@@ -40,7 +40,7 @@ def test_mixed_public_private_dns_answers_fail_closed():
     with pytest.raises(NetworkSecurityError, match="Mixed public/private"):
         resolve_url_endpoint(
             "https://example.test",
-            resolver=_resolver("203.0.113.10", "10.0.0.7"),
+            resolver=_resolver("8.8.8.8", "10.0.0.7"),
         )
 
 
@@ -70,13 +70,13 @@ class _Stream:
 def test_httpx_peer_must_match_pre_resolved_dns_set():
     endpoint = resolve_url_endpoint(
         "https://example.test",
-        resolver=_resolver("203.0.113.10"),
+        resolver=_resolver("8.8.8.8"),
     )
     response = httpx.Response(
         200,
-        extensions={"network_stream": _Stream(("203.0.113.10", 443))},
+        extensions={"network_stream": _Stream(("8.8.8.8", 443))},
     )
-    assert verify_httpx_response_peer(response, endpoint) == "203.0.113.10"
+    assert verify_httpx_response_peer(response, endpoint) == "8.8.8.8"
 
     rebound = httpx.Response(
         200,
@@ -89,7 +89,7 @@ def test_httpx_peer_must_match_pre_resolved_dns_set():
 def test_peer_verification_rejects_unexpected_public_address_too():
     endpoint = resolve_url_endpoint(
         "https://example.test",
-        resolver=_resolver("203.0.113.10"),
+        resolver=_resolver("8.8.8.8"),
     )
     with pytest.raises(NetworkSecurityError, match="pre-resolved"):
-        verify_peer_address("203.0.113.11", endpoint)
+        verify_peer_address("1.1.1.1", endpoint)
