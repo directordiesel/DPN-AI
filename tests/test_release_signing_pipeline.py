@@ -61,6 +61,7 @@ def test_release_requires_signed_windows_assets_before_publication():
     assert "packaging\\windows\\build-release-assets.ps1" in RELEASE
     assert "Verify transferred production Windows bundle" in RELEASE
     assert ".github/scripts/verify_windows_release_bundle.py" in RELEASE
+    assert '--target "$GITHUB_SHA"' in RELEASE
 
 
 def test_release_signing_material_is_external_and_fail_closed():
@@ -132,6 +133,8 @@ def test_production_builder_requires_dual_signing_and_verification():
     assert "verify_manifest_signature" in BUILDER
     assert "verify_artifact" in BUILDER
     assert "WINDOWS_SHA256SUMS.txt" in BUILDER
+    assert "source_commit_sha" in BUILDER
+    assert "GITHUB_SHA" in BUILDER
 
 
 def test_linux_bundle_verifier_accepts_valid_signed_bundle(tmp_path: Path):
