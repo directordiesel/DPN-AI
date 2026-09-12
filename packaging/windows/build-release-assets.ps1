@@ -46,6 +46,11 @@ if ($TimestampUrl -notmatch '^https://') {
     throw "Production timestamp URL must use HTTPS."
 }
 
+$DependencyLockPath = Join-Path $RepoRoot "requirements-release.lock"
+if (-not (Test-Path $DependencyLockPath -PathType Leaf)) {
+    throw "Production dependency lock is missing."
+}
+
 Assert-SecretEnvironment
 
 $PfxPath = Join-Path $env:RUNNER_TEMP "dpn-production-signing.pfx"
@@ -54,8 +59,19 @@ $CertificateThumbprint = $null
 $ImportedCertificates = @()
 $PfxBytes = $null
 $Password = $null
+$ReleaseVenv = Join-Path $env:RUNNER_TEMP "dpn-release-build-venv"
+$BuildPython = $null
 
 try {
+    Remove-Item -Recurse -Force $ReleaseVenv -ErrorAction SilentlyContinue
+    Invoke-Checked $Python -m venv $ReleaseVenv
+    $BuildPython = Join-Path $ReleaseVenv "Scripts\python.exe"
+    if (-not (Test-Path $BuildPython -PathType Leaf)) {
+        throw "Isolated production release Python environment was not created."
+    }
+    Invoke-Checked $BuildPython -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r $DependencyLockPath
+    Invoke-Checked $BuildPython ".github/scripts/verify_release_lock.py" "--lock" "requirements-release.lock" "--requirements" "requirements-build.txt" "--verify-installed" "--require-windows-python312"
+    Invoke-Checked $BuildPython -m pip check
     try {
         $PfxBytes = [Convert]::FromBase64String($env:DPN_WINDOWS_SIGNING_PFX_B64)
     }
@@ -83,14 +99,15 @@ try {
         Write-Output "::add-mask::$CertificateThumbprint"
     }
 
-    Invoke-Checked $Python ".github/scripts/write_update_trust_root.py" "--output" $TrustRootPath
+    Invoke-Checked $BuildPython ".github/scripts/write_update_trust_root.py" "--output" $TrustRootPath
     if (-not (Test-Path $TrustRootPath -PathType Leaf)) {
         throw "Production update trust root was not generated."
     }
     $env:DPN_UPDATE_TRUST_FILE = $TrustRootPath
 
     $BuildParameters = @{
-        Python = $Python
+        Python = $BuildPython
+        SkipInstall = $true
         CertificateThumbprint = $CertificateThumbprint
         TimestampUrl = $TimestampUrl
         RequireSigned = $true
@@ -98,7 +115,7 @@ try {
     & (Join-Path $PSScriptRoot "build.ps1") @BuildParameters
 
     $InstallerParameters = @{
-        Python = $Python
+        Python = $BuildPython
         CertificateThumbprint = $CertificateThumbprint
         TimestampUrl = $TimestampUrl
         RequireSigned = $true
@@ -130,7 +147,7 @@ try {
         throw "Production package trust root is not bound to the configured update verification key."
     }
 
-    Invoke-Checked $Python ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
+    Invoke-Checked $BuildPython ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
 
     $InstallerManifest = Get-Content $InstallerManifestPath -Raw | ConvertFrom-Json
     if ($InstallerManifest.signing -ne "signed-production-installer") {
@@ -183,7 +200,7 @@ print("Production update manifest verification PASS")
 '@
     $env:DPN_RELEASE_VERSION = $Version
     $env:DPN_RELEASE_CHANNEL = $Channel
-    $VerifyScript | & $Python -
+    $VerifyScript | & $BuildPython -
     if ($LASTEXITCODE -ne 0) {
         throw "Production update verification failed."
     }
@@ -215,7 +232,7 @@ for path in files:
     lines.append(f"{digest.hexdigest()}  {path.name}")
 (root / "WINDOWS_SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 '@
-    $ChecksumScript | & $Python -
+    $ChecksumScript | & $BuildPython -
     if ($LASTEXITCODE -ne 0) {
         throw "Windows checksum generation failed."
     }
@@ -225,6 +242,7 @@ for path in files:
     Write-Host "Update channel: $Channel"
 }
 finally {
+    Remove-Item -Recurse -Force $ReleaseVenv -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $PfxPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $TrustRootPath -Force -ErrorAction SilentlyContinue
     if ($PfxBytes) {

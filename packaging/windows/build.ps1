@@ -26,6 +26,12 @@ if (-not (Test-Path (Join-Path $RepoRoot "VERSION"))) {
     throw "VERSION file is missing. Refusing to create an unversioned package."
 }
 
+$DependencyLockPath = Join-Path $RepoRoot "requirements-release.lock"
+if (-not (Test-Path $DependencyLockPath -PathType Leaf)) {
+    throw "Production dependency lock is missing: requirements-release.lock"
+}
+$DependencyLockSha256 = (Get-FileHash -Algorithm SHA256 $DependencyLockPath).Hash.ToLowerInvariant()
+
 if ($RequireSigned -and -not $CertificateThumbprint) {
     throw "Production signing is required but no CertificateThumbprint was supplied."
 }
@@ -66,8 +72,10 @@ if ($RequireSigned -and -not $UpdateTrustConfigured) {
 }
 
 if (-not $SkipInstall) {
-    Invoke-Checked $Python -m pip install --disable-pip-version-check -r requirements-build.txt
+    Invoke-Checked $Python -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r requirements-release.lock
 }
+Invoke-Checked $Python ".github/scripts/verify_release_lock.py" "--lock" "requirements-release.lock" "--requirements" "requirements-build.txt" "--verify-installed"
+Invoke-Checked $Python -m pip check
 
 if (-not $SkipTests) {
     Invoke-Checked $Python -m pytest -q tests/test_v8_desktop_platform.py tests/test_v8_desktop_supervisor.py tests/test_v8_desktop_control_center.py tests/test_v8_desktop_service_api.py tests/test_v8_windows_packaging.py
@@ -134,6 +142,7 @@ $Manifest = [ordered]@{
     update_trust_configured = $UpdateTrustConfigured
     update_trust_root_sha256 = $UpdateTrustRootSha256
     update_trust_public_key_sha256 = $UpdateTrustPublicKeySha256
+    dependency_lock_sha256 = $DependencyLockSha256
 }
 $ManifestPath = Join-Path $DistRoot "DPN-AI\build-manifest.json"
 $Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
