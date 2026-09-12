@@ -60,7 +60,7 @@ jobs:
           python tools/dpn_security_gate.py --github
 
       - name: Install locked dependency audit toolchain
-        run: python -m pip install --disable-pip-version-check -r .github/requirements-security.txt
+        run: python -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r .github/requirements-security.txt
 
       - name: Verify production release dependency lock
         run: python .github/scripts/verify_release_lock.py --lock requirements-release.lock --requirements requirements-build.txt
@@ -176,7 +176,6 @@ jobs:
           name: DPN-AI-production-windows-${{ github.sha }}
           path: windows-release
 
-
       - name: Resolve release request
         shell: bash
         run: |
@@ -203,13 +202,16 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
 
-      - name: Install development dependencies
+      - name: Install exact release dependency closure
+        run: python -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r requirements-release.lock
+
+      - name: Verify installed release dependency closure
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-dev.txt
+          python .github/scripts/verify_release_lock.py --lock requirements-release.lock --requirements requirements-build.txt --verify-installed
+          python -m pip check
 
       - name: Compile sources
         run: python -m compileall -q app tests launch.py manage.py installer_python_probe.py .github/scripts/sign_update_manifest.py .github/scripts/verify_windows_release_bundle.py .github/scripts/write_update_trust_root.py
@@ -233,7 +235,6 @@ jobs:
           channel="stable"
           if [ "$PRERELEASE" = "true" ]; then channel="beta"; fi
           python .github/scripts/verify_windows_release_bundle.py --root windows-release --version "$repository_version" --channel "$channel"
-
 
       - name: Generate release SBOM and source manifest
         env:
