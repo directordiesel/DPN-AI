@@ -50,11 +50,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements-dev.txt
 
-      - name: Resolve release build dependency baseline
+      - name: Verify production release dependency lock
         if: matrix.os_name == 'Windows' && matrix.python == '3.12'
+        shell: pwsh
         run: |
-          python -m pip install -r requirements-build.txt
-          python -m pip freeze
+          python -m venv .release-lock-venv
+          .\.release-lock-venv\Scripts\python.exe -m pip install --disable-pip-version-check --no-deps --only-binary=:all: -r requirements-release.lock
+          .\.release-lock-venv\Scripts\python.exe .github/scripts/verify_release_lock.py --lock requirements-release.lock --requirements requirements-build.txt --verify-installed --require-windows-python312
+          .\.release-lock-venv\Scripts\python.exe -m pip check
 
       - name: Run portable repository and version guard
         run: python .github/scripts/ci_repository_guard.py
