@@ -164,6 +164,136 @@ try {
     if ($SourceManifest.dependency_wheel_hash_lock_sha256 -ne $ExpectedHashedDependencyLockSha256) {
         throw "Production package manifest does not match the committed Windows wheel hash lock."
     }
+    $ExpectedSourceCommitSha = ([string]$env:GITHUB_SHA).Trim().ToLowerInvariant()
+    if ($ExpectedSourceCommitSha -notmatch '^[0-9a-f]{40,64}    Invoke-Checked $BuildPython ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
+
+    $InstallerManifest = Get-Content $InstallerManifestPath -Raw | ConvertFrom-Json
+    if ($InstallerManifest.signing -ne "signed-production-installer") {
+        throw "Installer manifest does not record a signed production installer."
+    }
+    if (([string]$InstallerManifest.source_commit_sha).Trim().ToLowerInvariant() -ne $ExpectedSourceCommitSha) {
+        throw "Installer manifest source commit does not match GITHUB_SHA."
+    }
+
+    $InstallerSignature = Get-AuthenticodeSignature -FilePath $InstallerPath
+    if ($InstallerSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Production installer Authenticode verification failed with status '$($InstallerSignature.Status)'."
+    }
+    if (-not $InstallerSignature.SignerCertificate) {
+        throw "Production installer Authenticode verification returned no signer certificate."
+    }
+    $ActualThumbprint = (($InstallerSignature.SignerCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+    $ManifestThumbprint = (($InstallerManifest.signer_thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ActualThumbprint -ne $ManifestThumbprint -or $ActualThumbprint -ne $CertificateThumbprint) {
+        throw "Production installer signer identity verification failed."
+    }
+
+    Copy-Item $SourceBuildManifest (Join-Path $InstallerRoot "source-build-manifest.json") -Force
+
+    $VerifyScript = @'
+from pathlib import Path
+import os
+
+from desktop.updater import UPDATE_KEY_ID, UPDATE_REPOSITORY, SignedUpdateManifest, validate_manifest_trust_binding, verify_artifact, verify_manifest_signature
+
+root = Path("dist/installer")
+version = os.environ["DPN_RELEASE_VERSION"]
+channel = os.environ["DPN_RELEASE_CHANNEL"]
+installer = root / f"DPN-AI-Setup-{version}.exe"
+manifest = SignedUpdateManifest.parse((root / "update-manifest.json").read_text(encoding="utf-8"))
+public_hex = os.environ["DPN_UPDATE_ED25519_PUBLIC_KEY_HEX"].strip().lower()
+if len(public_hex) != 64 or any(ch not in "0123456789abcdef" for ch in public_hex):
+    raise SystemExit("Configured update public key is invalid")
+if not verify_manifest_signature(manifest, bytes.fromhex(public_hex)):
+    raise SystemExit("Update manifest Ed25519 verification failed")
+validate_manifest_trust_binding(
+    manifest,
+    repository=UPDATE_REPOSITORY,
+    key_id=UPDATE_KEY_ID,
+    public_key_sha256=__import__("hashlib").sha256(bytes.fromhex(public_hex)).hexdigest(),
+)
+verify_artifact(installer, manifest.artifact)
+if manifest.artifact.version != version:
+    raise SystemExit("Update manifest version mismatch")
+if manifest.artifact.channel != channel:
+    raise SystemExit("Update manifest channel mismatch")
+expected_commit = os.environ.get("GITHUB_SHA", "").strip().lower()
+if not expected_commit or manifest.artifact.source_commit_sha != expected_commit:
+    raise SystemExit("Update manifest source commit mismatch")
+print("Production update manifest verification PASS")
+'@
+    $env:DPN_RELEASE_VERSION = $Version
+    $env:DPN_RELEASE_CHANNEL = $Channel
+    $VerifyScript | & $BuildPython -
+    if ($LASTEXITCODE -ne 0) {
+        throw "Production update verification failed."
+    }
+
+    $ChecksumScript = @'
+import hashlib
+from pathlib import Path
+
+root = Path("dist/installer")
+files = sorted(
+    [
+        *root.glob("DPN-AI-Setup-*.exe"),
+        root / "installer-manifest.json",
+        root / "source-build-manifest.json",
+        root / "update-manifest.json",
+    ],
+    key=lambda path: path.name,
+)
+if len([path for path in files if path.suffix.lower() == ".exe"]) != 1:
+    raise SystemExit("Expected exactly one production installer executable")
+if any(not path.is_file() for path in files):
+    raise SystemExit("One or more production release files are missing")
+lines = []
+for path in files:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    lines.append(f"{digest.hexdigest()}  {path.name}")
+(root / "WINDOWS_SHA256SUMS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+'@
+    $ChecksumScript | & $BuildPython -
+    if ($LASTEXITCODE -ne 0) {
+        throw "Windows checksum generation failed."
+    }
+
+    Write-Host "Production Windows release assets verified."
+    Write-Host "Installer: $InstallerPath"
+    Write-Host "Update channel: $Channel"
+}
+finally {
+    Remove-Item -Recurse -Force $ReleaseVenv -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $PfxPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $TrustRootPath -Force -ErrorAction SilentlyContinue
+    if ($PfxBytes) {
+        [Array]::Clear($PfxBytes, 0, $PfxBytes.Length)
+    }
+    foreach ($ImportedCertificate in $ImportedCertificates) {
+        if ($ImportedCertificate -and $ImportedCertificate.Thumbprint) {
+            $ImportedThumbprint = (($ImportedCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+            $ImportedPath = "Cert:\CurrentUser\My\$ImportedThumbprint"
+            if (Test-Path $ImportedPath) {
+                Remove-Item -LiteralPath $ImportedPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    if ($Password) {
+        $Password.Dispose()
+    }
+    Remove-Item Env:DPN_RELEASE_VERSION -ErrorAction SilentlyContinue
+    Remove-Item Env:DPN_RELEASE_CHANNEL -ErrorAction SilentlyContinue
+    Remove-Item Env:DPN_UPDATE_TRUST_FILE -ErrorAction SilentlyContinue
+}
+) {
+        throw "Production release workflow does not expose a valid GITHUB_SHA."
+    }
+    if (([string]$SourceManifest.source_commit_sha).Trim().ToLowerInvariant() -ne $ExpectedSourceCommitSha) {
+        throw "Production package manifest source commit does not match GITHUB_SHA."
+    }
 
     Invoke-Checked $BuildPython ".github/scripts/sign_update_manifest.py" "--installer" $InstallerPath "--installer-manifest" $InstallerManifestPath "--version" $Version "--channel" $Channel "--output" $UpdateManifestPath
 
