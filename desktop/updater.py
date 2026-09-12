@@ -23,12 +23,13 @@ from typing import Any
 
 ALLOWED_CHANNELS = {"stable", "beta", "dev"}
 HASH_CHUNK_BYTES = 1024 * 1024
-UPDATE_MANIFEST_SCHEMA_VERSION = 3
+UPDATE_MANIFEST_SCHEMA_VERSION = 4
 UPDATE_REPOSITORY = "directordiesel/DPN-AI"
 UPDATE_KEY_ID = "release-ed25519-v1"
 _KEY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _THUMBPRINT_RE = re.compile(r"^[A-F0-9]{40,64}$")
+_GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
 def _sha256_file(path: Path) -> str:
@@ -50,6 +51,7 @@ class UpdateArtifact:
     sha256: str
     size: int
     signer_thumbprint: str = ""
+    source_commit_sha: str = ""
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "UpdateArtifact":
@@ -60,9 +62,15 @@ class UpdateArtifact:
             sha256=str(data.get("sha256", "")).strip().lower(),
             size=int(data.get("size", 0)),
             signer_thumbprint=str(data.get("signer_thumbprint", "")).replace(" ", "").strip().upper(),
+            source_commit_sha=str(data.get("source_commit_sha", "")).strip().lower(),
         )
 
-    def validate(self, *, require_signer_thumbprint: bool = False) -> None:
+    def validate(
+        self,
+        *,
+        require_signer_thumbprint: bool = False,
+        require_source_commit_sha: bool = False,
+    ) -> None:
         if not self.version:
             raise ValueError("update version is required")
         if self.channel not in ALLOWED_CHANNELS:
@@ -77,6 +85,10 @@ class UpdateArtifact:
             raise ValueError("update Authenticode signer thumbprint is invalid")
         if require_signer_thumbprint and not self.signer_thumbprint:
             raise ValueError("production update manifest must bind the Authenticode signer thumbprint")
+        if self.source_commit_sha and _GIT_COMMIT_RE.fullmatch(self.source_commit_sha) is None:
+            raise ValueError("update source commit SHA is invalid")
+        if require_source_commit_sha and not self.source_commit_sha:
+            raise ValueError("production update manifest must bind the source commit SHA")
 
     def canonical_dict(self) -> dict[str, Any]:
         payload = {
@@ -88,6 +100,8 @@ class UpdateArtifact:
         }
         if self.signer_thumbprint:
             payload["signer_thumbprint"] = self.signer_thumbprint
+        if self.source_commit_sha:
+            payload["source_commit_sha"] = self.source_commit_sha
         return payload
 
 
@@ -113,7 +127,7 @@ class SignedUpdateManifest:
             schema_version = int(data.get("schema_version", 1))
         except (TypeError, ValueError) as exc:
             raise ValueError("update manifest schema version is invalid") from exc
-        if schema_version not in {1, 2, UPDATE_MANIFEST_SCHEMA_VERSION}:
+        if schema_version not in {1, 2, 3, UPDATE_MANIFEST_SCHEMA_VERSION}:
             raise ValueError("unsupported update manifest schema version")
 
         repository = str(data.get("repository") or "").strip()
@@ -138,9 +152,14 @@ class SignedUpdateManifest:
             key_id=key_id,
             signing_key_fingerprint_sha256=fingerprint,
         )
-        manifest.artifact.validate(require_signer_thumbprint=schema_version == UPDATE_MANIFEST_SCHEMA_VERSION)
-        if schema_version < UPDATE_MANIFEST_SCHEMA_VERSION and manifest.artifact.signer_thumbprint:
+        manifest.artifact.validate(
+            require_signer_thumbprint=schema_version >= 3,
+            require_source_commit_sha=schema_version >= UPDATE_MANIFEST_SCHEMA_VERSION,
+        )
+        if schema_version < 3 and manifest.artifact.signer_thumbprint:
             raise ValueError("legacy update manifest must not contain Authenticode signer metadata")
+        if schema_version < UPDATE_MANIFEST_SCHEMA_VERSION and manifest.artifact.source_commit_sha:
+            raise ValueError("legacy update manifest must not contain source-commit metadata")
         if len(manifest.signature) != 128 or any(ch not in "0123456789abcdef" for ch in manifest.signature):
             raise ValueError("invalid Ed25519 update manifest signature")
         return manifest
@@ -186,7 +205,7 @@ def validate_manifest_trust_binding(
     """Require the current production schema and its signed trust identity."""
     if manifest.schema_version != UPDATE_MANIFEST_SCHEMA_VERSION:
         raise ValueError("production update manifest must use the current signed trust schema")
-    manifest.artifact.validate(require_signer_thumbprint=True)
+    manifest.artifact.validate(require_signer_thumbprint=True, require_source_commit_sha=True)
     if not hmac.compare_digest(manifest.repository, str(repository)):
         raise ValueError("update manifest repository binding mismatch")
     if not hmac.compare_digest(manifest.key_id, str(key_id)):
