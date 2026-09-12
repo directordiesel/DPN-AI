@@ -116,6 +116,7 @@ class UpdateCandidate:
             "filename": artifact.filename,
             "sha256": artifact.sha256,
             "size": artifact.size,
+            "source_commit_sha": artifact.source_commit_sha,
             "release_tag": self.release_tag,
             "release_url": self.release_url,
         }
@@ -389,6 +390,9 @@ class GitHubReleaseUpdateClient:
         tag = str(release.get("tag_name") or "").strip()
         if tag != f"v{manifest.artifact.version}":
             raise UpdateClientError("published release tag does not match signed update version")
+        target_commitish = str(release.get("target_commitish") or "").strip().lower()
+        if not hmac.compare_digest(target_commitish, manifest.artifact.source_commit_sha):
+            raise UpdateClientError("published release target does not match signed source commit")
 
         installer_asset = by_name.get(manifest.artifact.filename)
         if installer_asset is None:
