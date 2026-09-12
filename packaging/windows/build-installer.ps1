@@ -97,6 +97,217 @@ if ($ManifestHashedDependencyLockSha256 -notmatch '^[0-9a-f]{64}$') {
 if ($ManifestHashedDependencyLockSha256 -ne $ExpectedHashedDependencyLockSha256) {
     throw "Packaged executable was not built from the committed Windows wheel hash lock."
 }
+$ManifestSourceCommitSha = ([string]$PackageManifest.source_commit_sha).Trim().ToLowerInvariant()
+if ($ManifestSourceCommitSha -and $ManifestSourceCommitSha -notmatch '^[0-9a-f]{40,64}$VerifiedPackageSignerThumbprint = $null
+$VerifiedPackageSignerSubject = $null
+if ($PackageManifest.signing -eq "signed-production-artifact") {
+    $ManifestSignerThumbprint = (($PackageManifest.signer_thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ManifestSignerThumbprint -notmatch '^[A-F0-9]{40,64}$') {
+        throw "Signed package manifest contains an invalid signer thumbprint."
+    }
+
+    $PackageSignature = Get-AuthenticodeSignature -FilePath $PackageExe
+    if ($PackageSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Packaged executable Authenticode verification failed with status '$($PackageSignature.Status)'."
+    }
+    if (-not $PackageSignature.SignerCertificate) {
+        throw "Packaged executable Authenticode verification returned no signer certificate."
+    }
+
+    $ActualSignerThumbprint = (($PackageSignature.SignerCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ActualSignerThumbprint -ne $ManifestSignerThumbprint) {
+        throw "Packaged executable signer thumbprint does not match build-manifest.json."
+    }
+
+    $VerifiedPackageSignerThumbprint = $ActualSignerThumbprint
+    $VerifiedPackageSignerSubject = $PackageSignature.SignerCertificate.Subject
+} elseif ($PackageManifest.signer_thumbprint -or $PackageManifest.signer_subject) {
+    throw "Unsigned package manifest must not contain signer identity metadata."
+}
+
+if (-not $SkipTests) {
+    Invoke-Checked $Python -m pytest -q tests/test_v8_windows_packaging.py tests/test_v8_windows_installer.py
+}
+
+$Compiler = Resolve-Iscc $Iscc
+$InstallerDefinition = Join-Path $RepoRoot "packaging\windows\DPN-AI.iss"
+$InstallerOutput = Join-Path $RepoRoot "dist\installer"
+if (-not (Test-Path $InstallerDefinition)) { throw "Installer definition is missing." }
+Remove-Item -Recurse -Force $InstallerOutput -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $InstallerOutput | Out-Null
+
+Invoke-Checked $Compiler "/DAppVersion=$Version" "/DSourceDir=$PackageDir" "/DOutputDir=$InstallerOutput" $InstallerDefinition
+
+$InstallerName = "DPN-AI-Setup-$Version.exe"
+$InstallerExe = Join-Path $InstallerOutput $InstallerName
+if (-not (Test-Path $InstallerExe)) {
+    throw "Inno Setup completed without producing $InstallerName"
+}
+
+$SigningState = "unsigned-development-installer"
+$SignerThumbprint = $null
+$SignerSubject = $null
+if ($CertificateThumbprint) {
+    $signScript = Join-Path $PSScriptRoot "sign.ps1"
+    $signingJson = & $signScript -FilePath $InstallerExe -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    if ($LASTEXITCODE -ne 0) { throw "Installer signing helper failed." }
+    $signing = $signingJson | ConvertFrom-Json
+    if ($signing.status -ne "signed-production-artifact") {
+        throw "Unexpected installer signing helper state '$($signing.status)'."
+    }
+    $SigningState = "signed-production-installer"
+    $SignerThumbprint = $signing.thumbprint
+    $SignerSubject = $signing.subject
+}
+if ($RequireSigned -and $SigningState -ne "signed-production-installer") {
+    throw "Production signing was required but the installer is not verified as signed."
+}
+
+$InstallerHash = (Get-FileHash -Algorithm SHA256 $InstallerExe).Hash.ToLowerInvariant()
+$InstallerManifest = [ordered]@{
+    product = "DPN AI"
+    publisher = "DPN Technology"
+    version = $Version
+    installer = $InstallerName
+    sha256 = $InstallerHash
+    source_executable_sha256 = $ActualPackageHash
+    source_executable_signing = $PackageManifest.signing
+    source_executable_signer_thumbprint = $VerifiedPackageSignerThumbprint
+    source_executable_signer_subject = $VerifiedPackageSignerSubject
+    source_dependency_lock_sha256 = $ManifestDependencyLockSha256
+    source_dependency_wheel_hash_lock_sha256 = $ManifestHashedDependencyLockSha256
+    source_commit_sha = $ManifestSourceCommitSha
+    architecture = "x64-compatible"
+    scope = "per-user-default"
+    upgrade_behavior = "same-app-id-in-place-upgrade-repair"
+    uninstall_data_policy = "preserve-user-data-outside-install-directory"
+    built_utc = [DateTime]::UtcNow.ToString("o")
+    signing = $SigningState
+    signer_thumbprint = $SignerThumbprint
+    signer_subject = $SignerSubject
+}
+$InstallerManifestPath = Join-Path $InstallerOutput "installer-manifest.json"
+$InstallerManifest | ConvertTo-Json -Depth 4 | Set-Content -Path $InstallerManifestPath -Encoding UTF8
+
+Write-Host "DPN AI Windows installer created: $InstallerExe"
+Write-Host "SHA-256: $InstallerHash"
+Write-Host "Signing: $SigningState"
+Write-Host "Manifest: $InstallerManifestPath"
+if ($SigningState -eq "unsigned-development-installer") {
+    Write-Host "NOTE: development installer remains unsigned. Use -RequireSigned with a trusted certificate for release builds."
+}
+) {
+    throw "Package manifest source commit SHA is invalid."
+}
+if ($RequireSigned -and -not $ManifestSourceCommitSha) {
+    throw "Production installer build requires an exact source commit identity."
+}
+if ($RequireSigned) {
+    $ExpectedSourceCommitSha = ([string]$env:GITHUB_SHA).Trim().ToLowerInvariant()
+    if ($ExpectedSourceCommitSha -notmatch '^[0-9a-f]{40,64}$VerifiedPackageSignerThumbprint = $null
+$VerifiedPackageSignerSubject = $null
+if ($PackageManifest.signing -eq "signed-production-artifact") {
+    $ManifestSignerThumbprint = (($PackageManifest.signer_thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ManifestSignerThumbprint -notmatch '^[A-F0-9]{40,64}$') {
+        throw "Signed package manifest contains an invalid signer thumbprint."
+    }
+
+    $PackageSignature = Get-AuthenticodeSignature -FilePath $PackageExe
+    if ($PackageSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+        throw "Packaged executable Authenticode verification failed with status '$($PackageSignature.Status)'."
+    }
+    if (-not $PackageSignature.SignerCertificate) {
+        throw "Packaged executable Authenticode verification returned no signer certificate."
+    }
+
+    $ActualSignerThumbprint = (($PackageSignature.SignerCertificate.Thumbprint -replace '\s','')).ToUpperInvariant()
+    if ($ActualSignerThumbprint -ne $ManifestSignerThumbprint) {
+        throw "Packaged executable signer thumbprint does not match build-manifest.json."
+    }
+
+    $VerifiedPackageSignerThumbprint = $ActualSignerThumbprint
+    $VerifiedPackageSignerSubject = $PackageSignature.SignerCertificate.Subject
+} elseif ($PackageManifest.signer_thumbprint -or $PackageManifest.signer_subject) {
+    throw "Unsigned package manifest must not contain signer identity metadata."
+}
+
+if (-not $SkipTests) {
+    Invoke-Checked $Python -m pytest -q tests/test_v8_windows_packaging.py tests/test_v8_windows_installer.py
+}
+
+$Compiler = Resolve-Iscc $Iscc
+$InstallerDefinition = Join-Path $RepoRoot "packaging\windows\DPN-AI.iss"
+$InstallerOutput = Join-Path $RepoRoot "dist\installer"
+if (-not (Test-Path $InstallerDefinition)) { throw "Installer definition is missing." }
+Remove-Item -Recurse -Force $InstallerOutput -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $InstallerOutput | Out-Null
+
+Invoke-Checked $Compiler "/DAppVersion=$Version" "/DSourceDir=$PackageDir" "/DOutputDir=$InstallerOutput" $InstallerDefinition
+
+$InstallerName = "DPN-AI-Setup-$Version.exe"
+$InstallerExe = Join-Path $InstallerOutput $InstallerName
+if (-not (Test-Path $InstallerExe)) {
+    throw "Inno Setup completed without producing $InstallerName"
+}
+
+$SigningState = "unsigned-development-installer"
+$SignerThumbprint = $null
+$SignerSubject = $null
+if ($CertificateThumbprint) {
+    $signScript = Join-Path $PSScriptRoot "sign.ps1"
+    $signingJson = & $signScript -FilePath $InstallerExe -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    if ($LASTEXITCODE -ne 0) { throw "Installer signing helper failed." }
+    $signing = $signingJson | ConvertFrom-Json
+    if ($signing.status -ne "signed-production-artifact") {
+        throw "Unexpected installer signing helper state '$($signing.status)'."
+    }
+    $SigningState = "signed-production-installer"
+    $SignerThumbprint = $signing.thumbprint
+    $SignerSubject = $signing.subject
+}
+if ($RequireSigned -and $SigningState -ne "signed-production-installer") {
+    throw "Production signing was required but the installer is not verified as signed."
+}
+
+$InstallerHash = (Get-FileHash -Algorithm SHA256 $InstallerExe).Hash.ToLowerInvariant()
+$InstallerManifest = [ordered]@{
+    product = "DPN AI"
+    publisher = "DPN Technology"
+    version = $Version
+    installer = $InstallerName
+    sha256 = $InstallerHash
+    source_executable_sha256 = $ActualPackageHash
+    source_executable_signing = $PackageManifest.signing
+    source_executable_signer_thumbprint = $VerifiedPackageSignerThumbprint
+    source_executable_signer_subject = $VerifiedPackageSignerSubject
+    source_dependency_lock_sha256 = $ManifestDependencyLockSha256
+    source_dependency_wheel_hash_lock_sha256 = $ManifestHashedDependencyLockSha256
+    architecture = "x64-compatible"
+    scope = "per-user-default"
+    upgrade_behavior = "same-app-id-in-place-upgrade-repair"
+    uninstall_data_policy = "preserve-user-data-outside-install-directory"
+    built_utc = [DateTime]::UtcNow.ToString("o")
+    signing = $SigningState
+    signer_thumbprint = $SignerThumbprint
+    signer_subject = $SignerSubject
+}
+$InstallerManifestPath = Join-Path $InstallerOutput "installer-manifest.json"
+$InstallerManifest | ConvertTo-Json -Depth 4 | Set-Content -Path $InstallerManifestPath -Encoding UTF8
+
+Write-Host "DPN AI Windows installer created: $InstallerExe"
+Write-Host "SHA-256: $InstallerHash"
+Write-Host "Signing: $SigningState"
+Write-Host "Manifest: $InstallerManifestPath"
+if ($SigningState -eq "unsigned-development-installer") {
+    Write-Host "NOTE: development installer remains unsigned. Use -RequireSigned with a trusted certificate for release builds."
+}
+) {
+        throw "Production installer build requires a valid GITHUB_SHA."
+    }
+    if ($ManifestSourceCommitSha -ne $ExpectedSourceCommitSha) {
+        throw "Packaged executable source commit does not match the release workflow commit."
+    }
+}
 
 $VerifiedPackageSignerThumbprint = $null
 $VerifiedPackageSignerSubject = $null
