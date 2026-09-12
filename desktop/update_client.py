@@ -4,7 +4,8 @@ Production builds package only the public Ed25519 update-verification key. The
 private signing key never enters the application. Update discovery is restricted
 to the official DPN-AI GitHub repository, every update manifest must verify
 against the packaged key, and installers are streamed to disk with signed
-size/SHA-256 enforcement before they are exposed to the desktop runtime.
+size/SHA-256 and Authenticode signer enforcement before they are exposed to the
+desktop runtime.
 
 This module never executes an installer.
 """
@@ -49,6 +50,7 @@ _SEMVER_RE = re.compile(
     r"(?:-(?P<pre>[0-9A-Za-z.-]+))?$"
 )
 _KEY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+_THUMBPRINT_RE = re.compile(r"^[A-F0-9]{40,64}$")
 
 
 class UpdateClientError(RuntimeError):
@@ -207,9 +209,12 @@ def _desktop_update_root() -> Path:
     return Path.home() / ".local" / "share" / "DPN Technology" / "DPN AI" / "updates"
 
 
-def verify_windows_authenticode(path: Path) -> bool:
-    """Require a valid Windows Authenticode signature without shell interpolation."""
+def verify_windows_authenticode(path: Path, *, expected_thumbprint: str | None = None) -> bool:
+    """Require a valid signature and, when supplied, the exact signed signer identity."""
     if sys.platform != "win32":
+        return False
+    expected = str(expected_thumbprint or "").replace(" ", "").strip().upper()
+    if expected and _THUMBPRINT_RE.fullmatch(expected) is None:
         return False
     env = dict(os.environ)
     env["DPN_UPDATE_VERIFY_PATH"] = str(path)
@@ -227,7 +232,12 @@ def verify_windows_authenticode(path: Path) -> bool:
         check=False,
         env=env,
     )
-    return result.returncode == 0 and bool(result.stdout.strip())
+    if result.returncode != 0:
+        return False
+    actual = result.stdout.strip().replace(" ", "").upper()
+    if _THUMBPRINT_RE.fullmatch(actual) is None:
+        return False
+    return not expected or hmac.compare_digest(actual, expected)
 
 
 class GitHubReleaseUpdateClient:
@@ -509,10 +519,13 @@ class GitHubReleaseUpdateClient:
             should_verify_authenticode = sys.platform == "win32" if require_authenticode is None else bool(require_authenticode)
             authenticode_verified = False
             if should_verify_authenticode:
-                authenticode_verified = verify_windows_authenticode(final_path)
+                authenticode_verified = verify_windows_authenticode(
+                    final_path,
+                    expected_thumbprint=artifact.signer_thumbprint,
+                )
                 if not authenticode_verified:
                     final_path.unlink(missing_ok=True)
-                    raise UpdateClientError("downloaded installer failed Authenticode verification")
+                    raise UpdateClientError("downloaded installer failed Authenticode signer verification")
 
             return VerifiedUpdateDownload(
                 path=final_path,
