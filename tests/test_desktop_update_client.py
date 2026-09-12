@@ -3,17 +3,20 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+import desktop.update_client as update_client_module
 from desktop.update_client import (
     GitHubReleaseUpdateClient,
     UpdateClientError,
     UpdateTrustRoot,
     load_packaged_update_trust_root,
+    verify_windows_authenticode,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +25,7 @@ WRITER_SPEC = importlib.util.spec_from_file_location("dpn_update_trust_writer", 
 assert WRITER_SPEC and WRITER_SPEC.loader
 WRITER = importlib.util.module_from_spec(WRITER_SPEC)
 WRITER_SPEC.loader.exec_module(WRITER)
+SIGNER_THUMBPRINT = "A" * 40
 
 
 def _keypair() -> tuple[Ed25519PrivateKey, str]:
@@ -53,6 +57,7 @@ def _signed_manifest(private: Ed25519PrivateKey, payload: bytes, *, version: str
         "filename": f"DPN-AI-Setup-{version}.exe",
         "sha256": hashlib.sha256(payload).hexdigest(),
         "size": len(payload),
+        "signer_thumbprint": SIGNER_THUMBPRINT,
     }
     public = private.public_key().public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -62,7 +67,7 @@ def _signed_manifest(private: Ed25519PrivateKey, payload: bytes, *, version: str
         "artifact": artifact,
         "key_id": "release-ed25519-v1",
         "repository": "directordiesel/DPN-AI",
-        "schema_version": 2,
+        "schema_version": 3,
         "signing_key_fingerprint_sha256": hashlib.sha256(public).hexdigest(),
     }
     canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -130,6 +135,7 @@ async def test_signed_release_discovery_and_streamed_download(tmp_path: Path):
     candidate = await client.check_for_update("10.0.1", channel="stable")
     assert candidate is not None
     assert candidate.manifest.artifact.version == "10.0.2"
+    assert candidate.manifest.artifact.signer_thumbprint == SIGNER_THUMBPRINT
 
     result = await client.download_verified_installer(
         candidate,
@@ -243,6 +249,20 @@ def test_trust_root_writer_rejects_malformed_public_keys():
             WRITER.build_trust_root(value)
 
 
+def test_windows_authenticode_requires_exact_expected_signer(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    installer = tmp_path / "installer.exe"
+    installer.write_bytes(b"signed")
+    monkeypatch.setattr(update_client_module.sys, "platform", "win32")
+
+    def fake_run(*args, **kwargs):
+        del args, kwargs
+        return SimpleNamespace(returncode=0, stdout=f"{SIGNER_THUMBPRINT}\n")
+
+    monkeypatch.setattr(update_client_module.subprocess, "run", fake_run)
+    assert verify_windows_authenticode(installer, expected_thumbprint=SIGNER_THUMBPRINT) is True
+    assert verify_windows_authenticode(installer, expected_thumbprint="B" * 40) is False
+
+
 @pytest.mark.asyncio
 async def test_production_update_rejects_tampered_signed_trust_metadata():
     private, public_hex = _keypair()
@@ -286,6 +306,43 @@ async def test_production_update_rejects_legacy_artifact_only_manifest():
         if request.url.host == "api.github.com":
             return httpx.Response(200, json=release_json)
         return httpx.Response(200, content=legacy.encode("utf-8"))
+
+    client = GitHubReleaseUpdateClient(trust, transport=httpx.MockTransport(handler))
+    with pytest.raises(UpdateClientError, match="current signed trust schema"):
+        await client.check_for_update("10.0.1")
+
+
+@pytest.mark.asyncio
+async def test_production_update_rejects_previous_schema_without_signed_windows_signer():
+    private, public_hex = _keypair()
+    trust = _trust(private, public_hex)
+    installer = b"installer"
+    artifact = {
+        "version": "10.0.2",
+        "channel": "stable",
+        "filename": "DPN-AI-Setup-10.0.2.exe",
+        "sha256": hashlib.sha256(installer).hexdigest(),
+        "size": len(installer),
+    }
+    public = private.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    signed = {
+        "artifact": artifact,
+        "key_id": "release-ed25519-v1",
+        "repository": "directordiesel/DPN-AI",
+        "schema_version": 2,
+        "signing_key_fingerprint_sha256": hashlib.sha256(public).hexdigest(),
+    }
+    canonical = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    previous = json.dumps({**signed, "signature_algorithm": "ed25519", "signature": private.sign(canonical).hex()})
+    release_json = _release_payload("update-manifest.json", artifact["filename"])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "api.github.com":
+            return httpx.Response(200, json=release_json)
+        return httpx.Response(200, content=previous.encode("utf-8"))
 
     client = GitHubReleaseUpdateClient(trust, transport=httpx.MockTransport(handler))
     with pytest.raises(UpdateClientError, match="current signed trust schema"):
