@@ -10,7 +10,12 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from app.db import Database
-from app.network_security import NetworkSecurityError, resolve_url_endpoint, verify_httpx_response_peer
+from app.network_security import (
+    NetworkSecurityError,
+    PinnedAsyncHTTPTransport,
+    resolve_url_endpoint,
+    verify_httpx_response_peer,
+)
 from app.persistence_security import sanitize_for_persistence
 from app.vault import SecretVault
 
@@ -22,6 +27,16 @@ _SECRET_HEADER_VALUE = re.compile(
     r"(?i)^(?:(?:bearer|basic)\s+)?\{\{secret:[A-Za-z0-9_.-]{1,100}\}\}$"
 )
 _SENSITIVE_HEADER_PARTS = ("authorization", "cookie", "token", "secret", "api-key", "apikey", "credential")
+_FORBIDDEN_CONNECTOR_HEADERS = {
+    "connection",
+    "content-length",
+    "host",
+    "proxy-connection",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+}
 
 
 class ConnectorHub:
@@ -53,6 +68,8 @@ class ConnectorHub:
             if len(value) > 8000 or any(ch in value for ch in ("\r", "\n", "\x00")):
                 return False, f"Connector header {name} contains an invalid or oversized value"
             normalized = name.lower()
+            if normalized in _FORBIDDEN_CONNECTOR_HEADERS:
+                return False, f"Connector header {name} is controlled by the HTTP transport"
             if any(part in normalized for part in _SENSITIVE_HEADER_PARTS) and not _SECRET_HEADER_VALUE.fullmatch(value):
                 return False, f"Sensitive connector header {name} must use an encrypted {{secret:NAME}} reference"
             safe[name] = value
@@ -157,7 +174,13 @@ class ConnectorHub:
             headers = self.vault.resolve(config.get("headers", {}))
             body = self.vault.resolve(json_body)
             timeout = max(5, min(timeout_seconds, 120))
-            async with httpx.AsyncClient(trust_env=False, timeout=timeout, follow_redirects=False) as client:
+            transport = PinnedAsyncHTTPTransport(endpoint)
+            async with httpx.AsyncClient(
+                trust_env=False,
+                timeout=timeout,
+                follow_redirects=False,
+                transport=transport,
+            ) as client:
                 async with client.stream(method, url, params=params, json=body, headers=headers) as response:
                     verify_httpx_response_peer(response, endpoint)
                     content_length = int(response.headers.get("content-length", "0") or 0)
