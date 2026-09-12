@@ -91,7 +91,13 @@ if ($ManifestDependencyLockSha256 -ne $ExpectedDependencyLockSha256) {
     throw "Packaged executable was not built from the committed production dependency lock."
 }
 $ManifestHashedDependencyLockSha256 = ([string]$PackageManifest.dependency_wheel_hash_lock_sha256).ToLowerInvariant()
-if ($ManifestHashedDependencyLockSha256 -notmatch '^[0-9a-f]{64}
+if ($ManifestHashedDependencyLockSha256 -notmatch '^[0-9a-f]{64}$') {
+    throw "Package manifest wheel hash lock hash is invalid."
+}
+if ($ManifestHashedDependencyLockSha256 -ne $ExpectedHashedDependencyLockSha256) {
+    throw "Packaged executable was not built from the committed Windows wheel hash lock."
+}
+
 $VerifiedPackageSignerThumbprint = $null
 $VerifiedPackageSignerSubject = $null
 if ($PackageManifest.signing -eq "signed-production-artifact") {
