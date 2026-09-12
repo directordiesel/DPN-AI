@@ -21,6 +21,7 @@ from desktop.updater import (
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RELEASE_LOCK_PATH = REPOSITORY_ROOT / "requirements-release.lock"
+HASHED_RELEASE_LOCK_PATH = REPOSITORY_ROOT / "requirements-release-win312.lock"
 
 
 def sha256_file(path: Path) -> str:
@@ -83,6 +84,9 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
     if RELEASE_LOCK_PATH.is_symlink() or not RELEASE_LOCK_PATH.is_file():
         raise ValueError("committed production dependency lock is missing or unsafe")
     expected_lock_digest = sha256_file(RELEASE_LOCK_PATH)
+    if HASHED_RELEASE_LOCK_PATH.is_symlink() or not HASHED_RELEASE_LOCK_PATH.is_file():
+        raise ValueError("committed Windows wheel hash lock is missing or unsafe")
+    expected_hashed_lock_digest = sha256_file(HASHED_RELEASE_LOCK_PATH)
 
     installer_manifest = json.loads((root / "installer-manifest.json").read_text(encoding="utf-8-sig"))
     if not isinstance(installer_manifest, dict):
@@ -98,6 +102,11 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
     installer_lock_digest = str(installer_manifest.get("source_dependency_lock_sha256") or "").strip().lower()
     if not hmac.compare_digest(installer_lock_digest, expected_lock_digest):
         raise ValueError("installer manifest dependency lock does not match committed release lock")
+    installer_hashed_lock_digest = str(
+        installer_manifest.get("source_dependency_wheel_hash_lock_sha256") or ""
+    ).strip().lower()
+    if not hmac.compare_digest(installer_hashed_lock_digest, expected_hashed_lock_digest):
+        raise ValueError("installer manifest wheel hash lock does not match committed Windows hash lock")
     thumbprint = str(installer_manifest.get("signer_thumbprint") or "").replace(" ", "").upper()
     if re.fullmatch(r"[A-F0-9]{40,64}", thumbprint) is None:
         raise ValueError("installer signer thumbprint is invalid")
@@ -116,6 +125,13 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
         raise ValueError("source build dependency lock does not match committed release lock")
     if not hmac.compare_digest(source_lock_digest, installer_lock_digest):
         raise ValueError("source and installer dependency lock identities differ")
+    source_hashed_lock_digest = str(
+        source_manifest.get("dependency_wheel_hash_lock_sha256") or ""
+    ).strip().lower()
+    if not hmac.compare_digest(source_hashed_lock_digest, expected_hashed_lock_digest):
+        raise ValueError("source build wheel hash lock does not match committed Windows hash lock")
+    if not hmac.compare_digest(source_hashed_lock_digest, installer_hashed_lock_digest):
+        raise ValueError("source and installer wheel hash lock identities differ")
     if source_manifest.get("update_trust_configured") is not True:
         raise ValueError("source build manifest does not record a packaged update trust root")
     trust_file_digest = str(source_manifest.get("update_trust_root_sha256") or "").strip().lower()
