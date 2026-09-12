@@ -91,6 +91,16 @@ try {
         throw "Imported PFX contains no certificate with a private key."
     }
 
+    $Now = Get-Date
+    if ($Certificate.NotBefore -gt $Now -or $Certificate.NotAfter -le $Now) {
+        throw "Production signing certificate is not currently valid."
+    }
+    $CodeSigningOid = "1.3.6.1.5.5.7.3.3"
+    $EnhancedKeyUsageOids = @($Certificate.EnhancedKeyUsageList | ForEach-Object { $_.ObjectId.Value })
+    if ($EnhancedKeyUsageOids -notcontains $CodeSigningOid) {
+        throw "Production signing certificate is not authorized for code signing."
+    }
+
     $CertificateThumbprint = (($Certificate.Thumbprint -replace '\s','')).ToUpperInvariant()
     if ($CertificateThumbprint -notmatch '^[A-F0-9]{40,64}$') {
         throw "Imported signing certificate returned an invalid thumbprint."
