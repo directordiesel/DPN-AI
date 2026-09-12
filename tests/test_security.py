@@ -251,6 +251,21 @@ def test_connector_rejects_header_injection(tmp_path: Path) -> None:
     assert result["ok"] is False
     hub.db.create_connector.assert_not_called()
 
+@pytest.mark.parametrize("header_name", ["Host", "Content-Length", "Transfer-Encoding", "Connection"])
+def test_connector_rejects_transport_control_headers(tmp_path: Path, header_name: str) -> None:
+    hub = _connector_hub(tmp_path)
+    fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
+        result = hub.create(
+            "transport-header",
+            "https://example.test/api",
+            headers={header_name: "attacker-controlled"},
+        )
+    assert result["ok"] is False
+    assert "controlled by the http transport" in result["error"].lower()
+    hub.db.create_connector.assert_not_called()
+
+
 def test_connector_accepts_public_allowlisted_configuration(tmp_path: Path) -> None:
     hub = _connector_hub(tmp_path)
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
