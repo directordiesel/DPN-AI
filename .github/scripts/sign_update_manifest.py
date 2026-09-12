@@ -19,10 +19,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ALLOWED_CHANNELS = {"stable", "beta"}
 HASH_CHUNK_BYTES = 1024 * 1024
-MANIFEST_SCHEMA_VERSION = 3
+MANIFEST_SCHEMA_VERSION = 4
 REPOSITORY = "directordiesel/DPN-AI"
 KEY_ID = "release-ed25519-v1"
 THUMBPRINT_RE = re.compile(r"^[A-F0-9]{40,64}$")
+GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40,64}$")
 
 
 def sha256_file(path: Path) -> str:
@@ -107,6 +108,9 @@ def build_signed_update_manifest(
     signer_thumbprint = str(installer_manifest.get("signer_thumbprint") or "").replace(" ", "").strip().upper()
     if THUMBPRINT_RE.fullmatch(signer_thumbprint) is None:
         raise ValueError("installer manifest Authenticode signer thumbprint is invalid")
+    source_commit_sha = str(installer_manifest.get("source_commit_sha") or "").strip().lower()
+    if GIT_COMMIT_RE.fullmatch(source_commit_sha) is None:
+        raise ValueError("installer manifest source commit SHA is invalid")
 
     size = installer.stat().st_size
     if size <= 0:
@@ -126,6 +130,7 @@ def build_signed_update_manifest(
         "sha256": digest,
         "size": size,
         "signer_thumbprint": signer_thumbprint,
+        "source_commit_sha": source_commit_sha,
     }
     signed_payload = {
         "artifact": artifact,
