@@ -57,9 +57,93 @@ if ($UpdateTrustConfigured) {
         throw "Update trust root public key is invalid."
     }
     $UpdateTrustPublicKeySha256 = ([string]$UpdateTrustData.public_key_sha256).ToLowerInvariant()
-    if ($UpdateTrustPublicKeySha256 -notmatch '^[0-9a-f]{64}$') {
+    if ($UpdateTrustPublicKeySha256 -notmatch '^[0-9a-f]{64}    throw "Production signing requires the packaged public update trust root."
+}
+
+if (-not $SkipInstall) {
+    Invoke-Checked $Python -m pip install --disable-pip-version-check -r requirements-build.txt
+}
+
+if (-not $SkipTests) {
+    Invoke-Checked $Python -m pytest -q tests/test_v8_desktop_platform.py tests/test_v8_desktop_supervisor.py tests/test_v8_desktop_control_center.py tests/test_v8_desktop_service_api.py tests/test_v8_windows_packaging.py
+}
+
+$DistRoot = Join-Path $RepoRoot "dist"
+$BuildRoot = Join-Path $RepoRoot "build"
+Remove-Item -Recurse -Force (Join-Path $DistRoot "DPN-AI") -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force (Join-Path $BuildRoot "DPN-AI") -ErrorAction SilentlyContinue
+
+Invoke-Checked $Python -m PyInstaller --noconfirm --clean --distpath $DistRoot --workpath $BuildRoot (Join-Path $RepoRoot "packaging\windows\DPN-AI.spec")
+
+$Exe = Join-Path $DistRoot "DPN-AI\DPN-AI.exe"
+if (-not (Test-Path $Exe)) {
+    throw "PyInstaller completed without producing DPN-AI.exe"
+}
+
+$PackagedTrustRoots = @(
+    Get-ChildItem -Path (Join-Path $DistRoot "DPN-AI") -Filter "update-trust.json" -File -Recurse -ErrorAction SilentlyContinue
+)
+if ($UpdateTrustConfigured) {
+    if ($PackagedTrustRoots.Count -ne 1) {
+        throw "Production package must contain exactly one update-trust.json file."
+    }
+    $PackagedTrustHash = (Get-FileHash -Algorithm SHA256 $PackagedTrustRoots[0].FullName).Hash.ToLowerInvariant()
+    if ($PackagedTrustHash -ne $UpdateTrustRootSha256) {
+        throw "Packaged update trust root does not match the configured production trust root."
+    }
+} elseif ($PackagedTrustRoots.Count -ne 0) {
+    throw "Development package unexpectedly contains an update trust root."
+}
+
+$SigningState = "unsigned-development-artifact"
+$SignerThumbprint = $null
+$SignerSubject = $null
+if ($CertificateThumbprint) {
+    $signScript = Join-Path $PSScriptRoot "sign.ps1"
+    $signingJson = & $signScript -FilePath $Exe -CertificateThumbprint $CertificateThumbprint -TimestampUrl $TimestampUrl
+    if ($LASTEXITCODE -ne 0) { throw "Production signing helper failed." }
+    $signing = $signingJson | ConvertFrom-Json
+    if ($signing.status -ne "signed-production-artifact") {
+        throw "Unexpected signing helper state '$($signing.status)'."
+    }
+    $SigningState = "signed-production-artifact"
+    $SignerThumbprint = $signing.thumbprint
+    $SignerSubject = $signing.subject
+}
+if ($RequireSigned -and $SigningState -ne "signed-production-artifact") {
+    throw "Production signing was required but DPN-AI.exe is not verified as signed."
+}
+
+$Version = (Get-Content (Join-Path $RepoRoot "VERSION") -Raw).Trim()
+$Hash = (Get-FileHash -Algorithm SHA256 $Exe).Hash.ToLowerInvariant()
+$Manifest = [ordered]@{
+    product = "DPN AI"
+    version = $Version
+    executable = "DPN-AI.exe"
+    sha256 = $Hash
+    architecture = $env:PROCESSOR_ARCHITECTURE
+    built_utc = [DateTime]::UtcNow.ToString("o")
+    signing = $SigningState
+    signer_thumbprint = $SignerThumbprint
+    signer_subject = $SignerSubject
+    update_trust_configured = $UpdateTrustConfigured
+    update_trust_root_sha256 = $UpdateTrustRootSha256
+    update_trust_public_key_sha256 = $UpdateTrustPublicKeySha256
+}
+$ManifestPath = Join-Path $DistRoot "DPN-AI\build-manifest.json"
+$Manifest | ConvertTo-Json -Depth 4 | Set-Content -Path $ManifestPath -Encoding UTF8
+
+Write-Host "DPN AI Windows package created: $Exe"
+Write-Host "SHA-256: $Hash"
+Write-Host "Signing: $SigningState"
+Write-Host "Manifest: $ManifestPath"
+if ($SigningState -eq "unsigned-development-artifact") {
+    Write-Host "NOTE: development artifact remains unsigned. Use -RequireSigned with a trusted certificate for release builds."
+}
+) {
         throw "Update trust root public-key fingerprint is invalid."
     }
+}
 if ($RequireSigned -and -not $UpdateTrustConfigured) {
     throw "Production signing requires the packaged public update trust root."
 }
