@@ -3,6 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+LOCK_VERIFY = (ROOT / ".github/scripts/verify_release_lock.py").read_text(encoding="utf-8")
 
 
 def _publication_job() -> str:
@@ -11,7 +12,7 @@ def _publication_job() -> str:
 
 def test_release_publication_uses_exact_production_dependency_closure():
     publication = _publication_job()
-    assert 'python-version: "3.12"' in publication
+    assert 'python-version: "3.12.10"' in publication
     assert "requirements-release.lock" in publication
     assert "--no-deps" in publication
     assert "--only-binary=:all:" in publication
@@ -19,6 +20,13 @@ def test_release_publication_uses_exact_production_dependency_closure():
     assert "python -m pip check" in publication
     assert "requirements-dev.txt" not in publication
     assert "pip install --upgrade pip" not in publication
+
+
+def test_all_release_jobs_pin_same_exact_python_patch():
+    assert RELEASE.count('python-version: "3.12.10"') == 3
+    assert 'python-version: "3.12"' not in RELEASE
+    assert "RELEASE_PYTHON = (3, 12, 10)" in LOCK_VERIFY
+    assert "sys.version_info[:3] != RELEASE_PYTHON" in LOCK_VERIFY
 
 
 def test_security_audit_toolchain_uses_exact_declared_closure_without_dependency_resolution():
