@@ -9,7 +9,14 @@ import os
 import re
 from pathlib import Path
 
-from desktop.updater import SignedUpdateManifest, verify_artifact, verify_manifest_signature
+from desktop.updater import (
+    UPDATE_KEY_ID,
+    UPDATE_REPOSITORY,
+    SignedUpdateManifest,
+    validate_manifest_trust_binding,
+    verify_artifact,
+    verify_manifest_signature,
+)
 
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -111,6 +118,12 @@ def verify_bundle(root: Path, *, version: str, channel: str, public_key_hex: str
     update_manifest = SignedUpdateManifest.parse((root / "update-manifest.json").read_text(encoding="utf-8"))
     if not verify_manifest_signature(update_manifest, bytes.fromhex(public_hex)):
         raise ValueError("update manifest Ed25519 verification failed")
+    validate_manifest_trust_binding(
+        update_manifest,
+        repository=UPDATE_REPOSITORY,
+        key_id=UPDATE_KEY_ID,
+        public_key_sha256=expected_key_fingerprint,
+    )
     verify_artifact(installer, update_manifest.artifact)
     if update_manifest.artifact.version != version:
         raise ValueError("update manifest version mismatch")

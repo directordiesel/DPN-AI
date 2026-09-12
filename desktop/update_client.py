@@ -26,10 +26,16 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from desktop.updater import SignedUpdateManifest, verify_artifact, verify_manifest_signature
+from desktop.updater import (
+    UPDATE_KEY_ID,
+    UPDATE_REPOSITORY,
+    SignedUpdateManifest,
+    validate_manifest_trust_binding,
+    verify_artifact,
+    verify_manifest_signature,
+)
 
 
-UPDATE_REPOSITORY = "directordiesel/DPN-AI"
 UPDATE_API_URL = f"https://api.github.com/repos/{UPDATE_REPOSITORY}/releases?per_page=20"
 UPDATE_TRUST_FILENAME = "update-trust.json"
 UPDATE_USER_AGENT = "DPN-AI-Secure-Updater/1"
@@ -67,8 +73,8 @@ class UpdateTrustRoot:
         if repository != UPDATE_REPOSITORY:
             raise UpdateClientError("update trust root repository is not authorized")
         key_id = str(data.get("key_id") or "").strip()
-        if _KEY_ID_RE.fullmatch(key_id) is None:
-            raise UpdateClientError("update trust root key id is invalid")
+        if _KEY_ID_RE.fullmatch(key_id) is None or key_id != UPDATE_KEY_ID:
+            raise UpdateClientError("update trust root key id is not authorized")
         public_hex = str(data.get("ed25519_public_key_hex") or "").strip().lower()
         if len(public_hex) != 64 or any(ch not in "0123456789abcdef" for ch in public_hex):
             raise UpdateClientError("update trust root public key is invalid")
@@ -337,6 +343,15 @@ class GitHubReleaseUpdateClient:
             raise UpdateClientError("published update manifest is invalid") from exc
         if not verify_manifest_signature(manifest, self.trust_root.public_key):
             raise UpdateClientError("published update manifest signature verification failed")
+        try:
+            validate_manifest_trust_binding(
+                manifest,
+                repository=self.trust_root.repository,
+                key_id=self.trust_root.key_id,
+                public_key_sha256=self.trust_root.public_key_sha256,
+            )
+        except ValueError as exc:
+            raise UpdateClientError(f"published update manifest trust binding failed: {exc}") from exc
         if manifest.artifact.channel != channel:
             raise UpdateClientError("published update manifest channel does not match release channel")
 
@@ -388,6 +403,15 @@ class GitHubReleaseUpdateClient:
         artifact = candidate.manifest.artifact
         if not verify_manifest_signature(candidate.manifest, self.trust_root.public_key):
             raise UpdateClientError("update manifest signature verification failed before download")
+        try:
+            validate_manifest_trust_binding(
+                candidate.manifest,
+                repository=self.trust_root.repository,
+                key_id=self.trust_root.key_id,
+                public_key_sha256=self.trust_root.public_key_sha256,
+            )
+        except ValueError as exc:
+            raise UpdateClientError(f"update manifest trust binding failed before download: {exc}") from exc
         destination = Path(destination_dir) if destination_dir is not None else _desktop_update_root()
         if destination.is_symlink():
             raise UpdateClientError("update destination must not be a symlink")

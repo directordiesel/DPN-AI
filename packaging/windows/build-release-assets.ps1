@@ -156,7 +156,7 @@ try {
 from pathlib import Path
 import os
 
-from desktop.updater import SignedUpdateManifest, verify_artifact, verify_manifest_signature
+from desktop.updater import UPDATE_KEY_ID, UPDATE_REPOSITORY, SignedUpdateManifest, validate_manifest_trust_binding, verify_artifact, verify_manifest_signature
 
 root = Path("dist/installer")
 version = os.environ["DPN_RELEASE_VERSION"]
@@ -168,6 +168,12 @@ if len(public_hex) != 64 or any(ch not in "0123456789abcdef" for ch in public_he
     raise SystemExit("Configured update public key is invalid")
 if not verify_manifest_signature(manifest, bytes.fromhex(public_hex)):
     raise SystemExit("Update manifest Ed25519 verification failed")
+validate_manifest_trust_binding(
+    manifest,
+    repository=UPDATE_REPOSITORY,
+    key_id=UPDATE_KEY_ID,
+    public_key_sha256=__import__("hashlib").sha256(bytes.fromhex(public_hex)).hexdigest(),
+)
 verify_artifact(installer, manifest.artifact)
 if manifest.artifact.version != version:
     raise SystemExit("Update manifest version mismatch")

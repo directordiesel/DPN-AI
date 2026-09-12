@@ -1,8 +1,10 @@
-"""DPN AI v8 updater and rollback contracts.
+"""DPN AI updater and rollback security contracts.
 
-The updater is intentionally fail-closed. It verifies signed release metadata,
-artifact integrity, channel compatibility, and rollback availability before an
-update can be staged for activation.
+Production update manifests use an Ed25519-signed schema that binds the
+artifact to the official repository, signing-key identity, and verification-key
+fingerprint. Legacy artifact-only manifests remain parseable for development
+compatibility, but production callers must explicitly require the current trust
+binding.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -20,6 +23,11 @@ from typing import Any
 
 ALLOWED_CHANNELS = {"stable", "beta", "dev"}
 HASH_CHUNK_BYTES = 1024 * 1024
+UPDATE_MANIFEST_SCHEMA_VERSION = 2
+UPDATE_REPOSITORY = "directordiesel/DPN-AI"
+UPDATE_KEY_ID = "release-ed25519-v1"
+_KEY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,80}$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _sha256_file(path: Path) -> str:
@@ -58,10 +66,19 @@ class UpdateArtifact:
             raise ValueError("invalid update channel")
         if not self.filename or Path(self.filename).name != self.filename:
             raise ValueError("update filename must be a basename")
-        if len(self.sha256) != 64 or any(ch not in "0123456789abcdef" for ch in self.sha256):
+        if _SHA256_RE.fullmatch(self.sha256) is None:
             raise ValueError("update sha256 must be a lowercase 64-character digest")
         if self.size <= 0:
             raise ValueError("update artifact size must be positive")
+
+    def canonical_dict(self) -> dict[str, Any]:
+        return {
+            "channel": self.channel,
+            "filename": self.filename,
+            "sha256": self.sha256,
+            "size": self.size,
+            "version": self.version,
+        }
 
 
 @dataclass(frozen=True)
@@ -69,6 +86,10 @@ class SignedUpdateManifest:
     artifact: UpdateArtifact
     signature: str
     signature_algorithm: str = "ed25519"
+    schema_version: int = 1
+    repository: str = ""
+    key_id: str = ""
+    signing_key_fingerprint_sha256: str = ""
 
     @classmethod
     def parse(cls, raw: str) -> "SignedUpdateManifest":
@@ -78,43 +99,90 @@ class SignedUpdateManifest:
         algorithm = str(data.get("signature_algorithm", "")).strip().lower()
         if algorithm != "ed25519":
             raise ValueError("update manifest must use Ed25519 signatures")
+        try:
+            schema_version = int(data.get("schema_version", 1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("update manifest schema version is invalid") from exc
+        if schema_version not in {1, UPDATE_MANIFEST_SCHEMA_VERSION}:
+            raise ValueError("unsupported update manifest schema version")
+
+        repository = str(data.get("repository") or "").strip()
+        key_id = str(data.get("key_id") or "").strip()
+        fingerprint = str(data.get("signing_key_fingerprint_sha256") or "").strip().lower()
+        if schema_version == UPDATE_MANIFEST_SCHEMA_VERSION:
+            if not repository or "/" not in repository:
+                raise ValueError("update manifest repository binding is invalid")
+            if _KEY_ID_RE.fullmatch(key_id) is None:
+                raise ValueError("update manifest key id is invalid")
+            if _SHA256_RE.fullmatch(fingerprint) is None:
+                raise ValueError("update manifest signing-key fingerprint is invalid")
+        elif repository or key_id or fingerprint:
+            raise ValueError("legacy update manifest must not contain unsigned trust metadata")
+
         manifest = cls(
             artifact=UpdateArtifact.from_dict(data["artifact"]),
             signature=str(data.get("signature", "")).strip().lower(),
             signature_algorithm=algorithm,
+            schema_version=schema_version,
+            repository=repository,
+            key_id=key_id,
+            signing_key_fingerprint_sha256=fingerprint,
         )
         manifest.artifact.validate()
         if len(manifest.signature) != 128 or any(ch not in "0123456789abcdef" for ch in manifest.signature):
             raise ValueError("invalid Ed25519 update manifest signature")
         return manifest
 
-    def canonical_artifact_json(self) -> bytes:
-        payload = {
-            "channel": self.artifact.channel,
-            "filename": self.artifact.filename,
-            "sha256": self.artifact.sha256,
-            "size": self.artifact.size,
-            "version": self.artifact.version,
-        }
+    def canonical_signed_json(self) -> bytes:
+        if self.schema_version == 1:
+            payload: dict[str, Any] = self.artifact.canonical_dict()
+        else:
+            payload = {
+                "artifact": self.artifact.canonical_dict(),
+                "key_id": self.key_id,
+                "repository": self.repository,
+                "schema_version": self.schema_version,
+                "signing_key_fingerprint_sha256": self.signing_key_fingerprint_sha256,
+            }
         return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    def canonical_artifact_json(self) -> bytes:
+        """Backward-compatible alias used by older development tests."""
+        return self.canonical_signed_json()
 
 
 def verify_manifest_signature(manifest: SignedUpdateManifest, verification_key: bytes) -> bool:
-    """Verify release metadata with an Ed25519 public key.
-
-    The application requires only the 32-byte public verification key. The
-    private signing key must remain outside distributable source, installers,
-    runtime state, and update metadata.
-    """
+    """Verify the signed update manifest with a 32-byte Ed25519 public key."""
     if manifest.signature_algorithm != "ed25519" or len(verification_key) != 32:
         return False
     try:
         public_key = Ed25519PublicKey.from_public_bytes(verification_key)
         signature = bytes.fromhex(manifest.signature)
-        public_key.verify(signature, manifest.canonical_artifact_json())
+        public_key.verify(signature, manifest.canonical_signed_json())
         return True
     except (InvalidSignature, ValueError):
         return False
+
+
+def validate_manifest_trust_binding(
+    manifest: SignedUpdateManifest,
+    *,
+    repository: str,
+    key_id: str,
+    public_key_sha256: str,
+) -> None:
+    """Require the current production schema and its signed trust identity."""
+    if manifest.schema_version != UPDATE_MANIFEST_SCHEMA_VERSION:
+        raise ValueError("production update manifest must use the current signed trust schema")
+    if not hmac.compare_digest(manifest.repository, str(repository)):
+        raise ValueError("update manifest repository binding mismatch")
+    if not hmac.compare_digest(manifest.key_id, str(key_id)):
+        raise ValueError("update manifest key-id binding mismatch")
+    expected_fingerprint = str(public_key_sha256 or "").strip().lower()
+    if _SHA256_RE.fullmatch(expected_fingerprint) is None:
+        raise ValueError("expected update verification-key fingerprint is invalid")
+    if not hmac.compare_digest(manifest.signing_key_fingerprint_sha256, expected_fingerprint):
+        raise ValueError("update manifest verification-key fingerprint mismatch")
 
 
 def verify_artifact(path: Path, artifact: UpdateArtifact) -> None:
@@ -151,7 +219,7 @@ class RollbackPlan:
             raise ValueError("verified rollback backup is required")
         if self.backup_size <= 0 or self.backup_path.stat().st_size != self.backup_size:
             raise ValueError("rollback backup size verification failed")
-        if len(self.backup_sha256) != 64 or any(ch not in "0123456789abcdef" for ch in self.backup_sha256):
+        if _SHA256_RE.fullmatch(self.backup_sha256) is None:
             raise ValueError("rollback backup sha256 is invalid")
         actual = _sha256_file(self.backup_path)
         if not hmac.compare_digest(actual, self.backup_sha256):
@@ -189,3 +257,18 @@ def stage_update(
     )
     plan.validate()
     return plan
+
+
+__all__ = [
+    "ALLOWED_CHANNELS",
+    "RollbackPlan",
+    "SignedUpdateManifest",
+    "UPDATE_KEY_ID",
+    "UPDATE_MANIFEST_SCHEMA_VERSION",
+    "UPDATE_REPOSITORY",
+    "UpdateArtifact",
+    "stage_update",
+    "validate_manifest_trust_binding",
+    "verify_artifact",
+    "verify_manifest_signature",
+]

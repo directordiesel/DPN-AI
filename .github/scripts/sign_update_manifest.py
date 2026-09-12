@@ -18,6 +18,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ALLOWED_CHANNELS = {"stable", "beta"}
 HASH_CHUNK_BYTES = 1024 * 1024
+MANIFEST_SCHEMA_VERSION = 2
+REPOSITORY = "directordiesel/DPN-AI"
+KEY_ID = "release-ed25519-v1"
 
 
 def sha256_file(path: Path) -> str:
@@ -118,7 +121,14 @@ def build_signed_update_manifest(
         "sha256": digest,
         "size": size,
     }
-    canonical = json.dumps(artifact, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signed_payload = {
+        "artifact": artifact,
+        "key_id": KEY_ID,
+        "repository": REPOSITORY,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "signing_key_fingerprint_sha256": hashlib.sha256(public_key).hexdigest(),
+    }
+    canonical = json.dumps(signed_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     signature = private_key.sign(canonical)
     try:
         private_key.public_key().verify(signature, canonical)
@@ -126,10 +136,9 @@ def build_signed_update_manifest(
         raise ValueError("generated update signature failed self-verification") from exc
 
     return {
-        "artifact": artifact,
+        **signed_payload,
         "signature_algorithm": "ed25519",
         "signature": signature.hex(),
-        "signing_key_fingerprint_sha256": hashlib.sha256(public_key).hexdigest(),
     }
 
 
