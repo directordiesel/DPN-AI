@@ -145,7 +145,7 @@ def test_web_fetch_rejects_embedded_credentials() -> None:
 
 def test_web_fetch_rejects_loopback_resolution() -> None:
     fake_address = [(2, 1, 6, "", ("127.0.0.1", 443))]
-    with mock.patch("app.tools.web_tools.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         safe, reason = _safe_public_url("https://example.test/")
     assert safe is False
     assert "private" in reason.lower() or "reserved" in reason.lower()
@@ -153,7 +153,7 @@ def test_web_fetch_rejects_loopback_resolution() -> None:
 
 def test_web_fetch_accepts_public_resolution() -> None:
     fake_address = [(2, 1, 6, "", ("93.184.216.34", 443))]
-    with mock.patch("app.tools.web_tools.socket.getaddrinfo", return_value=fake_address):
+    with mock.patch("app.network_security.socket.getaddrinfo", return_value=fake_address):
         safe, reason = _safe_public_url("https://example.test/")
     assert safe is True
     assert reason == ""
