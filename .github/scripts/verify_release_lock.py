@@ -14,6 +14,7 @@ from packaging.version import InvalidVersion, Version
 
 PIN_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;]+)$")
 INCLUDE_RE = re.compile(r"^(?:-r|--requirement)\s+(.+)$")
+RELEASE_PYTHON = (3, 12, 10)
 
 
 def _logical_lines(path: Path) -> list[str]:
@@ -117,8 +118,12 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.require_windows_python312:
-        if sys.platform != "win32" or sys.version_info[:2] != (3, 12):
-            raise SystemExit("Production release builds require Windows and CPython 3.12.")
+        if sys.platform != "win32" or sys.version_info[:3] != RELEASE_PYTHON:
+            required = ".".join(str(part) for part in RELEASE_PYTHON)
+            actual = ".".join(str(part) for part in sys.version_info[:3])
+            raise SystemExit(
+                f"Production release builds require Windows and CPython {required}; got {sys.platform} CPython {actual}."
+            )
 
     locked = load_lock(args.lock)
     declared = load_declared(args.requirements)
