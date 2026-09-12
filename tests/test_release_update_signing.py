@@ -16,6 +16,7 @@ SPEC = importlib.util.spec_from_file_location("dpn_sign_update_manifest", SCRIPT
 assert SPEC and SPEC.loader
 SIGNER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(SIGNER)
+SIGNER_THUMBPRINT = "A" * 40
 
 
 def _key_material() -> tuple[str, str, bytes]:
@@ -44,6 +45,7 @@ def _installer_fixture(tmp_path: Path, payload: bytes = b"signed-installer") -> 
                 "installer": installer.name,
                 "sha256": hashlib.sha256(payload).hexdigest(),
                 "signing": "signed-production-installer",
+                "signer_thumbprint": SIGNER_THUMBPRINT,
             }
         ),
         encoding="utf-8",
@@ -70,7 +72,8 @@ def test_release_signer_creates_updater_compatible_manifest(tmp_path: Path):
     assert parsed.artifact.filename == installer.name
     assert parsed.artifact.version == "10.0.1"
     assert parsed.artifact.channel == "stable"
-    assert payload["schema_version"] == 2
+    assert parsed.artifact.signer_thumbprint == SIGNER_THUMBPRINT
+    assert payload["schema_version"] == 3
     assert payload["repository"] == "directordiesel/DPN-AI"
     assert payload["key_id"] == "release-ed25519-v1"
     assert payload["signing_key_fingerprint_sha256"] == hashlib.sha256(public_bytes).hexdigest()
@@ -85,6 +88,24 @@ def test_release_signer_rejects_unsigned_installer(tmp_path: Path):
     installer_manifest.write_text(json.dumps(data), encoding="utf-8")
 
     with pytest.raises(ValueError, match="Authenticode-signed"):
+        SIGNER.build_signed_update_manifest(
+            installer=installer,
+            installer_manifest_path=installer_manifest,
+            version="10.0.1",
+            channel="stable",
+            private_key_b64=private_b64,
+            expected_public_key_hex=public_hex,
+        )
+
+
+def test_release_signer_rejects_missing_signer_thumbprint(tmp_path: Path):
+    private_b64, public_hex, _ = _key_material()
+    installer, installer_manifest = _installer_fixture(tmp_path)
+    data = json.loads(installer_manifest.read_text(encoding="utf-8"))
+    data.pop("signer_thumbprint")
+    installer_manifest.write_text(json.dumps(data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="signer thumbprint"):
         SIGNER.build_signed_update_manifest(
             installer=installer,
             installer_manifest_path=installer_manifest,
@@ -162,5 +183,21 @@ def test_release_signer_authenticates_trust_metadata(tmp_path: Path):
         expected_public_key_hex=public_hex,
     )
     payload["key_id"] = "attacker-key"
+    parsed = SignedUpdateManifest.parse(json.dumps(payload))
+    assert verify_manifest_signature(parsed, public_bytes) is False
+
+
+def test_release_signer_authenticates_windows_signer_identity(tmp_path: Path):
+    private_b64, public_hex, public_bytes = _key_material()
+    installer, installer_manifest = _installer_fixture(tmp_path)
+    payload = SIGNER.build_signed_update_manifest(
+        installer=installer,
+        installer_manifest_path=installer_manifest,
+        version="10.0.1",
+        channel="stable",
+        private_key_b64=private_b64,
+        expected_public_key_hex=public_hex,
+    )
+    payload["artifact"]["signer_thumbprint"] = "B" * 40
     parsed = SignedUpdateManifest.parse(json.dumps(payload))
     assert verify_manifest_signature(parsed, public_bytes) is False
