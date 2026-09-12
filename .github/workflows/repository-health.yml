@@ -50,7 +50,7 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          required = ["README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md", "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md", "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS", ".github/scripts/generate_supply_chain.py", ".github/scripts/sign_update_manifest.py", ".github/scripts/verify_windows_release_bundle.py", ".github/scripts/write_update_trust_root.py", ".github/scripts/verify_release_lock.py", "requirements-release.lock", "packaging/windows/build-release-assets.ps1", ".github/workflows/release.yml", ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml", ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml", ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml"]
+          required = ["README.md", "SECURITY.md", "CONTRIBUTING.md", "SUPPORT.md", "PROPRIETARY_NOTICE.md", "RELEASE_PROCESS.md", "ROADMAP.md", "CHANGELOG.md", "SUPPLY_CHAIN.md", ".github/CODEOWNERS", ".github/scripts/generate_supply_chain.py", ".github/scripts/sign_update_manifest.py", ".github/scripts/verify_windows_release_bundle.py", ".github/scripts/write_update_trust_root.py", ".github/scripts/verify_release_lock.py", ".github/scripts/generate_release_wheel_hash_lock.py", "requirements-release.lock", "requirements-release-win312.lock", "packaging/windows/build-release-assets.ps1", ".github/workflows/release.yml", ".github/workflows/supply-chain.yml", ".github/workflows/security-gate.yml", ".github/workflows/runtime-assurance.yml", ".github/workflows/ci.yml", ".github/dependabot.yml", ".github/PULL_REQUEST_TEMPLATE.md", ".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/security_or_infrastructure.yml", ".github/ISSUE_TEMPLATE/config.yml"]
           missing = [p for p in required if not Path(p).is_file()]
           if missing:
               raise SystemExit("Missing required standards: " + ", ".join(missing))
@@ -73,6 +73,48 @@ jobs:
           if len(names) != len(set(names)):
               raise SystemExit("requirements-release.lock contains duplicate package names")
           print(f"Validated {len(entries)} exact production dependency pins")
+      - name: Validate Windows production wheel hash lock syntax
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          plain_entries = {}
+          for raw in Path("requirements-release.lock").read_text(encoding="utf-8").splitlines():
+              line = raw.split("#", 1)[0].strip()
+              if not line:
+                  continue
+              name, version = line.split("==", 1)
+              plain_entries[name.lower().replace("_", "-")] = version
+
+          hashed_entries = {}
+          pattern = re.compile(
+              r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([^\s;]+) --hash=sha256:([0-9a-f]{64})$"
+          )
+          for raw in Path("requirements-release-win312.lock").read_text(encoding="utf-8").splitlines():
+              line = raw.split("#", 1)[0].strip()
+              if not line:
+                  continue
+              match = pattern.fullmatch(line)
+              if not match:
+                  raise SystemExit("requirements-release-win312.lock contains an invalid hashed pin: " + line)
+              name, version, digest = match.groups()
+              canonical = name.lower().replace("_", "-")
+              if canonical in hashed_entries:
+                  raise SystemExit("requirements-release-win312.lock contains a duplicate package: " + name)
+              hashed_entries[canonical] = (version, digest)
+
+          if set(hashed_entries) != set(plain_entries):
+              missing = sorted(set(plain_entries) - set(hashed_entries))
+              extra = sorted(set(hashed_entries) - set(plain_entries))
+              raise SystemExit(f"Windows wheel hash lock package mismatch; missing={missing}; extra={extra}")
+          mismatched = [
+              name for name, version in plain_entries.items()
+              if hashed_entries[name][0] != version
+          ]
+          if mismatched:
+              raise SystemExit("Windows wheel hash lock version mismatch: " + ", ".join(sorted(mismatched)))
+          print(f"Validated {len(hashed_entries)} exact Windows wheel hashes")
       - name: Enforce code ownership of security-critical surfaces
         shell: python
         run: |
@@ -171,11 +213,13 @@ jobs:
               failures.append("release workflow must validate and audit the exact production dependency lock")
           production_builder = Path("packaging/windows/build-release-assets.ps1").read_text(encoding="utf-8")
           package_builder = Path("packaging/windows/build.ps1").read_text(encoding="utf-8")
-          for required_token in ("-m venv", "--no-deps", "--only-binary=:all:", "requirements-release.lock", "verify_release_lock.py"):
+          for required_token in ("-m venv", "--require-hashes", "--no-deps", "--only-binary=:all:", "requirements-release.lock", "requirements-release-win312.lock", "verify_release_lock.py"):
               if required_token not in production_builder:
                   failures.append(f"production release builder is missing reproducibility control: {required_token}")
           if "dependency_lock_sha256" not in package_builder:
               failures.append("package build manifest must record the exact production dependency lock hash")
+          if "dependency_wheel_hash_lock_sha256" not in package_builder:
+              failures.append("package build manifest must record the exact Windows wheel hash lock hash")
           if "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" not in release:
               failures.append("release workflow must use the pinned GitHub provenance attestation action")
           windows_job = release.split("  windows-release-assets:", 1)[1].split("  release:", 1)[0] if "  windows-release-assets:" in release else ""
